@@ -1,0 +1,39 @@
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 col-lg-4">
+    <h1 class="text-center mb-4">Magic Mountain</h1>
+    <div class="card">
+      <div class="card-body">
+        <form id="login-form">
+          <div class="mb-3">
+            <label for="display-name" class="form-label">Display Name</label>
+            <input type="text" class="form-control" id="display-name"
+                   placeholder="Enter your name" autofocus required>
+          </div>
+          <div id="error-msg" class="text-danger mb-3" style="display:none"></div>
+          <button type="submit" class="btn btn-primary w-100">Enter the Mountain</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('display-name').value.trim();
+  const errEl = document.getElementById('error-msg');
+  errEl.style.display = 'none';
+  if (!name) return;
+  const resp = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName: name })
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    window.location.href = '/';
+  } else {
+    errEl.textContent = data.error;
+    errEl.style.display = 'block';
+  }
+});
+</script>
