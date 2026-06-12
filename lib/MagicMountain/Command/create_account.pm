@@ -19,8 +19,8 @@ sub run ($self, @args) {
     $account->save;
     
     say "Account created:";
-    say "  player_id:    $account->{id}";
-    say "  display_name: $account->{username}";
+    say "  player_id:    " . $account->getCol('id');
+    say "  display_name: " . $account->getCol('username');
 }
 
 1;

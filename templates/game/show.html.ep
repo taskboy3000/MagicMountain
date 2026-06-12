@@ -1,0 +1,67 @@
+<div class="row justify-content-center mt-5">
+  <div class="col-md-8 col-lg-6">
+    <h1 class="text-center mb-3">Magic Mountain</h1>
+
+    <div class="card mb-4">
+      <div class="card-body text-center">
+        <h5 class="card-title">Welcome, <%= $player_name %></h5>
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col">
+        <div class="card">
+          <div class="card-body text-center">
+            <h6 class="card-subtitle text-muted mb-2">Season</h6>
+            <h4 class="card-title"><%= $season_label %></h4>
+            <p class="card-text text-muted">
+              % if ($season_is_active) {
+                Day <%= $season_day %> of <%= $season_total_days %>
+              % } else {
+                No active season.
+              % }
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card h-100">
+          <div class="card-body">
+            <h6 class="card-subtitle text-muted mb-3 text-center">Expedition</h6>
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item text-muted">
+                Prospecting &mdash; not yet available
+              </li>
+              <li class="list-group-item text-muted">
+                Market &mdash; not yet available
+              </li>
+              <li class="list-group-item text-muted">
+                Combat Arena &mdash; not yet available
+              </li>
+              <li class="list-group-item text-muted">
+                Hall of Records &mdash; not yet available
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mb-3">
+      <a href="/logout" class="btn btn-outline-secondary">Leave the Mountain</a>
+    </div>
+    <div class="text-center">
+      <button id="delete-account-btn" class="btn btn-outline-danger btn-sm">Delete Account</button>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById('delete-account-btn').addEventListener('click', async () => {
+  if (!confirm('Delete your account permanently? This cannot be undone.')) return;
+  const resp = await fetch('/player', { method: 'DELETE' });
+  const data = await resp.json();
+  if (data.ok) {
+    window.location.href = '/login';
+  }
+});
+</script>

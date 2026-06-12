@@ -7,6 +7,10 @@ use Mojo::Home;
 use Time::HiRes;
 
 use MagicMountain::Model::Account;
+use MagicMountain::Model::AuditLog;
+use MagicMountain::Model::Character;
+use MagicMountain::Model::Season;
+use MagicMountain::Model::Session;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -14,7 +18,8 @@ has configFile => sub ($self) {
 
 has defaultConfig => sub ($self) {
     return {
-        secrets => [ 'override-me' ],
+        secrets                => [ 'override-me' ],
+        session_timeout_minutes => 60,
     }
 };
 
@@ -26,6 +31,33 @@ has accounts => sub ($self) {
     MagicMountain::Model::Account->new(
         file => $self->dataDir . '/accounts.json',
         log => $self->app->log
+    );
+};
+
+has session_store => sub ($self) {
+    MagicMountain::Model::Session->new(
+        file => $self->dataDir . '/sessions.json',
+        log => $self->app->log
+    );
+};
+
+has seasons => sub ($self) {
+    MagicMountain::Model::Season->new(
+        file => $self->dataDir . '/seasons.json',
+        log => $self->app->log
+    );
+};
+
+has characters => sub ($self) {
+    MagicMountain::Model::Character->new(
+        file => $self->dataDir . '/characters.json',
+        log => $self->app->log
+    );
+};
+
+has audit_log => sub ($self) {
+    MagicMountain::Model::AuditLog->new(
+        file => $self->dataDir . '/audit.jsonl',
     );
 };
 
@@ -41,7 +73,7 @@ sub startup ($self) {
         }
     );
 
-    #push @{ $self->commands->namespaces }, 'MagicMountain::Command';
+    push @{ $self->commands->namespaces }, 'MagicMountain::Command';
     $self->app->log->debug("Secrets: " . join(", ", @{ $self->config->{secrets} }));
     $self->secrets([ $self->config->{secrets} ] );
     $self->sessions->cookie_name('mm_session');
@@ -52,21 +84,55 @@ sub startup ($self) {
     }
 
     $self->renderer->cache->max_keys(0);
-    $self->defaults(layout => 'layouts/default.ep');
+    $self->defaults(layout => 'default');
+
+    $self->helper(current_player => sub ($c) {
+        my $player_id = $c->session('playerId');
+        return undef unless $player_id;
+        my $session = $c->app->session_store->find_by_player_id($player_id);
+        return undef unless $session;
+        my $timeout = $c->app->config->{session_timeout_minutes} // 60;
+        if ($session->is_expired($timeout)) {
+            $c->app->session_store->delete($session->getCol('id'));
+            $c->session(expires => 1);
+            return undef;
+        }
+        $session->touch;
+        return $player_id;
+    });
+
     $self->buildRoutes;
 }
 
 sub buildRoutes ($self) {
     my $r = $self->routes;
 
-    $r->get('/')->to('sessions#loginForm')->name('login_form');
-    $r->post('/api/sessions')->to('sessions#create')->name('login');
-    $r->delete('/api/sessions')->to('sessions#destroy')->name('logout');
+    # Public routes (no authentication required)
+    $r->get('/')->to('root#index')->name('root');
+    $r->get('/login')->to('sessions#login_form')->name('login_form');
+    $r->post('/sessions')->to('sessions#create')->name('login');
+    $r->delete('/sessions')->to('sessions#destroy')->name('logout_api');
+    $r->get('/logout')->to('sessions#logout')->name('logout');
 
-    # TODO: name this controller
-    # $r->post('/api/action')->to('play#action');
-    # $r->get('/api/leaderboard')->to('play#leaderboard');
-    # $r->post('/api/admin/advance-day')->to('admin#advanceDay');
+    # Authenticated routes
+    my $auth = $r->under('/' => sub ($c) {
+        my $player_id = $c->current_player;
+        unless ($player_id) {
+            $c->redirect_to('login_form');
+            return undef;
+        }
+        return 1;
+    });
+    $auth->get('/player')->to('player#show')->name('player');
+    $auth->delete('/player')->to('player#destroy')->name('delete_player');
+    $auth->get('/game')->to('game#show')->name('game');
+
+    # Future (under auth):
+    # $auth->post('/artifact/begin')->to('artifact#begin');
+    # $auth->post('/artifact/push')->to('artifact#push');
+    # $auth->post('/artifact/stop')->to('artifact#stop');
+    # $auth->post('/sale/:faction_id')->to('sale#create');
+    # $auth->get('/leaderboard')->to('leaderboard#index');
 }
 
 

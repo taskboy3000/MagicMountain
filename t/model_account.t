@@ -19,8 +19,8 @@ my $acct = MagicMountain::Model::Account->new(file => $file);
 subtest 'columns extend defaults with username and password' => sub {
     is_deeply(
         $acct->columns,
-        [qw{id updatedAt createdAt username password}],
-        'Account columns include username and password'
+        [qw{id updatedAt createdAt username password disabled}],
+        'Account columns include username, password, and disabled'
     );
 };
 

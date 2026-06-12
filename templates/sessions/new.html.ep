@@ -23,7 +23,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   const errEl = document.getElementById('error-msg');
   errEl.style.display = 'none';
   if (!name) return;
-  const resp = await fetch('/api/sessions', {
+  const resp = await fetch('/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ displayName: name })
