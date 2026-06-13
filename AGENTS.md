@@ -28,7 +28,7 @@ magic_mountain/
 ├── GAME_ARCHITECTURE.md           # Target architecture spec (authoritative)
 ├── Makefile                       # test, cover, indent targets
 ├── cpanfile                       # Perl dependencies (Mojolicious, YAML::XS, etc.)
-├── magic_mountain.yml             # App config (secrets, session_timeout_minutes)
+├── magic_mountain.yml             # App config (secrets, session_timeout_minutes, end_of_day_hour)
 │
 ├── lib/                           # NEW CODEBASE (under construction)
 │   ├── MagicMountain.pm           # Mojolicious app: routes, helpers, attributes
@@ -166,7 +166,7 @@ prove -lv t/session.t
 - **Commands**: Subclass `Mojolicious::Command`. Register namespace in
   `MagicMountain.pm`.
 - **Config**: Add defaults in `MagicMountain.pm` → `defaultConfig`. Override
-  in `magic_mountain.yml`.
+  in `magic_mountain.yml`. `end_of_day_hour` is 0–23 (midnight default).
 - **Tests**: Use `Test::Mojo` for integration. Use `tempdir(CLEANUP => 1)`
   with `$ENV{MM_DATA_DIR}` for isolated state. Pre-populate JSON files as needed.
 

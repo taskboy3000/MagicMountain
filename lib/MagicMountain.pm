@@ -4,6 +4,7 @@ use File::Basename;
 use File::Find;
 use Mojo::Base 'Mojolicious', -signatures;
 use Mojo::Home;
+use Mojo::IOLoop;
 use Time::HiRes;
 
 use MagicMountain::Model::Account;
@@ -11,6 +12,7 @@ use MagicMountain::Model::AuditLog;
 use MagicMountain::Model::Character;
 use MagicMountain::Model::Season;
 use MagicMountain::Model::Session;
+use MagicMountain::Maintenance;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -18,8 +20,10 @@ has configFile => sub ($self) {
 
 has defaultConfig => sub ($self) {
     return {
-        secrets                => [ 'override-me' ],
-        session_timeout_minutes => 60,
+        secrets                   => [ 'override-me' ],
+        session_timeout_minutes   => 60,
+        end_of_day_hour           => 0,
+        maintenance_window_minutes => 5,
     }
 };
 
@@ -51,8 +55,17 @@ has seasons => sub ($self) {
 has characters => sub ($self) {
     MagicMountain::Model::Character->new(
         file => $self->dataDir . '/characters.json',
-        log => $self->app->log
+        log  => $self->app->log
     );
+};
+
+has maintenance => sub ($self) {
+    my $maint = MagicMountain::Maintenance->new(
+        app            => $self,
+        end_of_day_hour => $self->config->{end_of_day_hour} // 0,
+    );
+    $maint->next_run;
+    return $maint;
 };
 
 has audit_log => sub ($self) {
@@ -86,6 +99,10 @@ sub startup ($self) {
     $self->renderer->cache->max_keys(0);
     $self->defaults(layout => 'default');
 
+    $self->helper(is_maintenance => sub ($c) {
+        return $c->app->maintenance->in_maintenance;
+    });
+
     $self->helper(current_player => sub ($c) {
         my $player_id = $c->session('playerId');
         return undef unless $player_id;
@@ -101,21 +118,34 @@ sub startup ($self) {
         return $player_id;
     });
 
+    Mojo::IOLoop->recurring(60 => sub {
+        $self->maintenance->dailyMaintenance;
+    });
+
     $self->buildRoutes;
 }
 
 sub buildRoutes ($self) {
     my $r = $self->routes;
 
-    # Public routes (no authentication required)
+    # Public read-only routes (accessible during maintenance)
     $r->get('/')->to('root#index')->name('root');
     $r->get('/login')->to('sessions#login_form')->name('login_form');
-    $r->post('/sessions')->to('sessions#create')->name('login');
-    $r->delete('/sessions')->to('sessions#destroy')->name('logout_api');
     $r->get('/logout')->to('sessions#logout')->name('logout');
+    $r->delete('/sessions')->to('sessions#destroy')->name('logout_api');
 
-    # Authenticated routes
-    my $auth = $r->under('/' => sub ($c) {
+    # Routes blocked during maintenance
+    my $no_maintenance = $r->under('/' => sub ($c) {
+        if ($c->is_maintenance) {
+            $c->render(text => 'Maintenance in progress', status => 503);
+            return undef;
+        }
+        return 1;
+    });
+    $no_maintenance->post('/sessions')->to('sessions#create')->name('login');
+
+    # Authenticated routes (also blocked during maintenance)
+    my $auth = $no_maintenance->under('/' => sub ($c) {
         my $player_id = $c->current_player;
         unless ($player_id) {
             $c->redirect_to('login_form');
