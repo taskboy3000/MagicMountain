@@ -58,19 +58,34 @@ identity from the session, load models, delegate to activities, and pipe
 results to the view. Zero game logic. Zero phase validation. Zero persistence
 coordination.
 
+Activities are persisted entities (extending `MagicMountain::Model`) stored in
+`activities.json`, linked to characters via a `pending_activity_id` foreign key.
+The global activity instance (e.g. `$app->prospecting`) owns the persistence table
+and loaded content; per-request activity rows are loaded or created via standard
+Model `get()`/`create()`.
+
 ```
 Browser → Mojo route → Controller action
                           │
                           ├── Resolve player identity ($c->current_player)
                           ├── Load character model (Model::Character)
-                          ├── Delegate to activity ($activity->dispatch($char, $action, %params))
+                          ├── Read pending_activity_id from character
+                          ├── Load or create activity row:
+                          │     $id = $char->getCol('pending_activity_id')
+                          │     $activity = $id ? $app->prospecting->get($id)
+                          │                     : $app->prospecting->create(char_id => $char->getCol('id'))
+                          ├── Delegate: $activity->dispatch($char, $action, %params)
                           │     │
-                          │     ├── Activity base: validate transition in phases table
+                          │     ├── Activity base: read $self->phase (column), validate transition
+                          │     ├── Validate handler exists ($self->can($action))
                           │     ├── Activity subclass: execute game math
-                          │     ├── Mutate character model fields + pending_activity
-                          │     ├── $char->save — persist through the model
-                          │     └── Enrich transcript (if applicable)
+                          │     ├── Mutate $char fields (scrap, score)
+                          │     ├── Set phase directly: $self->phase('processing')
+                          │     └── Return { view => {...} }
                           │
+                          ├── If phase == 'idle': delete activity row, clear FK
+                          │     else: $activity->save, $char->setCol('pending_activity_id', $activity->getCol('id'))
+                          ├── $char->save — persist character mutations
                           └── Pipe $result->{view} to render/json
 ```
 
@@ -167,8 +182,8 @@ Each module has strict constraints on what it may and must never hold.
 | Module | May Hold | Must NEVER Hold |
 |--------|----------|-----------------|
 | **Controller::*** | App reference, model accessors (accounts, characters, seasons) | Game logic, phase validation, artifact math, persistence orchestration |
-| **Activity (base)** | Transition table, phases declaration, dispatch logic | Game math, artifact knowledge, YAML content, Market |
-| **Activity::*** (subclass, e.g. Prospecting) | App reference (content + log), character model (passed in), transition rules (inherited) | Market, Faction objects, Account model, other players' data |
+| **Activity (base)** | Persisted columns (char_id, type, phase, artifact, offers), ephemeral attributes (transitions, app, content_filename, content_data, log), dispatch logic, get/create overrides for ephemeral propagation, load_content | Game math, artifact knowledge, YAML content interpretation |
+| **Activity::*** (subclass, e.g. Prospecting) | App reference, transition table, content interpretation, live activity state (artifact, offers columns), create override (type/phase defaults) | Market, Faction objects, Account model, other players' data |
 | **Market** (offer generator) | Faction objects, content reference | Character model, Account model |
 | **SeasonalCharacter** (character wrapper) | Model row data hashref, player_id | Market, Faction, Content, Transcript |
 | **Model::Character** (persistence) | File path, column definitions, JSON CRUD | Game logic, artifact math, faction rules |
@@ -184,13 +199,22 @@ Each module has strict constraints on what it may and must never hold.
 ### Constructor Checklist for Activity Subclasses
 
 An Activity subclass receives:
-- **app** — application reference (for YAML content and logging)
-- **Phases and transitions** — declared by the subclass, validated by the base
+- **file** — path to `activities.json` (persistence table, inherited from Model)
+- **app** — application reference (for logging)
+- **content_filename** — full path to the activity's YAML content file
+- **log** — logger trampoline (defaults to `$self->app->log`)
 
-Nothing else. NO state object. NO transcript reference. NO account model.
-NO market. The subclass receives the character model as a parameter to
-`dispatch()` and mutates it there. Context data (offers, influence values)
-arrive as explicit parameters.
+The global instance (e.g. `$app->prospecting`) is constructed once at startup and
+calls `load_content` to parse the YAML file into `content_data`. Per-request
+activity rows are created via `$prospecting->get($id)` or
+`$prospecting->create(%params)` — these inherit `transitions`, `app`, and
+`content_data` from the global instance automatically (via overridden `get`/`create`
+in the base class).
+
+The subclass declares:
+- **transitions** — hashref where keys ARE the phases, values are arrays of legal actions
+- **create** override — sets type/phase column defaults, chains to Activity::create
+- Handler methods (`begin`, `push`, `stop`, `sell`) — one per action in the transition table
 
 ### Controller Responsibility
 
@@ -198,13 +222,18 @@ Controllers are dumb pipes. Their entire job:
 
 1. Resolve player identity via `$self->current_player`
 2. Load the character model via `$self->app->characters->find(...)`
-3. Wrap in `SeasonalCharacter` for invariant enforcement
-4. Delegate to the activity: `$activity->dispatch($char, $action, %params)`
-5. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
+3. Read `pending_activity_id` from the character
+4. Load or create the activity row:
+   - `$id = $char->getCol('pending_activity_id')`
+   - `$activity = $id ? $self->app->prospecting->get($id) : $self->app->prospecting->create(char_id => $char->getCol('id'))`
+5. Delegate to the activity: `$activity->dispatch($char, $action, %params)`
+6. If phase is `'idle'` after dispatch: delete activity row, clear FK. Otherwise: `$activity->save`, set FK.
+7. Call `$char->save` to persist
+8. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
 
-No phase validation. No artifact math. No persistence calls. No offer
-generation. No transcript recording. The activity handles all of that
-internally. No controller checks for day rollover or refreshes turns.
+No phase validation. No artifact math. No persistence calls (except the two
+saves). No offer generation. No transcript recording. No serialize/deserialize
+ceremony. No controller checks for day rollover or refreshes turns.
 
 ---
 
@@ -244,7 +273,7 @@ Survives across seasons. Contains no gameplay data.
 | turns_remaining | integer | Daily event allowance remaining |
 | faction_sales | map | Per-faction sale count this season |
 | standing | map | Per-faction reputation integer |
-| pending_activity | object or null | Current activity state (see below) |
+| pending_activity_id | string or null | FK to activities.json row. null when idle |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
 
 > **Note on `last_refreshed_day`**: This field existed in the original
@@ -256,7 +285,7 @@ Survives across seasons. Contains no gameplay data.
 **Invariants enforced by SeasonalCharacter wrapper:**
 - `turns_remaining` cannot go below zero
 - `scrap` must be non-negative
-- `pending_activity` must have a `type` field if set
+- `pending_activity_id` must reference a valid activities.json row if set
 - `score` never decreases
 - Attempting to consume a daily event when turns are zero is a hard error
 
@@ -264,80 +293,96 @@ Survives across seasons. Contains no gameplay data.
 - `score` = cumulative seasonal leaderboard value, never decreases
 - `scrap` = spendable seasonal currency, may decrease through future systems
 
-### 5.4 pending_activity (state machine container)
+### 5.4 Activity (activities.json)
 
-This single field replaces all separate `current_artifact`, `pending_sale`,
-and activity-specific fields. Shape depends on phase:
+Each active game session is a row in the activities table. The character's
+`pending_activity_id` column is an FK to this table. When the activity phase
+returns to `'idle'`, the row is deleted and the FK cleared.
 
-**Idle:**
-```
-null
-```
+**Table: activities.json**
 
-**Prospecting in progress:**
 ```
 {
-  "type": "prospecting",
-  "phase": "processing",
-  "artifact": {
-    "id": "thermal_box_001",
-    "value": 24,
-    "instability": 5,
-    "stage": "strained",
-    "push_count": 3,
-    "max_instability": 14,
-    "instability_growth_min": 1,
-    "instability_growth_max": 2,
-    "base_gain_min": 3,
-    "base_gain_max": 5,
-    "can_evolve": true,
-    "has_evolved": false,
-    "evolution_threshold": 0.25,
-    "evolution_chance": 0.03,
-    "evolution_instability_spike": 2,
-    "breakthrough_multiplier_min": 1.5,
-    "breakthrough_multiplier_max": 2.0,
-    "state_thresholds": { "stable": 0.35, "strained": 0.70 }
+  "<uuid>": {
+    "id": "<uuid>",
+    "char_id": "<uuid>",
+    "type": "prospecting",
+    "phase": "processing",
+    "artifact": { ... },
+    "offers": [ ... ],
+    "createdAt": <unix_ts>,
+    "updatedAt": <unix_ts>
   }
 }
 ```
 
-**Awaiting buyer:**
-```
+**Columns** (all JSON-serialized by Model):
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| char_id | UUID | FK to characters.json |
+| type | string | Discriminator (e.g. "prospecting") |
+| phase | string | State-machine phase: idle / processing / awaiting_buyer |
+| artifact | hashref or null | Live artifact state (null when idle) |
+| offers | arrayref or null | Buyer offers (null when not awaiting_buyer) |
+| createdAt | unix timestamp | Row creation time |
+| updatedAt | unix timestamp | Last save time |
+
+**Prospecting — artifact column shape:**
+
+```json
 {
-  "type": "prospecting",
-  "phase": "awaiting_buyer",
-  "artifact": { ...same shape... },
-  "offers": [
-    {
-      "offer_id": "offer_001",
-      "faction_id": "syndicate",
-      "faction_name": "The Syndicate",
-      "value": 24,
-      "text": "A broker tags it for resale.",
-      "disposition": "pragmatic"
-    },
-    {
-      "offer_id": "offer_002",
-      "faction_id": "faculty",
-      "faction_name": "The Faculty",
-      "value": 29,
-      "text": "A scholar notes the signal.",
-      "disposition": "scholarly"
-    }
-  ]
+  "id": "thermal_box_001",
+  "value": 24,
+  "instability": 5,
+  "stage": "strained",
+  "push_count": 3,
+  "max_instability": 14,
+  "instability_growth_min": 1,
+  "instability_growth_max": 2,
+  "base_gain_min": 3,
+  "base_gain_max": 5,
+  "can_evolve": true,
+  "has_evolved": false,
+  "evolution_threshold": 0.25,
+  "evolution_chance": 0.03,
+  "evolution_instability_spike": 2,
+  "breakthrough_multiplier_min": 1.5,
+  "breakthrough_multiplier_max": 2.0,
+  "state_thresholds": { "stable": 0.35, "strained": 0.70 }
 }
 ```
 
+**Prospecting — offers column shape (awaiting_buyer phase only):**
+
+```json
+[
+  {
+    "faction_id": "syndicate",
+    "faction_name": "The Syndicate",
+    "value": 24,
+    "text": "A broker tags it for resale.",
+    "disposition": "pragmatic"
+  },
+  {
+    "faction_id": "faculty",
+    "faction_name": "The Faculty",
+    "value": 29,
+    "text": "A scholar notes the signal.",
+    "disposition": "scholarly"
+  }
+]
+```
+
 **Critical rule**: Once offers are generated at stop time, they are persisted
-in `pending_activity` and MUST NOT be rerolled at sell time. The sell action
+in the offers column and MUST NOT be rerolled at sell time. The sell action
 validates the submitted faction against stored offers and returns the exact
 stored offer.
 
-The artifact sub-object within `pending_activity` snapshots all fields from
-both the YAML spec and the live artifact state. Fields present in the YAML
-spec are always included; fields with YAML defaults (e.g., `evolution_chance`)
-that were omitted in the spec file are filled in by the artifact factory.
+The artifact sub-object snapshots all fields from both the YAML spec and the
+live artifact state. Fields with YAML defaults (e.g., `evolution_chance`) that
+were omitted in the spec file are filled in by `_apply_defaults` during `begin`.
 
 ### 5.5 SeasonFactionState (per-season global faction tracking) — Planned
 
@@ -392,6 +437,7 @@ PlayerAccount ─── persists forever ─────────────
        │
        ├── Season 1 ─── SeasonalCharacter ──► deleted ──►
        │                     │
+       │                     ├── Activity (created/loaded per request, deleted on idle)
        │                     └── ArtifactDispositions (survive)
        │
        ├── Season 2 ─── SeasonalCharacter ──► deleted ──►
@@ -431,8 +477,8 @@ Each push operation:
 4. **Collapse check**: `collapse_chance = (ratio²) × 0.95`
    - Clamped to minimum 5% and maximum 100%
    - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
-   - Collapse is total loss: artifact destroyed, player gets nothing,
-     pending_activity clears
+    - Collapse is total loss: artifact destroyed, player gets nothing,
+      activity row deleted
 
 5. **Evolution check** (only if collapse did not occur, `can_evolve` is true,
    `has_evolved` is false, AND `ratio >= evolution_threshold`):
@@ -444,7 +490,7 @@ Each push operation:
      - Artifact value set to new_value
      - Instability increases by `evolution_instability_spike`
      - Player receives `new_value` as both scrap and score
-     - pending_activity clears
+      - pending_activity cleared (activity row deleted)
      - At most ONE evolution per artifact
 
 6. **Value gain** (if no collapse and no breakthrough):
@@ -474,7 +520,7 @@ buyer offers:
      artifacts)
    - `offer_value = floor(artifact.value × multiplier)`
    - An offer text is generated
-   - All offers are returned as an array and persisted in `pending_activity`
+    - All offers are returned as an array and persisted in the activity row's `offers` column
 
 **Market constraints**:
 - Does not mutate state or faction influence
@@ -494,7 +540,7 @@ offers):
    influence, increment faction's `artifacts_received`
 5. *(Planned)* Create `ArtifactDisposition` record with full snapshot
 6. Record transcript event
-7. Clear `pending_activity`
+7. Delete activity row, clear `pending_activity_id` FK on character
 8. *(Planned)* Optionally return post-sale resolution text (from YAML content,
    tiered by value)
 
@@ -593,7 +639,7 @@ receives the Maintenance object (`$self`). Planned implementation:
 1. Increment `season.day` by 1
 2. For every SeasonalCharacter: reset `turns_remaining` to the configured
    daily allowance (e.g., 10)
-3. Preserve `pending_activity` — in-progress artifacts survive rollover
+3. Preserve activity rows — in-progress artifacts survive rollover
 4. Update leaderboard (Hall of Fame snapshots)
 5. If `season.day > season_length`, emit a warning (season end is manual)
 
@@ -651,53 +697,77 @@ forfeit.
 
 ## 9. Activity System
 
-Every expedition (Prospecting, future Contracts, Encounters) is a state machine.
-Activity classes own the full lifecycle: transition enforcement, game math,
-character mutation, and persistence. Controllers are dumb pipes that delegate
-to them.
+Every expedition (Prospecting, future Contracts, Encounters) is a state machine
+and a persisted entity. Activity extends `MagicMountain::Model` — the same
+JSON-file CRUD base as Account, Character, and Season. Activity state lives in
+`activities.json`, linked to characters via `pending_activity_id`.
 
 ### 9.1 Activity Base Class
 
-`MagicMountain::Activity` provides the state-machine skeleton. Subclasses
-declare their legal phases and transitions; the base class enforces them
-before delegating.
+`MagicMountain::Activity` provides the persistence layer, state-machine skeleton,
+content loading, and column accessors. Subclasses declare their legal transitions
+and implement handler methods.
 
-**Attributes:**
+**Two categories of fields on the same object:**
 
-```perl
-package Prospecting;
-use Mojo::Base 'MagicMountain::Activity';
+| Category | Mechanism | Examples |
+|----------|-----------|----------|
+| Persisted | Declared in `columns`, accessed via `getCol`/`setCol`, survives `save()` | `char_id`, `type`, `phase`, `artifact`, `offers` |
+| Ephemeral | Regular Mojo `has` attributes, set at construction, shared across instances | `transitions`, `app`, `content_filename`, `content_data`, `log` |
 
-has phases      => sub { ['idle', 'processing', 'awaiting_buyer'] };
-has transitions => sub {
-    { idle => ['begin'], processing => ['push', 'stop'], awaiting_buyer => ['sell'] }
-};
-```
+**Column accessors:** `phase`, `artifact`, and `offers` have convenience
+accessor methods that bridge Mojo attribute syntax (`$self->phase('processing')`)
+to column storage (`getCol`/`setCol` — reading/writing `$self->row`).
+
+**Construction overrides:** The base class overrides `get()` and `create()` from
+Model. After calling `SUPER` (Model's versions which pass `file`/`log`/`table`/`row`
+to `new()`), they propagate ephemeral attributes (`transitions`, `app`, `content_data`)
+from the global instance to the new instance. This eliminates the need for separate
+factory methods or `_propagate` helpers.
 
 **Dispatch:**
 
 ```perl
 sub dispatch ($self, $char, $action, %params) {
-    my $phase = $char->pending_activity->{phase} // 'idle';
-    die "illegal transition: $phase → $action"
-        unless grep { $_ eq $action } @{ $self->transitions->{$phase} // [] };
+    die "illegal transition: $self->{phase} -> $action"
+        unless grep { $_ eq $action } @{ $self->transitions->{$self->phase} // [] };
+    die "no handler for action: $action"
+        unless $self->can($action);
 
-    my $result = $self->$action($char, %params);   # calls subclass begin(), push(), etc.
-    return $result;
+    return $self->$action($char, %params);
 }
 ```
 
-The base class validates the transition, then delegates to the subclass
-handler. The subclass never needs to check `$phase` itself — it would not
-have been called if the transition were illegal. This is server-side
-enforcement: a bot cannot skip to `sell` because the transition table says
-`idle → sell` does not exist.
+The base class reads `$self->phase` — a column accessor, NOT the character's
+data. It validates the transition, checks the handler exists, and delegates.
+Handlers set phase directly: `$self->phase('processing')`. No `next_phase`
+return value. No `serialize()` / `from_serialized()` ceremony.
+
+**Content loading:**
+
+```perl
+sub load_content ($self) {
+    return if $self->content_data;
+    return unless $self->content_filename;
+    $self->content_data(LoadFile($self->content_filename));
+}
+```
+
+`content_filename` is the full path to a single YAML file, set by the app class
+at construction time. `content_data` holds the parsed result, propagated to new
+instances by the overridden `get()`/`create()`. The base class handles YAML I/O;
+subclasses interpret `content_data` in their own domain-specific way.
 
 ### 9.2 Subclass Contract
 
-A subclass must implement one handler per action in its transition table.
-Each handler receives the `SeasonalCharacter` and context parameters,
-and returns a standard result hashref:
+A subclass must:
+1. Declare `has transitions => sub { { idle => [...], ... } }`
+2. Override `create()` to set type/phase column defaults, then chain to `SUPER`
+3. Implement one handler method per action in the transition table
+4. Each handler receives `($self, $char, %params)`
+5. Mutate character fields directly (e.g. `$char->{scrap} += $value`)
+6. Set phase directly: `$self->phase('processing')`
+7. Return `{ view => {...} }` — the controller pipes `view` directly to the template
 
 ```perl
 {
@@ -707,73 +777,77 @@ and returns a standard result hashref:
         artifact => { stage => 'strained', signal => 'It groans...', value => 24 },
         player   => { turns_remaining => 6, scrap => 10, score => 10 },
     },
-    # view goes directly to the template — controller never inspects it
 }
 ```
 
-The `view` hashref is the HTTP response body. The activity decides what is
-player-visible. `instability`, `evolution_chance`, and other internal math
-never appear in `view`. When the game is ready to hide exact values, the
-activity swaps `value => 24` for `value_tier => 'substantial'` and the
-controller and template never know the difference.
+`instability`, `evolution_chance`, and other internal math must never appear in `view`.
 
-### 9.3 Persistence
+### 9.3 Persistence Topology
 
-Activities persist through the character model, not through any external
-State or persistence layer:
+```
+characters.json                    activities.json
+┌────────────────────┐             ┌─────────────────────────┐
+│ id: "abc"          │             │ id: "xyz"               │
+│ display_name: "J"  │──────FK────→│ char_id: "abc"          │
+│ score: 42          │             │ type: "prospecting"     │
+│ pending_activity_id│             │ phase: "processing"     │
+└────────────────────┘             │ artifact: { id, value,…}│
+                                   │ offers: null            │
+                                   └─────────────────────────┘
+```
+
+### 9.4 Global Instance as Factory
+
+One global instance per activity type (e.g. `$app->prospecting`), constructed
+at startup, holding:
+- `file` — path to `activities.json` (the persistence table)
+- `content_data` — parsed YAML specs, loaded once via `load_content`
+- `transitions`, `app`, `log` — shared ephemeral state
+
+Per-request activity rows are created or loaded via the standard Model API:
 
 ```perl
-sub push ($self, $char, %params) {
-    my $artifact = $char->pending_activity->{artifact};
-    # ... compute new instability, value, stage ...
-    $artifact->{instability} += $growth;
-    $artifact->{value}       += $gain;
-    $char->pending_activity($new_blob);
-    $char->save;                                # model persists itself via JSON CRUD
-    return { view => { ... } };
+# Idle character — create a new activity row
+$activity = $app->prospecting->create(char_id => $char->getCol('id'));
+
+# Active character — load existing row
+$activity = $app->prospecting->get($char->getCol('pending_activity_id'));
+```
+
+Both return fully-functional instances with persisted columns and propagated
+ephemeral attributes.
+
+### 9.5 Prospecting Example
+
+```perl
+# In MagicMountain.pm startup:
+has prospecting => sub ($self) {
+    MagicMountain::Activity::Prospecting->new(
+        file             => $self->dataDir . '/activities.json',
+        app              => $self,
+        content_filename => $self->home . '/content/prospecting.yml',
+        log              => $self->log,
+    )->load_content;
+};
+
+# Prospecting subclass:
+has transitions => sub {
+    { idle => ['begin'], processing => ['push', 'stop'], awaiting_buyer => ['sell'] }
+};
+
+sub create ($self, %params) {
+    $params{type}  //= 'prospecting';
+    $params{phase} //= 'idle';
+    return $self->SUPER::create(%params);
 }
 ```
 
-The activity receives `$char` as a parameter, mutates its fields and
-`pending_activity` blob, and calls `$char->save`. If transactional semantics
-are needed in the future, the activity wraps its work in a transaction — not
-the controller.
-
-### 9.4 Service Class Definition
-
-Throughout this architecture, **service** means a class that:
-
-- May hold internal state (parsed YAML cache, configuration, log handle)
-- Receives data as parameters, returns results
-- Does not own persistence (exceptions: activities persist through the
-  character model passed to them)
-- May call across models or data sources for cross-concern work
-
-Market, Content, and Transcript are services. Activities are a specific kind
-of service — state machines that operate on a character model.
-
-### 9.5 Bots
+### 9.6 Bots
 
 Bots call the same `dispatch()` method with the same character model.
 The transition table is checked identically — a bot cannot exploit HTTP
 endpoint knowledge because the state machine lives in the activity, not
 in the route.
-
-### 9.6 Example: Prospecting Dispatch
-
-```
-Player clicks "Push"
-  → POST /artifact/push
-    → Controller::Artifact::push
-        → $prospecting->dispatch($char, 'push')
-            → Base checks: processing→push = ✅
-            → Prospecting::push($char)
-                → Math: instability growth, collapse check, evolution check
-                → Mutate $char->pending_activity->{artifact}
-                → $char->save
-                → Return { view => { stage, signal, value, ... } }
-            → Controller renders $result->{view} as JSON
-```
 
 ---
 
@@ -790,27 +864,38 @@ Each controller action follows this pattern:
 sub action_name ($self) {
     my $player_id = $self->current_player;
 
-    # Load character model
-    my $char_model = $self->app->characters->find(
+    my ($char_model) = @{ $self->app->characters->find(
         sub { $_->{account_id} eq $player_id }
-    );
+    ) };
     return $self->render(json => { ok => 0, error => 'No character' }, status => 404)
         unless $char_model;
 
-    # Wrap for invariant enforcement
-    my $char = SeasonalCharacter->new(data => $char_model->row);
+    my $p   = $self->app->prospecting;
+    my $row = $char_model->row;
+    my $id  = $row->{pending_activity_id};
 
-    # Delegate to activity — it validates, computes, persists
-    my $result = $self->app->prospecting->dispatch($char, $action, %params);
+    my $activity = $id
+        ? $p->get($id)
+        : $p->create(char_id => $row->{id});
 
-    # Pipe view to template — no inspection, no filtering
+    my $result = $activity->dispatch($row, $action, %params);
+
+    if ($activity->phase eq 'idle') {
+        $p->delete($activity->getCol('id'));
+        $char_model->setCol('pending_activity_id', undef);
+    } else {
+        $activity->save;
+        $char_model->setCol('pending_activity_id', $activity->getCol('id'));
+    }
+    $char_model->save;
+
     $self->render(json => $result->{view});
 }
 ```
 
-The controller never reads `pending_activity`, never checks a phase, never
-calls `save`, never records a transcript event. It resolves identity, loads
-a model, delegates, renders. That's it.
+The controller loads or creates the activity row via the global instance,
+dispatches, saves the activity row, and saves the character. It never inspects
+activity row internals or checks phases.
 
 ### 10.2 Controller Inventory
 
@@ -879,13 +964,7 @@ Display names must be unique.
 
 ```
 content/
-  artifacts/
-    thermal_box.yml
-    black_canister.yml
-    rusted_core.yml
-    crystal_chime.yml
-    wire_bundle.yml
-    (any number of *.yml files — auto-discovered)
+  prospecting.yml                 # All artifact definitions (one file per activity type)
   text/
     daily_messages.yml
     season_opening.yml
@@ -957,9 +1036,14 @@ tiered by value (low/medium/high). Pure narrative, no mechanical effect.
 
 ### 12.4 Content Loading
 
-All YAML files in the content directory tree are loaded at application
-startup. Adding a new artifact or text file requires only placing a `.yml`
-file in the correct directory — no code changes, no manual registration.
+The app class sets `content_filename` to the full path of the activity's YAML
+file (e.g. `$self->home . '/content/prospecting.yml'`). `load_content` is called
+once at startup on the global instance. The parsed data is stored in `content_data`
+and automatically propagated to per-request activity instances via the overridden
+`get()`/`create()` methods.
+
+Adding a new artifact requires editing the relevant YAML file — no code changes,
+no manual registration.
 
 ---
 
@@ -983,23 +1067,23 @@ file in the correct directory — no code changes, no manual registration.
 
 ### 13.1 Controller Action Contracts
 
-**Artifact#begin**: Requires `turns_remaining > 0` and `pending_activity` null.
-Draws random artifact from Content pool. Sets `pending_activity` to
-prospecting.processing. Decrements `turns_remaining`.
+**Artifact#begin**: Requires `turns_remaining > 0` and no active activity
+(`pending_activity_id` null). Draws random artifact from Content pool. Creates
+a new activity row with phase `processing`. Decrements `turns_remaining`.
 
-**Artifact#push**: Requires `pending_activity.type == "prospecting"` and
-`phase == "processing"`. Delegates to `Activity::Prospecting::handle($char,
-'push')`. Possible outcomes: normal (updated artifact), collapse (cleared),
-breakthrough (cashed out).
+**Artifact#push**: Requires activity `type == "prospecting"` and
+`phase == "processing"`. Delegates to `Activity::Prospecting::push()`.
+Possible outcomes: normal (updated artifact), collapse (row deleted),
+breakthrough (cashed out, row deleted).
 
-**Artifact#stop**: Requires `pending_activity.phase == "processing"`. Generates
+**Artifact#stop**: Requires activity `phase == "processing"`. Generates
 offers via Market (passing artifact + faction influence). Sets phase to
-"awaiting_buyer". Returns offers.
+`"awaiting_buyer"`. Returns offers.
 
-**Sale#create**: Requires `pending_activity.phase == "awaiting_buyer"`.
+**Sale#create**: Requires activity `phase == "awaiting_buyer"`.
 Receives `faction_id` in request body. Validates against stored offers.
-Applies sale effects (scrap, score, standing, faction_sales). Clears
-pending_activity.
+Applies sale effects (scrap, score, standing, faction_sales). Deletes
+activity row.
 
 ### 13.2 Response Shape for Game State
 
@@ -1121,9 +1205,10 @@ These are non-negotiable rules for all content:
 
 ### Activities
 
-3. **Activities own the read-modify-write cycle.** They receive a character
-   model, mutate its fields and `pending_activity`, and call `$char->save`.
-   They do not access other players' data directly.
+3. **Activities are persisted entities, not transient services.** They extend
+   `MagicMountain::Model` and store state in `activities.json`. Phase, artifact,
+   offers, and type are persisted columns. Transitions, app, content_data, and
+   log are ephemeral attributes propagated from the global instance.
 
 4. **The activity base class enforces state-machine transitions.** Every
    dispatch checks the transition table before delegating to the subclass.
@@ -1133,9 +1218,9 @@ These are non-negotiable rules for all content:
    is piped directly to the template. Activities decide what is
    player-visible; controllers do not inspect or filter.
 
-6. **Activities receive ONLY an app reference** (for content and log) at
-   construction time. Context data (character model, user input, offers)
-   arrives as parameters to `dispatch()`.
+6. **Activities receive a character model as a parameter to `dispatch()`.**
+   The global instance is constructed with `file`, `app`, `content_filename`,
+   and `log`. Context data (character state, user input) arrives per-call.
 
 ### Market
 
@@ -1145,8 +1230,8 @@ These are non-negotiable rules for all content:
 
 ### Offers & Sales
 
-8. **Once buyer offers are generated, they are persisted** in
-   `pending_activity` and must not be rerolled at selection time. The sale
+8. **Once buyer offers are generated, they are persisted** in the activity
+   row's `offers` column and must not be rerolled at selection time. The sell
    action validates the submitted faction against stored offers.
 
 9. **Starting a daily activity consumes one daily event.** Resolving its later
@@ -1158,7 +1243,7 @@ These are non-negotiable rules for all content:
     advances the season clock or refreshes turns.** Controllers never check
     for or apply daily rollover.
 
-11. **Pending activity survives day rollover** and is discarded only at
+11. **Active activity rows survive day rollover** and are discarded only at
     season finalization.
 
 ### Characters & Deletion
@@ -1242,11 +1327,11 @@ implementation lives in `original/` as a reference.
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Activity base class | Not started | State-machine transition enforcement, `dispatch()` |
-| Content system (YAML artifacts) | Not started | YAML-driven artifact/text/faction definitions |
-| Activity::Prospecting | Not started | Push/collapse/breakthrough math |
+| Content system (YAML artifacts) | In progress | Artifact definitions in `content/prospecting.yml`, loaded via Activity::load_content |
+| Activity::Prospecting | In progress | Push/collapse/breakthrough math implemented; stop/sell stubbed (Market integration pending) |
 | Market (buyer offers) | Not started | Faction-based offer generation |
 | SeasonalCharacter wrapper | Not started | Invariant-preserving character mutations |
-| Model::Character expansion | Not started | Add columns: `scrap`, `turns_remaining`, `faction_sales`, `standing`, `pending_activity`, `current_location` |
+| Model::Character expansion | In progress | Added `pending_activity_id` FK column; `scrap`, `turns_remaining` still via TestCharacter hashref |
 | Faction system | Not started | FactionRegistry, YAML-driven faction config |
 | advance-day rollover logic | Not started | The `on_maintenance` callback in Maintenance.pm is currently a no-op. Day increment, turn refresh, and leaderboard snapshot still need to be implemented inside that callback. |
 | Artifact/Sale controllers | Not started | Game action HTTP endpoints |
@@ -1267,13 +1352,15 @@ implementation lives in `original/` as a reference.
    IOLoop timer). Separating them eliminates an unnecessary dispatch layer
    and makes each phase simpler to test and reason about.
 
-2. **Single pending_activity field** over parallel current_artifact/pending_sale
-   fields: Only one interaction can be in progress. A single container prevents
-   inconsistent state.
+2. **Single activity row** over character-embedded blob: Activity state lives
+   in its own `activities.json` table, linked via `pending_activity_id` FK. Only
+   one activity can be in progress per character. When the phase returns to idle,
+   the row is deleted.
 
-3. **Activities are stateless singletons**: One instance per activity type,
-   constructed at startup, reused for all requests. Activities do pure
-   computation on passed data — no per-request construction.
+3. **Activity extends Model**: Activity is a persisted entity with columns
+   (phase, artifact, offers) and ephemeral attributes (transitions, content_data).
+   One global instance per activity type holds the persistence table and loaded
+   content; per-request rows are created/loaded via Model's `get()`/`create()`.
 
 4. **In-process maintenance timer over cron-triggered rollover**: A
    `Mojo::IOLoop` recurring timer drives the `Maintenance.pm` state machine.
@@ -1294,8 +1381,9 @@ implementation lives in `original/` as a reference.
    can breakthrough more than once.
 
 8. **Offers never rerolled**: Once generated at `stop`, offers are frozen in
-   `pending_activity`. The `sell` action matches by faction_id, not by
-   regenerating. This prevents save-scumming and ensures offer data integrity.
+    the activity row's `offers` column. The `sell` action matches by faction_id,
+    not by regenerating. This prevents save-scumming and ensures offer data
+    integrity.
 
 9. **Score vs Scrap separation**: Score is the leaderboard metric (never
    decreases). Scrap is currency (future spendable). Currently they track

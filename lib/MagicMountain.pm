@@ -13,6 +13,7 @@ use MagicMountain::Model::Character;
 use MagicMountain::Model::Season;
 use MagicMountain::Model::Session;
 use MagicMountain::Maintenance;
+use MagicMountain::Activity::Prospecting;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -57,6 +58,17 @@ has characters => sub ($self) {
         file => $self->dataDir . '/characters.json',
         log  => $self->app->log
     );
+};
+
+has prospecting => sub ($self) {
+    my $p = MagicMountain::Activity::Prospecting->new(
+        file             => $self->dataDir . '/activities.json',
+        app              => $self,
+        content_filename => $self->home . '/content/prospecting.yml',
+        log              => $self->log,
+    );
+    $p->load_content;
+    return $p;
 };
 
 has maintenance => sub ($self) {

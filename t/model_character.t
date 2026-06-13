@@ -15,11 +15,11 @@ write_file($file, '{}');
 
 my $char = MagicMountain::Model::Character->new(file => $file);
 
-subtest 'columns extend defaults with name, account_id, season_id, score' => sub {
+subtest 'columns extend defaults with name, account_id, season_id, score, pending_activity_id' => sub {
     is_deeply(
         $char->columns,
-        [qw{id updatedAt createdAt name account_id season_id score}],
-        'Character columns include name, account_id, season_id, score'
+        [qw{id updatedAt createdAt name account_id season_id score pending_activity_id}],
+        'Character columns include name, account_id, season_id, score, pending_activity_id'
     );
 };
 

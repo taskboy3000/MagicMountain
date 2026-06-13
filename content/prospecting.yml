@@ -1,0 +1,73 @@
+- id: thermal_box_001
+  behaviors: [thermal]
+  weight: 10
+  base_value: 5
+  starting_instability: 0
+  max_instability: 14
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 3
+  base_gain_max: 5
+  can_evolve: true
+  evolution_threshold: 0.25
+  evolution_chance: 0.03
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.0
+  state_thresholds:
+    stable: 0.35
+    strained: 0.70
+  intro: The box is warm to the touch. A faint ticking comes from inside.
+  signals:
+    stable:
+      - A comfortable warmth radiates from the casing.
+      - Heat pulses steadily within the box.
+      - The surface is smooth and pleasantly warm.
+    strained:
+      - The box grows uncomfortably hot against your gloves.
+      - The casing flexes slightly, releasing a puff of steam.
+      - A low vibration runs through your palms.
+    unstable:
+      - The metal creaks audibly. Heat shimmers in the air around it.
+      - A high-pitched whine builds inside the box.
+      - Rivets along the seam begin to glow a dull red.
+  collapse:
+    - The box splits open with a sharp hiss. Whatever was inside evaporates instantly.
+    - It cracks down the middle and goes cold. A wisp of tarnished smoke rises.
+
+- id: crystal_chime_001
+  behaviors: [signal, field]
+  weight: 5
+  base_value: 8
+  starting_instability: 0
+  max_instability: 10
+  instability_growth_min: 1
+  instability_growth_max: 3
+  base_gain_min: 4
+  base_gain_max: 8
+  can_evolve: true
+  evolution_threshold: 0.40
+  evolution_chance: 0.05
+  evolution_instability_spike: 3
+  breakthrough_multiplier_min: 2.0
+  breakthrough_multiplier_max: 3.0
+  state_thresholds:
+    stable: 0.30
+    strained: 0.60
+  intro: A slender crystal rod hums with an almost musical resonance.
+  signals:
+    stable:
+      - Soft chimes ring from the crystal when touched.
+      - The rod vibrates gently in your hand.
+      - A faint glow pulses deep within the lattice.
+    strained:
+      - The chime grows louder, dissonant at the edges.
+      - Cracks spider across the crystal surface like frost.
+      - The rod begins to emit a low-frequency hum you feel in your teeth.
+    unstable:
+      - The chime is now a continuous, piercing tone.
+      - Light fractures through the crystal in unnatural colors.
+      - The rod moves on its own, twisting toward the mountain.
+  collapse:
+    - The crystal shatters into a thousand splinters that dissolve into light.
+    - A harmonic scream echoes and fades. Your hands are empty.
