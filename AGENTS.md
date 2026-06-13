@@ -172,6 +172,40 @@ prove -lv t/session.t
 
 ---
 
+## Local LLM Delegation
+
+The cloud model delegates mechanical work to local Ollama subagents running on
+`10.0.0.121:11434`. This reduces cost without sacrificing quality by applying
+strict gates to all local output.
+
+### When to delegate
+
+| Delegate to local | Keep on cloud |
+|---|---|
+| Single-file mechanical edits | Multi-file architectural changes |
+| Boilerplate (new Model, Controller, Command) | Boundary rule interactions (`.opencode/rules/`) |
+| Test scaffolding and data generation | Complex debugging |
+| POD/documentation drafting | Design critique |
+| HTML/CSS markup changes | Implementation planning |
+| Summarizing existing modules | Feature design |
+
+### Local subagents
+
+| Agent | Model | Writes? | Purpose |
+|-------|-------|---------|---------|
+| `plan` | ollama/qwen3:8b | No | Implementation planning |
+| `local-coder` | ollama/qwen3.6:27b | Yes | Mechanical edits, boilerplate, test scaffolding |
+| `local-review` | ollama/qwen3:8b | No | Test planning, naming review, syntax/POD checks |
+
+### Quality gates for local output
+
+1. **Syntax**: Run `perl -c` on every local-generated `.pm`/`.pl`/`.t` file before acceptance
+2. **Tests**: Run `prove -l t/` after any local-generated change
+3. **Escalation**: If a local task fails 2+ attempts, escalate to the cloud model
+4. **Code review**: The cloud model sanity-checks local subagent results before committing
+
+---
+
 ## Design Vault
 
 The `design_docs/` directory is the canonical design reference. When in doubt
