@@ -170,10 +170,10 @@ sub buildRoutes ($self) {
     $auth->get('/game')->to('game#show')->name('game');
 
     # Future (under auth):
-    # $auth->post('/artifact/begin')->to('artifact#begin');
-    # $auth->post('/artifact/push')->to('artifact#push');
-    # $auth->post('/artifact/stop')->to('artifact#stop');
-    # $auth->post('/sale/:faction_id')->to('sale#create');
+    $auth->post('/artifact/begin')->to('artifact#begin');
+    $auth->post('/artifact/push')->to('artifact#push');
+    $auth->post('/artifact/stop')->to('artifact#stop');
+    $auth->post('/sale/:faction_id')->to('sale#create');
     # $auth->get('/leaderboard')->to('leaderboard#index');
 }
 

@@ -81,7 +81,7 @@ subtest 'GET /game shows game page when authenticated' => sub {
     $t->get_ok('/game')
       ->status_is(200)
       ->content_like(qr/<!DOCTYPE html>/, 'layout template rendered')
-      ->content_like(qr/Welcome, alice/, 'shows player name')
+      ->content_like(qr{alice}, 'shows player name')
       ->content_like(qr/Season/, 'shows season section')
       ->content_like(qr/No active season/, 'shows inactive season message');
 };

@@ -18,7 +18,41 @@ sub show ($self) {
         season_is_active   => $season ? 1 : 0,
     );
 
+    my ($char_model) = @{ $self->app->characters->find(
+        sub { $_[0]->{account_id} eq $player_id }
+    ) };
+    if ($char_model) {
+        my $row = $char_model->row;
+        $self->stash(
+            score           => $row->{score} // 0,
+            scrap           => $row->{scrap} // 0,
+            turns_remaining => $row->{turns_remaining} // 0,
+        );
+
+        my $id = $row->{pending_activity_id};
+        if ($id) {
+            my $activity = $self->app->prospecting->get($id);
+            if ($activity) {
+                if ($activity->phase ne 'idle') {
+                    $self->stash(
+                        active_phase  => $activity->phase,
+                        artifact_json => $self->_json($activity->artifact),
+                        offers_json   => $self->_json($activity->offers),
+                    );
+                }
+            }
+        }
+    } else {
+        $self->stash(score => 0, scrap => 0, turns_remaining => 0);
+    }
+
     $self->render('game/show');
+}
+
+sub _json ($self, $data) {
+    return 'null' unless defined $data;
+    require Mojo::JSON;
+    Mojo::JSON::encode_json($data);
 }
 
 1;

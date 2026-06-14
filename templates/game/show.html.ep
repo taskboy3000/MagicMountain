@@ -1,49 +1,85 @@
-<div class="row justify-content-center mt-5">
+<div class="row justify-content-center mt-4">
   <div class="col-md-8 col-lg-6">
+
     <h1 class="text-center mb-3">Magic Mountain</h1>
 
-    <div class="card mb-4">
+    <div class="card mb-3">
       <div class="card-body text-center">
-        <h5 class="card-title">Welcome, <%= $player_name %></h5>
+        <h5 class="card-title mb-0"><%= $player_name %></h5>
       </div>
     </div>
 
-    <div class="row mb-4">
+    <!-- Stats bar -->
+    <div class="row mb-3 text-center" id="stats-bar">
       <div class="col">
-        <div class="card">
-          <div class="card-body text-center">
-            <h6 class="card-subtitle text-muted mb-2">Season</h6>
-            <h4 class="card-title"><%= $season_label %></h4>
-            <p class="card-text text-muted">
-              % if ($season_is_active) {
-                Day <%= $season_day %> of <%= $season_total_days %>
-              % } else {
-                No active season.
-              % }
-            </p>
-          </div>
-        </div>
+        <div class="card"><div class="card-body py-2">
+          <small class="text-muted">Score</small>
+          <h5 class="mb-0" id="stat-score"><%= $score // 0 %></h5>
+        </div></div>
       </div>
       <div class="col">
-        <div class="card h-100">
-          <div class="card-body">
-            <h6 class="card-subtitle text-muted mb-3 text-center">Expedition</h6>
-            <ul class="list-group list-group-flush">
-              <li class="list-group-item text-muted">
-                Prospecting &mdash; not yet available
-              </li>
-              <li class="list-group-item text-muted">
-                Market &mdash; not yet available
-              </li>
-              <li class="list-group-item text-muted">
-                Combat Arena &mdash; not yet available
-              </li>
-              <li class="list-group-item text-muted">
-                Hall of Records &mdash; not yet available
-              </li>
-            </ul>
-          </div>
-        </div>
+        <div class="card"><div class="card-body py-2">
+          <small class="text-muted">Scrap</small>
+          <h5 class="mb-0" id="stat-scrap"><%= $scrap // 0 %></h5>
+        </div></div>
+      </div>
+      <div class="col">
+        <div class="card"><div class="card-body py-2">
+          <small class="text-muted">Turns</small>
+          <h5 class="mb-0" id="stat-turns"><%= $turns_remaining // 0 %></h5>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- Season -->
+    <div class="card mb-3">
+      <div class="card-body text-center py-2">
+        <small class="text-muted">Season</small>
+        <span class="ms-2">
+          % if ($season_is_active) {
+            <%= $season_label %> &mdash; Day <%= $season_day %> of <%= $season_total_days %>
+          % } else {
+            No active season.
+          % }
+        </span>
+      </div>
+    </div>
+
+    <!-- Prospecting -->
+    <div class="card mb-3" id="prospecting-card">
+      <div class="card-header">Prospecting</div>
+      <div class="card-body" id="prospecting-body">
+        % if (my $phase = stash('active_phase')) {
+          % if ($phase eq 'processing') {
+            <div id="artifact-display">
+              <p class="mb-1"><strong id="art-name">—</strong></p>
+              <p class="mb-1 text-muted" id="art-intro"></p>
+              <p class="mb-1">Value: <strong id="art-value">—</strong></p>
+              <p class="mb-1">Stage: <span class="badge bg-secondary" id="art-stage">—</span></p>
+              <p class="mb-3 fst-italic" id="art-signal"></p>
+            </div>
+            <div class="d-grid gap-2 d-md-flex">
+              <button class="btn btn-primary" id="btn-push">Push</button>
+              <button class="btn btn-warning" id="btn-stop">Stop</button>
+            </div>
+          % } elsif ($phase eq 'awaiting_buyer') {
+            <p class="mb-1 fst-italic" id="art-signal"></p>
+            <p class="mb-1">Value: <strong id="art-value">—</strong></p>
+            <p class="mb-3">Choose a buyer:</p>
+            <div id="offer-list" class="d-grid gap-2 mb-3">
+              <p class="text-muted">Loading offers...</p>
+            </div>
+          % }
+        % } else {
+          % if (($turns_remaining // 0) > 0) {
+            <p class="mb-0 text-center">Ready to prospect.</p>
+            <div class="d-grid mt-3">
+              <button class="btn btn-success" id="btn-begin">Begin Expedition</button>
+            </div>
+          % } else {
+            <p class="mb-0 text-center text-muted">No turns remaining today.</p>
+          % }
+        % }
       </div>
     </div>
 
@@ -55,13 +91,119 @@
     </div>
   </div>
 </div>
+
 <script>
+const STAT_SCORE = document.getElementById('stat-score');
+const STAT_SCRAP = document.getElementById('stat-scrap');
+const STAT_TURNS = document.getElementById('stat-turns');
+
+function updateStats(p) {
+  if (STAT_SCORE) STAT_SCORE.textContent = p.score ?? 0;
+  if (STAT_SCRAP) STAT_SCRAP.textContent = p.scrap ?? 0;
+  if (STAT_TURNS) STAT_TURNS.textContent = p.turns_remaining ?? 0;
+}
+
+function updateArtifact(a) {
+  if (!a) return;
+  const nameEl = document.getElementById('art-name');
+  const introEl = document.getElementById('art-intro');
+  const valueEl = document.getElementById('art-value');
+  const stageEl = document.getElementById('art-stage');
+  const signalEl = document.getElementById('art-signal');
+  if (nameEl)   nameEl.textContent = a.id || '—';
+  if (introEl)  introEl.textContent = a.intro || '';
+  if (valueEl)  valueEl.textContent = a.value ?? '—';
+  if (stageEl) {
+    stageEl.textContent = a.stage || '—';
+    stageEl.className = 'badge ' + (
+      a.stage === 'stable'   ? 'bg-success' :
+      a.stage === 'strained' ? 'bg-warning text-dark' :
+                               'bg-danger'
+    );
+  }
+  if (signalEl) signalEl.textContent = a.signal || '';
+}
+
+function showOffers(offers) {
+  const list = document.getElementById('offer-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!offers || !offers.length) {
+    list.innerHTML = '<p class="text-muted">No offers available.</p>';
+    return;
+  }
+  offers.forEach(o => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-outline-primary text-start';
+    btn.textContent = o.faction_name + ': ' + o.value + ' scrap';
+    btn.addEventListener('click', () => sell(o.faction_id));
+    list.appendChild(btn);
+  });
+}
+
+async function begin() {
+  const resp = await fetch('/artifact/begin', { method: 'POST' });
+  const data = await resp.json();
+  if (data.ok) {
+    updateStats(data.player);
+    updateArtifact(data.artifact);
+    location.reload();
+  }
+}
+
+async function push() {
+  const resp = await fetch('/artifact/push', { method: 'POST' });
+  const data = await resp.json();
+  if (data.ok) {
+    updateStats(data.player);
+    if (data.result === 'push') {
+      updateArtifact(data.artifact);
+    } else {
+      location.reload();
+    }
+  }
+}
+
+async function stop() {
+  const resp = await fetch('/artifact/stop', { method: 'POST' });
+  const data = await resp.json();
+  if (data.ok) {
+    updateStats(data.player);
+    location.reload();
+  }
+}
+
+async function sell(factionId) {
+  const resp = await fetch('/sale/' + factionId, { method: 'POST' });
+  const data = await resp.json();
+  if (data.ok) {
+    updateStats(data.player);
+    location.reload();
+  }
+}
+
+// Wire buttons
+const btnBegin = document.getElementById('btn-begin');
+const btnPush  = document.getElementById('btn-push');
+const btnStop  = document.getElementById('btn-stop');
+
+if (btnBegin) btnBegin.addEventListener('click', begin);
+if (btnPush)  btnPush.addEventListener('click', push);
+if (btnStop)  btnStop.addEventListener('click', stop);
+
+// Populate artifact data from initial stash
+% if (my $aj = stash('artifact_json')) {
+  updateArtifact(JSON.parse('<%== $aj %>'));
+% }
+% if (my $oj = stash('offers_json')) {
+  showOffers(JSON.parse('<%== $oj %>'));
+% }
+
+// Delete account
 document.getElementById('delete-account-btn').addEventListener('click', async () => {
   if (!confirm('Delete your account permanently? This cannot be undone.')) return;
   const resp = await fetch('/player', { method: 'DELETE' });
   const data = await resp.json();
-  if (data.ok) {
-    window.location.href = '/login';
-  }
+  if (data.ok) window.location.href = '/login';
 });
 </script>
