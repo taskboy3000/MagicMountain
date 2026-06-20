@@ -7,21 +7,35 @@ sub show ($self) {
     my $account = $self->app->accounts->get($player_id);
     $self->stash(player_name => $account->getCol('username'));
 
-    my $seasons = $self->app->seasons;
-    $seasons->load;
-    my @season_ids = keys %{$seasons->table};
-    my $season = @season_ids ? $seasons->table->{$season_ids[0]} : undef;
+    $self->app->seasons->load;
+    my $season = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
+    $season = @$season ? $season->[0] : undef;
     $self->stash(
-        season_label       => $season ? ($season->{label} // 'Season 1')     : 'Upcoming',
-        season_day         => $season ? ($season->{day} // 1)                : '—',
-        season_total_days  => $season ? ($season->{length} // 30)            : '—',
-        season_is_active   => $season ? 1 : 0,
+        season_label      => $season ? ($season->getCol('label') // 'Season 1') : 'Upcoming',
+        season_day        => $season ? ($season->getCol('day') // 1)             : '—',
+        season_total_days => $season ? ($season->getCol('length') // 30)         : '—',
+        season_is_active  => $season ? 1 : 0,
     );
 
     my ($char_model) = @{ $self->app->characters->find(
-        sub { $_[0]->{account_id} eq $player_id }
+        sub { $_[0]->{account_id} eq $player_id && (!$season || $_[0]->{season_id} eq $season->getCol('id')) }
     ) };
-    if ($char_model) {
+
+    unless ($char_model) {
+        my $daily_turns = $self->app->config->{default_daily_turns} // 10;
+        $char_model = $self->app->characters->create(
+            name       => $account->getCol('username'),
+            account_id => $player_id,
+            season_id  => $season ? $season->getCol('id') : undef,
+            score      => 0,
+            scrap      => 0,
+            turns_remaining => $season ? $daily_turns : 0,
+            pending_activity_id => undef,
+        );
+        $char_model->save;
+    }
+
+    {
         my $row = $char_model->row;
         $self->stash(
             score           => $row->{score} // 0,
@@ -42,8 +56,6 @@ sub show ($self) {
                 }
             }
         }
-    } else {
-        $self->stash(score => 0, scrap => 0, turns_remaining => 0);
     }
 
     $self->render('game/show');

@@ -14,8 +14,7 @@ factions. Each ~30 day season is a tournament: highest cumulative score wins.
 **Core loop**: Prospect → Push (repeat) → Stop → Choose buyer → Repeat until
 out of turns → Day rollover → Season ends.
 
-The original working implementation lives in `original/`. This repo is a
-ground-up reimplementation following the architecture spec in
+This is a ground-up reimplementation following the architecture spec in
 `GAME_ARCHITECTURE.md`.
 
 ---
@@ -68,13 +67,6 @@ magic_mountain/
 │   ├── login.t                    # Login flow integration tests
 │   └── session.t                  # Session lifecycle tests (create, touch, expire, logout)
 │
-├── original/                      # PREVIOUS WORKING CODEBASE (reference)
-│   ├── AGENTS.md                  # Migration plan and authority table
-│   ├── ARCHITECTURE.md            # Target architecture for migration
-│   ├── lib/MagicMountain/         # Full game: Engine, Activities, Factions, Market, Bot
-│   ├── t/                         # Comprehensive test suite (~100+ tests)
-│   └── content/                   # YAML artifact definitions
-│
 ├── design_docs/                   # Obsidian design vault
 │   ├── Core Design.md             # Game vision, premise, philosophy
 │   ├── Artifact Mechanics.md      # Push/collapse/breakthrough math
@@ -90,10 +82,9 @@ magic_mountain/
 
 ## Current Status: Early Rebuild
 
-The new codebase has the persistence layer, authentication, and session
-management. Game logic (Engine, Prospecting, Market, Factions, Bot) has not
-been ported yet. The `original/` directory contains the full reference
-implementation.
+The new codebase has the persistence layer, authentication, session management,
+and character creation. Game logic (Engine, Prospecting, Market, Factions, Bot)
+has not been ported yet — implementation pending.
 
 | Layer | Status | Files |
 |-------|--------|-------|
@@ -102,9 +93,9 @@ implementation.
 | Auth/Sessions | Done | `Controller/Sessions.pm`, `Controller/Player.pm`, `Model/Session.pm` |
 | CLI commands | Done | `create_account.pm`, `delete_account.pm`, `disable_account.pm`, `list_accounts.pm` |
 | Web UI | Done | Login form, game page with season info, player JSON endpoint |
-| Game engine | TODO | (in `original/`) |
-| Activities | TODO | (in `original/`) |
-| Market/Factions | TODO | (in `original/`) |
+| Game engine | TODO | |
+| Activities | TODO | |
+| Market/Factions | TODO | |
 
 ### Infrastructure Backlog
 
@@ -224,5 +215,3 @@ about *how the game should work*, consult:
 |---------|-----------|
 | What the game should do | `design_docs/` + `GAME_ARCHITECTURE.md` |
 | New codebase structure | This directory (`lib/`, `t/`, `templates/`) |
-| Reference implementation | `original/lib/MagicMountain/` |
-| Architectural invariants | `original/.opencode/rules/` |

@@ -17,7 +17,7 @@ sub run ($self, @args) {
 
     my $account = $self->app->accounts->create(username => $name);
     $account->save;
-    
+
     say "Account created:";
     say "  player_id:    " . $account->getCol('id');
     say "  display_name: " . $account->getCol('username');

@@ -7,4 +7,7 @@ use Mojo::File qw(curfile);
 use lib curfile->dirname->sibling('lib')->to_string;
 use Mojolicious::Commands;
 
+local $ENV{MM_SKIP_SEASON_CHECK} = 1
+    if @ARGV && $ARGV[0] ne 'daemon';
+
 Mojolicious::Commands->start_app('MagicMountain');

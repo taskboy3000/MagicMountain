@@ -20,7 +20,7 @@ sub run ($self, @args) {
     }
 
     $self->app->seasons->load;
-    my $active = $self->app->seasons->find(sub { $_[0]->{status} eq 'active' });
+    my $active = $self->app->seasons->find(sub { $_[0]->{status} && $_[0]->{status} eq 'active' });
     if (@$active && !$force) {
         say "An active season already exists (" . $active->[0]->getCol('label') . ").";
         say "Use --force to archive it and create a new season.";
@@ -60,6 +60,17 @@ sub run ($self, @args) {
         status          => 'active',
     );
     $season->save;
+
+    my $daily_turns = $self->app->config->{default_daily_turns} // 10;
+    my $old_id = @$active ? $active->[0]->getCol('id') : undef;
+    if ($old_id) {
+        my $chars = $self->app->characters->find(sub { $_[0]->{season_id} eq $old_id });
+        for my $char (@$chars) {
+            $char->setCol('season_id', $season->getCol('id'));
+            $char->setCol('turns_remaining', $daily_turns);
+            $char->save;
+        }
+    }
 
     say "Season created:";
     say "  id:              " . $season->getCol('id');

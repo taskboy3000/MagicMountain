@@ -1,0 +1,402 @@
+# Prospecting Activity Rewrite — Implementation Plan
+
+**Goal**: Align `Activity::Prospecting`, `Model::Character`, `Activity` base class,
+controllers, routes, templates, and tests with the refactored architecture
+described in `GAME_ARCHITECTURE.md`.
+
+**Key architectural changes from the old spec:**
+
+| Old | New |
+|-----|-----|
+| `turns_remaining` (per-character) | `action_points` / `action_points_max` (per-character) |
+| Prospecting costs 1 turn | Prospecting costs 2 AP |
+| `stop` → generates buyer offers (`offers` column), phase `awaiting_buyer` | `stop` → creates ShedItem, phase back to `idle`, no offers |
+| `sell` action on prospecting activity | Removed (selling moved to MarketVisit activity) |
+| Activity columns include `offers` | `offers` removed, `customer` added |
+| Collapse formula: `ratio × 0.8` | Collapse formula: `ratio² × 0.95` |
+| Default daily turns: 10 | Default action points: 15 |
+| Routes: `/artifact/*`, `/sale/:faction_id` | Routes: `/prospecting/*` |
+
+---
+
+## Phase 0 — Foundation
+
+### 0.1 Character Model Columns + All Writer/Reader Updates
+
+**File**: `lib/MagicMountain/Model/Character.pm:7`
+
+Rename `turns_remaining` → `action_points` in the columns list.
+
+Add columns:
+```
+action_points_max       integer  (default 15)
+skill_prospecting       integer  (0-3, default 0)
+skill_upcycling         integer  (0-3, default 0)
+skill_selling           integer  (0-3, default 0)
+```
+
+All character column dependencies must be updated atomically with the rename:
+
+| File | Change |
+|------|--------|
+| `MagicMountain.pm:93-98` (maintenance) | `setCol('turns_remaining', ...)` → `setCol('action_points', ...)`. Use per-character `action_points_max` column — not the config default |
+| `MagicMountain.pm:30` (config) | `default_daily_turns` → `default_action_points`, value 15 |
+| `Controller/Game.pm:25,32,43` | `daily_turns` var → `daily_ap`. `turns_remaining:` key → `action_points:` |
+| `Controller/Game.pm:30` | Add `action_points_max => $daily_ap` |
+| `templates/game/show.html.ep:28-30` | "Turns" → "AP" |
+| `show.html.ep:98,103` | `STAT_TURNS` → `STAT_AP`, `p.turns_remaining` → `p.action_points` |
+| `t/activity_prospecting.t` | `_fresh_char` uses `action_points => 15` |
+| `t/prospecting_web.t` | Character setup uses `action_points => 15` |
+
+These must be done as a single unit — the codebase has no `turns_remaining` from
+the moment Phase 0.1 starts.
+
+### 0.2 Activity Base Columns
+
+**File**: `lib/MagicMountain/Activity.pm:12-18`
+
+Change columns declaration:
+```
+[ @$cols, qw(char_id type phase artifact offers) ]
+→ [ @$cols, qw(char_id type phase artifact customer) ]
+```
+
+Remove `offers` accessor (lines 61-65). Add `customer` accessor:
+
+```perl
+sub customer {
+    my $self = shift;
+    return $self->setCol('customer', shift) if @_;
+    return $self->getCol('customer');
+}
+```
+
+### 0.3 New ShedItem Model
+
+**File**: `lib/MagicMountain/Model/ShedItem.pm` (new)
+
+Full subclass following the existing `MagicMountain::Model` pattern:
+
+```perl
+package MagicMountain::Model::ShedItem;
+use Mojo::Base 'MagicMountain::Model', '-signatures';
+
+has columns => sub ($self) {
+    my $cols = $self->defaultColumns;
+    return [ @$cols, qw(
+        char_id artifact_id
+        original_value decayed_value condition days_in_shed
+        instability stage push_count has_evolved
+        behaviors archetypes
+        estimated_value_min estimated_value_max
+    )];
+};
+
+1;
+```
+
+`condition` is a plain string field (`fresh` / `settling` / `fading`). There is
+no enum enforcement in `MagicMountain::Model` — validation is the caller's
+responsibility.
+
+### 0.4 App Class — Shed Attribute + `use` Import
+
+**File**: `lib/MagicMountain.pm`
+
+Add to the imports at line 16:
+```perl
+use MagicMountain::Model::ShedItem;
+```
+
+Add after the `characters` attribute:
+```perl
+has shed => sub ($self) {
+    MagicMountain::Model::ShedItem->new(
+        file => $self->dataDir . '/shed.json',
+        log  => $self->log,
+    );
+};
+```
+
+---
+
+## Phase 1 — Prospecting Activity Rewrite
+
+### 1.1 Transition Table
+
+**File**: `lib/MagicMountain/Activity/Prospecting.pm:7-13`
+
+```perl
+# Old:
+{ idle => ['begin'], processing => ['push', 'stop'], awaiting_buyer => ['sell'] }
+
+# New:
+{ idle => ['begin'], processing => ['push', 'stop'] }
+```
+
+### 1.2 `begin` Handler
+
+Change guard: `die "AP exhausted" unless ($char->{action_points} // 0) >= 2`
+
+Change deduction: `$char->{action_points} -= 2` (instead of `turns_remaining--`)
+
+### 1.2b `_player_snapshot`
+
+**File**: `Prospecting.pm:109-114`
+
+```perl
+# Old:
+turns_remaining => $char->{turns_remaining},
+
+# New:
+action_points => $char->{action_points},
+```
+
+Must be done immediately after 1.2 so views don't return the wrong key name.
+
+### 1.3 `push` Handler — Collapse Formula
+
+**File**: `Prospecting.pm:174-177`
+
+```perl
+# Old:
+my $collapse_chance = $ratio * 0.8;
+$collapse_chance = 1.0  if $collapse_chance > 1.0;
+$collapse_chance = 0.05 if $collapse_chance < 0.05;
+
+# New:
+my $collapse_chance = ($ratio ** 2) * 0.95;
+$collapse_chance = 1.0  if $collapse_chance > 1.0;
+$collapse_chance = 0.05 if $collapse_chance < 0.05;
+```
+
+### 1.4 `stop` Handler — Complete Rewrite
+
+**File**: `Prospecting.pm:213-245`
+
+Old: Generate fake faction offers, set phase `awaiting_buyer`, persist offers.
+
+New:
+1. No AP cost (cost already deducted at `begin`)
+2. Calculate estimated value range: `min = floor(value × 0.8)`, `max = floor(value × 1.2)`
+3. Create ShedItem via `$self->app->shed->create(...)` with current artifact state
+4. Call `$item->save` to persist the new ShedItem row
+5. Set phase to `idle`, clear artifact
+6. Return view with shed item summary
+
+The handler does NOT delete the activity row — it sets phase to `idle`, then the
+existing controller pattern (`if phase eq 'idle' → delete activity row, clear FK`)
+handles teardown automatically. The handler also cannot directly call
+`$self->app->prospecting->delete()` because it has no reference to the activity
+instance's own ID from within the dispatch — the controller owns the lifecycle.
+
+```perl
+# Creates and persists the ShedItem, then returns to idle.
+# Controller will delete the activity row and clear the FK.
+my $item = $self->app->shed->create(
+    char_id            => $char->{id},
+    artifact_id        => $artifact->{id},
+    original_value     => $artifact->{value},
+    decayed_value      => $artifact->{value},
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => $artifact->{instability},
+    stage              => $artifact->{stage},
+    push_count         => $artifact->{push_count},
+    has_evolved        => $artifact->{has_evolved},
+    behaviors          => $artifact->{behaviors},
+    archetypes         => $artifact->{archetypes},
+    estimated_value_min => $est_min,
+    estimated_value_max => $est_max,
+);
+$item->save;
+
+$self->phase('idle');
+$self->artifact(undef);
+
+return {
+    view => {
+        ok        => 1,
+        result    => 'stopped',
+        shed_item => {
+            id                   => $item->getCol('id'),
+            artifact_id          => $artifact->{id},
+            estimated_value_min  => $est_min,
+            estimated_value_max  => $est_max,
+            condition            => 'fresh',
+        },
+        player => $self->_player_snapshot($char),
+    },
+};
+```
+
+### 1.5 Remove `sell` Handler
+
+Delete entire `sell` method (lines 247-273). Selling is now handled by `Activity::MarketVisit` (future).
+
+### 1.6 Clean Up Internal Outcomes
+
+- `_do_collapse`: Remove `$self->offers(undef)` line
+- `_do_breakthrough`: Remove `$self->offers(undef)` line
+- `_do_breakthrough`: Add `$char->{action_points}` remains unchanged (correct — breakthrough auto-cashout already works)
+- `_do_collapse`: Verify `action_points` not changed (correct — no AP refund on collapse)
+
+### 1.7 Update Defaults
+
+**File**: `Prospecting.pm:82-87`
+
+Align defaults with content/prospecting.yml (some already match, verify):
+
+| Parameter | Current default | Spec default |
+|-----------|----------------|--------------|
+| max_instability | 12 | 14 (varies per spec) |
+| instability_growth_max | 3 | 2 (varies) |
+| base_gain_min | 2 | 3 (varies) |
+| base_gain_max | 5 | 5 (varies) |
+| evolution_chance | 0.08 | 0.03 (varies) |
+| evolution_threshold | 0.50 | 0.25 (varies) |
+
+These are just fallback defaults; actual values come from YAML. The YAML file
+is already correct — these defaults only matter if a spec is missing a field.
+
+---
+
+## Phase 2 — Routes, Controllers, Config
+
+### 2.1 Rename Artifact Controller
+
+- **Rename** `lib/MagicMountain/Controller/Artifact.pm` → `lib/MagicMountain/Controller/Prospecting.pm`
+- Package name change: `MagicMountain::Controller::Artifact` → `MagicMountain::Controller::Prospecting`
+- No functional change — the controller is already a thin pipe
+- Must be done BEFORE updating routes so Mojolicious can resolve `to => 'prospecting#...'`
+
+### 2.2 Rename Routes
+
+**File**: `lib/MagicMountain.pm:207-211`
+
+```perl
+# Old:
+$auth->post('/artifact/begin')->to('artifact#begin');
+$auth->post('/artifact/push')->to('artifact#push');
+$auth->post('/artifact/stop')->to('artifact#stop');
+$auth->post('/sale/:faction_id')->to('sale#create');
+
+# New:
+$auth->post('/prospecting/begin')->to('prospecting#begin');
+$auth->post('/prospecting/push')->to('prospecting#push');
+$auth->post('/prospecting/stop')->to('prospecting#stop');
+```
+
+### 2.3 Delete Sale Controller
+
+**File**: `lib/MagicMountain/Controller/Sale.pm` — delete entire file.
+
+---
+
+## Phase 3 — Game State & Frontend
+
+### 3.1 Game Controller
+
+**File**: `lib/MagicMountain/Controller/Game.pm`
+
+- Lines 52-55: Remove `offers_json` stash; remove `offers` from activity load block
+  (column rename and config changes were already done in Phase 0.1)
+
+### 3.2 Game Template
+
+**File**: `templates/game/show.html.ep`
+
+- Lines 65-72: Remove `awaiting_buyer` phase block (offers/sale UI)
+- Lines 127-142: Remove `showOffers()` and `sell()` functions
+- Lines 144-152: `begin()`: `/artifact/begin` → `/prospecting/begin`
+- Lines 153-165: `push()`: `/artifact/push` → `/prospecting/push`
+- Lines 167-174: `stop()`: `/artifact/stop` → `/prospecting/stop`
+- Lines 176-183: Remove `sell()` function
+- Lines 194-200: Remove `showOffers()` call on initial stash
+  (AP label and stat variable renames were already done in Phase 0.1)
+
+**Note — Post-stop shed display**: After a successful `stop`, the immediate
+response includes the new shed item, and the JS calls `location.reload()`. On
+reload, the Game controller shows the idle prospecting card ("Ready to prospect")
+but has no way to display shed contents — the `Shed#index` controller is not
+implemented yet. This is acceptable: the player sees the shed item in the stop
+response and can continue playing. Full shed inventory display will be added
+with the Shed controller in a later phase.
+
+---
+
+## Phase 4 — Tests
+
+### 4.1 Activity Base Tests
+
+**File**: `t/activity.t`
+
+- Remove tests at lines 66-71 (`offers` column/accessor tests)
+- Add `customer` column/accessor tests
+- Update columns assertion at line 44: `offers` → `customer`
+
+### 4.2 Prospecting Unit Tests
+
+**File**: `t/activity_prospecting.t`
+
+- TestCharacter: Use `action_points` key (5 → 15 AP for fresh char)
+- `turns exhausted` → `AP exhausted`, check `>= 2` not `> 0`
+- Update `begin` test: verify 2 AP deducted (15 → 13)
+- Remove `stop→awaiting_buyer` test (lines 320-338)
+- Remove `sell` tests (lines 352-399)
+- Remove `stop→sell` from `delete` test (lines 443-461)
+- Remove `stop→sell` from full lifecycle test (lines 465-490)
+- Add new `stop→ShedItem` test: verify ShedItem created with estimated value
+- Update collapse formula test expectations (ratio² × 0.95)
+- Update columns assertion: no `offers`, expect `customer`
+
+### 4.3 Web Integration Tests
+
+**File**: `t/prospecting_web.t`
+
+- Route URLs: `/artifact/begin` → `/prospecting/begin`
+- Character setup: `turns_remaining` → `action_points`
+- Remove sell step from full lifecycle test
+- `begin` test: verify AP deducted by checking game state
+
+---
+
+## Execution Order
+
+```
+Phase 0.1 — Character columns + ALL reader/writer updates (atomic)
+              Character.pm, MagicMountain.pm (config + maintenance),
+              Controller/Game.pm, templates/game/show.html.ep,
+              test character fixtures
+Phase 0.2 — Activity base columns & accessors (offers→customer)
+Phase 0.3 — ShedItem model (new file, MagicMountain::Model subclass)
+Phase 0.4 — App shed attribute + use import
+  ↓
+Phase 1.1 — Transition table (remove awaiting_buyer, sell)
+Phase 1.2 — begin handler (AP check/deduction)
+Phase 1.2b — _player_snapshot (must follow 1.2 immediately)
+Phase 1.3 — push collapse formula (ratio² × 0.95)
+Phase 1.4 — stop handler (ShedItem creation, no activity deletion)
+Phase 1.5 — Remove sell handler
+Phase 1.6 — Clean up offers references (collapse, breakthrough)
+Phase 1.7 — Update default values
+  ↓
+Phase 2.1 — Rename Artifact → Prospecting controller (must precede route change)
+Phase 2.2 — Routes (/artifact/* → /prospecting/*)
+Phase 2.3 — Delete Sale controller
+  ↓
+Phase 3.1 — Game controller (remove offers stash only)
+Phase 3.2 — Game template (remove sell UI, update URLs)
+  ↓
+Phase 4.1 — Activity base tests
+Phase 4.2 — Prospecting unit tests
+Phase 4.3 — Web integration tests
+```
+
+Each phase can be verified with:
+```
+perl -c lib/MagicMountain/Activity/Prospecting.pm   # syntax check
+prove -l t/activity_prospecting.t                    # unit tests
+prove -l t/prospecting_web.t                         # web tests
+prove -l t/                                           # full suite
+```

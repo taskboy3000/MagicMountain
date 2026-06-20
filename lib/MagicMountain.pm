@@ -27,6 +27,7 @@ has defaultConfig => sub ($self) {
         maintenance_window_minutes => 5,
         default_season_length     => 30,
         default_season_label_prefix => 'Season',
+        default_daily_turns       => 10,
     }
 };
 
@@ -75,8 +76,36 @@ has prospecting => sub ($self) {
 
 has maintenance => sub ($self) {
     my $maint = MagicMountain::Maintenance->new(
-        app            => $self,
+        app             => $self,
         end_of_day_hour => $self->config->{end_of_day_hour} // 0,
+        on_maintenance  => sub ($maint) {
+            $maint->app->log->info("Daily maintenance: advancing season day and resetting character turns");
+
+            $maint->app->seasons->load;
+            my $active = $maint->app->seasons->find(sub { $_[0]->{status} && $_[0]->{status} eq 'active' });
+            return unless @$active;
+
+            my $season = $active->[0];
+            my $day    = $season->getCol('day') + 1;
+            $season->setCol('day', $day);
+            $season->save;
+
+            my $daily_turns = $maint->app->config->{default_daily_turns} // 10;
+            $maint->app->characters->load;
+            my $chars = $maint->app->characters->find(sub { $_[0]->{season_id} eq $season->getCol('id') });
+            for my $char (@$chars) {
+                $char->setCol('turns_remaining', $daily_turns);
+                $char->save;
+            }
+
+            my $length = $season->getCol('length');
+            if ($day > $length) {
+                $maint->app->log->warn(sprintf(
+                    "Season '%s' day %d exceeds configured length %d",
+                    $season->getCol('label'), $day, $length
+                ));
+            }
+        },
     );
     $maint->next_run;
     return $maint;
@@ -111,7 +140,7 @@ sub startup ($self) {
     }
 
     if (!$self->ensureActiveSeason) {
-        die("halting.");
+        die("halting.") unless $ENV{MM_SKIP_SEASON_CHECK};
     };
 
     $self->renderer->cache->max_keys(0);

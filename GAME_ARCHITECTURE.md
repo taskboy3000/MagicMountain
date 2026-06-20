@@ -8,14 +8,18 @@ No source code. All mechanics, boundaries, and invariants preserved.*
 ## 1. Game Concept
 
 **Magic Mountain** is a multiplayer seasonal push-your-luck game. Players extract
-strange artifacts from a mysterious mountain, destabilize them for greater
-value, and sell them to competing factions. Each season is a tournament: highest
-cumulative score wins. The game is played through a web UI or automated bot
-simulation.
+strange artifacts from a mysterious mountain, destabilize ("push") them for
+greater value (risking catastrophic collapse), store them in a shed where they
+decay, and negotiate sales with visiting faction buyers at the Bazaar. Each
+season is a tournament: highest cumulative sale value wins.
 
 **Core tension**: Every "push" (destabilization attempt) increases an artifact's
 value but also raises its risk of catastrophic collapse. Collapse means total
-loss — zero salvage. Players decide when to stop and sell.
+loss — zero salvage. Players must also manage decaying inventory, limited
+action points per day, and fleeting market opportunities.
+
+**Player role**: The player is an opportunistic salvager — never a savior,
+never a villain. The game does not morally categorize the player.
 
 ---
 
@@ -23,26 +27,40 @@ loss — zero salvage. Players decide when to stop and sell.
 
 ```
 Login/join season
-  → Begin daily event (consume 1 turn)
-    → Artifact is drawn from weighted pool
-      → Push (repeatable, no turn cost)
+  → Each day: 15 Action Points (AP)
+    → Prospecting (costs 2 AP)
+      → Artifact is drawn from weighted pool
+      → Push (repeatable, no AP cost)
         → Instability grows, value grows
         → Three stages: stable → strained → unstable
-        → Possible outcomes per push:
+        → Possible outcomes:
           - Collapse: lose artifact, get nothing
-          - Breakthrough: artifact evolves (massive value spike, auto-cashout)
-          - Normal: value increases, get new signal text
-      → Stop (no turn cost)
-        → Up to two faction buyers make offers
-          (usually two; falls back to one if only one faction is eligible)
-      → Sell (no turn cost)
-        → Choose one faction buyer
-        → Award scrap (spendable) + score (leaderboard)
-        → Pending activity clears
-  → Repeat until out of turns
-  → Day rollover: full turn refresh, pending activity preserved
+          - Breakthrough: artifact evolves, massive value spike, auto-cashout
+          - Normal: value increases, new signal text
+      → Stop (no AP cost)
+        → Artifact enters Shed with estimated value range
+        → Activity cleared
+
+    → Market Visit (costs 1 AP)
+      → Customer/buyer appears with hidden demand
+      → Player may offer any artifact from Shed
+      → Negotiation may succeed (sale) or fail (customer leaves)
+      → On sale: scrap + score awarded, artifact removed from Shed
+
+    → Skill Training (no AP cost, costs scrap)
+      → Buy or upgrade seasonal skills
+
+  → Day rollover: refresh AP, artifact decay tick, season day increments
   → Season ends after N days (admin-triggered)
 ```
+
+### Key structural rules:
+- Prospecting and selling are **separate activities** with different AP costs.
+  Prospecting costs 2 AP. Market visits cost 1 AP.
+- Artifacts enter the Shed after prospecting. Selling happens later, possibly
+  on a different day.
+- AP are refreshed fully at day rollover. Unused AP are lost.
+- Skill training does not cost AP but costs scrap.
 
 ---
 
@@ -79,7 +97,7 @@ Browser → Mojo route → Controller action
                           │     ├── Activity base: read $self->phase (column), validate transition
                           │     ├── Validate handler exists ($self->can($action))
                           │     ├── Activity subclass: execute game math
-                          │     ├── Mutate $char fields (scrap, score)
+                          │     ├── Mutate $char fields (scrap, score, action_points)
                           │     ├── Set phase directly: $self->phase('processing')
                           │     └── Return { view => {...} }
                           │
@@ -90,7 +108,7 @@ Browser → Mojo route → Controller action
 ```
 
 Controllers are dumb pipes. They do not inspect or filter what the activity
-returns. They trust `turns_remaining` as written by maintenance — no rollover
+returns. They trust `action_points` as written by maintenance — no rollover
 checks, no clock advancement.
 
 ### 3.2 Phase 2: Daily Maintenance (In-Process)
@@ -109,8 +127,8 @@ Mojo::IOLoop (every 60s) → Maintenance::dailyMaintenance
   ├── Set in_maintenance flag (gates write routes → HTTP 503)
   ├── Advance next_run to next day
   ├── Invoke on_maintenance callback
-  │     (extension point for: increment season.day, refresh turns,
-  │      update leaderboard, check season end)
+  │     (extension point for: increment season.day, refresh AP,
+  │      apply artifact decay, update leaderboard, check season end)
   └── Clear in_maintenance flag
 ```
 
@@ -130,8 +148,8 @@ and replaced with the in-process timer because:
   lock, PID file, or HTTP endpoint), adding complexity without value.
 - The Mojo::IOLoop timer provides precise per-second scheduling without
   external infrastructure (no crontab to configure, no separate deployment).
-- The actual day-rollover logic (turn refresh, day increment) runs in the
-  `on_maintenance` callback — a single responsbility extension point that
+- The actual day-rollover logic (AP refresh, day increment, decay) runs in the
+  `on_maintenance` callback — a single responsibility extension point that
   keeps maintenance concerns isolated from controllers.
 
 ### 3.4 Why Not an Engine?
@@ -149,7 +167,7 @@ second coordinator layered over one that already exists.
 **The real architectural rule is not "all gameplay must go through Engine."**
 It is: *gameplay behavior must not leak into controllers, raw state hashes,
 timers, or persistence plumbing.* That rule is satisfied by focused service
-classes (Activity, Market, SeasonalCharacter) without a central dispatcher.
+classes (Activity, Market, Shed, SeasonalCharacter) without a central dispatcher.
 
 **Daily maintenance is an application lifecycle concern, not an ad hoc game
 action.** Mojolicious is the correct place to schedule it. The maintenance
@@ -181,16 +199,20 @@ Each module has strict constraints on what it may and must never hold.
 
 | Module | May Hold | Must NEVER Hold |
 |--------|----------|-----------------|
-| **Controller::*** | App reference, model accessors (accounts, characters, seasons) | Game logic, phase validation, artifact math, persistence orchestration |
-| **Activity (base)** | Persisted columns (char_id, type, phase, artifact, offers), ephemeral attributes (transitions, app, content_filename, content_data, log), dispatch logic, get/create overrides for ephemeral propagation, load_content | Game math, artifact knowledge, YAML content interpretation |
-| **Activity::*** (subclass, e.g. Prospecting) | App reference, transition table, content interpretation, live activity state (artifact, offers columns), create override (type/phase defaults) | Market, Faction objects, Account model, other players' data |
-| **Market** (offer generator) | Faction objects, content reference | Character model, Account model |
-| **SeasonalCharacter** (character wrapper) | Model row data hashref, player_id | Market, Faction, Content, Transcript |
-| **Model::Character** (persistence) | File path, column definitions, JSON CRUD | Game logic, artifact math, faction rules |
-| **Model::Account** (persistence) | File path, column definitions, JSON CRUD | Game logic, season data, character data |
-| **Model::Season** (persistence) | File path, column definitions, JSON CRUD | Per-player character data, game logic |
-| **Model::Session** (persistence) | File path, column definitions, expiry logic | Game logic, character data |
-| **Maintenance** (day scheduler) | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
+| **Controller::*** | App reference, model accessors (accounts, characters, seasons, shed, skills) | Game logic, phase validation, artifact math, persistence orchestration |
+| **Activity (base)** | Persisted columns, ephemeral attributes (transitions, app, content), dispatch logic | Game math, artifact knowledge, YAML content interpretation |
+| **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
+| **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
+| **Shed** (inventory manager) | ShedItem rows, decay logic, query/filter by traits | Market, Faction objects, Account model |
+| **Market** (customer generator) | Faction objects, content reference, customer generation | Character model, Account model, Shed |
+| **SeasonalCharacter** (character wrapper) | Model row data hashref, player_id, invariant enforcement | Market, Faction, Content, Shed |
+| **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
+| **Model::Character** | File path, column definitions, JSON CRUD | Game logic, artifact math, faction rules |
+| **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
+| **Model::Season** | File path, column definitions, JSON CRUD | Per-player character data, game logic |
+| **Model::Session** | File path, column definitions, expiry logic | Game logic, character data |
+| **Model::Skill** | File path, column definitions, JSON CRUD | Game logic, character state |
+| **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
 | **Content** (YAML loader) | Directory path, parsed YAML data | Model persistence, game rules |
 | **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
@@ -214,7 +236,7 @@ in the base class).
 The subclass declares:
 - **transitions** — hashref where keys ARE the phases, values are arrays of legal actions
 - **create** override — sets type/phase column defaults, chains to Activity::create
-- Handler methods (`begin`, `push`, `stop`, `sell`) — one per action in the transition table
+- Handler methods (e.g. `begin`, `push`, `stop`) — one per action in the transition table
 
 ### Controller Responsibility
 
@@ -231,9 +253,8 @@ Controllers are dumb pipes. Their entire job:
 7. Call `$char->save` to persist
 8. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
 
-No phase validation. No artifact math. No persistence calls (except the two
-saves). No offer generation. No transcript recording. No serialize/deserialize
-ceremony. No controller checks for day rollover or refreshes turns.
+No phase validation. No game math. No persistence orchestration (except the two
+saves). No transcript recording. Controllers trust `action_points` as written.
 
 ---
 
@@ -268,32 +289,65 @@ Survives across seasons. Contains no gameplay data.
 | player_id | UUID | FK to PlayerAccount |
 | season_id | UUID | FK to Season |
 | display_name | string | Snapshot of name at season start |
-| score | integer | Cumulative leaderboard value. NEVER decreases |
-| scrap | integer | Spendable currency. May decrease via future purchases |
-| turns_remaining | integer | Daily event allowance remaining |
+| score | integer | Cumulative leaderboard value from sales. NEVER decreases |
+| scrap | integer | Spendable currency. Decreases via skill purchases |
+| action_points | integer | Current AP remaining for the day |
+| action_points_max | integer | Daily AP cap (default 15) |
 | faction_sales | map | Per-faction sale count this season |
 | standing | map | Per-faction reputation integer |
 | pending_activity_id | string or null | FK to activities.json row. null when idle |
+| skill_prospecting | integer | 0–3, Prospecting skill level |
+| skill_upcycling | integer | 0–3, Upcycling skill level |
+| skill_selling | integer | 0–3, Selling skill level |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
 
-> **Note on `last_refreshed_day`**: This field existed in the original
-> "lazy rollover" design where turns were refreshed on next player action.
-> The in-process maintenance design refreshes all turns during the daily
-> maintenance window, so this field is no longer needed. Controllers trust
-> `turns_remaining` as written.
+> `turns_remaining` has been replaced by `action_points` / `action_points_max`.
+> The old "lazy rollover" design using `last_refreshed_day` was already removed
+> in favor of in-process maintenance AP refresh.
 
 **Invariants enforced by SeasonalCharacter wrapper:**
-- `turns_remaining` cannot go below zero
+- `action_points` cannot go below zero and cannot exceed `action_points_max`
 - `scrap` must be non-negative
 - `pending_activity_id` must reference a valid activities.json row if set
 - `score` never decreases
-- Attempting to consume a daily event when turns are zero is a hard error
+- Attempting to start a prospecting or market activity without sufficient AP
+  is a hard error
+- Skills are 0–3, inclusive
 
 **Property distinction:**
-- `score` = cumulative seasonal leaderboard value, never decreases
-- `scrap` = spendable seasonal currency, may decrease through future systems
+- `score` = cumulative seasonal leaderboard value from artifact sales, never decreases
+- `scrap` = spendable seasonal currency, may decrease through skill purchases
 
-### 5.4 Activity (activities.json)
+### 5.4 ShedItem (shed.json)
+
+Each row represents one artifact recovered from prospecting, stored in the
+player's shed pending sale or decay.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| char_id | UUID | FK to character |
+| artifact_id | string | Original artifact spec ID (e.g. "thermal_box_001") |
+| original_value | integer | Value at stop time (post-push, pre-decay) |
+| decayed_value | integer | Current estimated value after decay |
+| condition | enum | fresh / settling / fading |
+| days_in_shed | integer | Number of decay ticks applied |
+| instability | integer | Final instability at stop time |
+| stage | string | Final stage at stop time (stable/strained/unstable) |
+| push_count | integer | Number of pushes applied |
+| has_evolved | boolean | Whether breakthrough occurred |
+| behaviors | arrayref | Trait tags copied from artifact spec |
+| archetypes | arrayref | Thematic grouping copied from artifact spec |
+| estimated_value_min | integer | Lower bound shown to player |
+| estimated_value_max | integer | Upper bound shown to player |
+| created_at | timestamp | When the artifact entered the shed |
+| updatedAt | timestamp | Last save time |
+
+The `behaviors` array is the key field for faction interest matching during
+market negotiation. Copied from the artifact spec at stop time so that the
+shed item is self-contained.
+
+### 5.5 Activity (activities.json)
 
 Each active game session is a row in the activities table. The character's
 `pending_activity_id` column is an FK to this table. When the activity phase
@@ -309,7 +363,7 @@ returns to `'idle'`, the row is deleted and the FK cleared.
     "type": "prospecting",
     "phase": "processing",
     "artifact": { ... },
-    "offers": [ ... ],
+    "customer": null,
     "createdAt": <unix_ts>,
     "updatedAt": <unix_ts>
   }
@@ -322,14 +376,18 @@ returns to `'idle'`, the row is deleted and the FK cleared.
 |--------|------|-------------|
 | id | UUID | Primary key |
 | char_id | UUID | FK to characters.json |
-| type | string | Discriminator (e.g. "prospecting") |
-| phase | string | State-machine phase: idle / processing / awaiting_buyer |
-| artifact | hashref or null | Live artifact state (null when idle) |
-| offers | arrayref or null | Buyer offers (null when not awaiting_buyer) |
+| type | string | Discriminator: "prospecting" or "market_visit" |
+| phase | string | State-machine phase (varies by type) |
+| artifact | hashref or null | Live artifact state (prospecting only, null when idle) |
+| customer | hashref or null | Current customer state (market_visit only, null when idle) |
 | createdAt | unix timestamp | Row creation time |
 | updatedAt | unix timestamp | Last save time |
 
-**Prospecting — artifact column shape:**
+The `offers` column is removed — selling no longer happens inside a
+prospecting activity. Offers are replaced by the negotiation flow in the
+MarketVisit activity.
+
+**Prospecting — artifact column shape** (same as before):
 
 ```json
 {
@@ -354,37 +412,23 @@ returns to `'idle'`, the row is deleted and the FK cleared.
 }
 ```
 
-**Prospecting — offers column shape (awaiting_buyer phase only):**
+**MarketVisit — customer column shape** (during negotiating phase):
 
 ```json
-[
-  {
-    "faction_id": "syndicate",
-    "faction_name": "The Syndicate",
-    "value": 24,
-    "text": "A broker tags it for resale.",
-    "disposition": "pragmatic"
-  },
-  {
-    "faction_id": "faculty",
-    "faction_name": "The Faculty",
-    "value": 29,
-    "text": "A scholar notes the signal.",
-    "disposition": "scholarly"
-  }
-]
+{
+  "faction_id": "syndicate",
+  "faction_name": "The Syndicate",
+  "desired_behaviors": ["thermal", "storage", "power"],
+  "base_multiplier": 1.1,
+  "irritation": 0,
+  "irritation_threshold": 5,
+  "settle_chance": 0.15,
+  "offer_value": null,
+  "offer_text": null
+}
 ```
 
-**Critical rule**: Once offers are generated at stop time, they are persisted
-in the offers column and MUST NOT be rerolled at sell time. The sell action
-validates the submitted faction against stored offers and returns the exact
-stored offer.
-
-The artifact sub-object snapshots all fields from both the YAML spec and the
-live artifact state. Fields with YAML defaults (e.g., `evolution_chance`) that
-were omitted in the spec file are filled in by `_apply_defaults` during `begin`.
-
-### 5.5 SeasonFactionState (per-season global faction tracking) — Planned
+### 5.6 SeasonFactionState (per-season global faction tracking)
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -392,11 +436,13 @@ were omitted in the spec file are filled in by `_apply_defaults` during `begin`.
 | season_id | UUID | FK to Season |
 | influence | integer | Accumulated value from all sales to this faction |
 | artifacts_received | integer | Count of artifacts sold to this faction |
+| intake_by_trait | map | Map of trait → count received (e.g. `{thermal: 5, signal: 2}`) |
+| market_saturation | map | Map of trait → saturation level (affects future pricing) |
 
-Not yet implemented. Will drive faction dominance, Crier reports, and buyer
-context.
+Planned. Will drive faction dominance, Crier reports, buyer context, and
+market dynamics.
 
-### 5.6 ArtifactDisposition (per-sale record) — Planned
+### 5.7 ArtifactDisposition (per-sale record) — Planned
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -406,7 +452,7 @@ context.
 | faction_id | string | Which faction bought it |
 | season_day | integer | When the sale occurred |
 | value_awarded | integer | Final sale value |
-| artifact_snapshot | JSON | Full artifact state at sale time |
+| artifact_snapshot | JSON | Full artifact state at sale time (copied from shed item) |
 | standing_delta | integer | Standing change from this sale |
 | influence_delta | integer | Influence added to faction |
 | narrative_hooks | JSON | Keys for future Crier/narrative generation |
@@ -414,7 +460,7 @@ context.
 Not yet implemented. Append-only. Immutable after creation. Survives character
 deletion.
 
-### 5.7 SeasonRecord (post-season archive)
+### 5.8 SeasonRecord (post-season archive)
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -425,18 +471,70 @@ deletion.
 | final_scrap | integer | Season-ending scrap |
 | rank | integer | Final leaderboard position |
 | faction_standing_snapshot | JSON | Standing at season end |
+| skills_snapshot | JSON | Skill levels at season end |
 | story_highlights | JSON | Notable dispositions and narrative hooks |
 | created_at | timestamp | When finalized |
 
 Created during season finalization, before characters are deleted.
 
-### 5.8 Entity Lifecycle
+### 5.9 Skill Definition (content/skills.yml, loaded by Model::Skill)
+
+Skills are defined in YAML content, not hardcoded:
+
+```yaml
+- id: prospecting
+  name: Prospecting
+  max_level: 3
+  levels:
+    - level: 1
+      cost: 10
+      description: "Better leads"
+    - level: 2
+      cost: 25
+      description: "Richer veins"
+    - level: 3
+      cost: 50
+      description: "Eye for the unusual"
+- id: upcycling
+  name: Upcycling
+  max_level: 3
+  levels:
+    - level: 1
+      cost: 10
+      description: "Firm touch"
+    - level: 2
+      cost: 25
+      description: "Steady hand"
+    - level: 3
+      cost: 50
+      description: "Master's feel"
+- id: selling
+  name: Selling
+  max_level: 3
+  levels:
+    - level: 1
+      cost: 10
+      description: "Better haggling"
+    - level: 2
+      cost: 25
+      description: "Customer reader"
+    - level: 3
+      cost: 50
+      description: "Dealmaker"
+```
+
+The `cost` field is in scrap. Exact mechanical effects per level are marked
+as implementation detail — see section 6.6.
+
+### 5.10 Entity Lifecycle
 
 ```
 PlayerAccount ─── persists forever ──────────────────────►
        │
        ├── Season 1 ─── SeasonalCharacter ──► deleted ──►
        │                     │
+       │                     ├── ShedItem (created after prospecting stop)
+       │                     ├── Skill levels (bought with scrap, columns on character)
        │                     ├── Activity (created/loaded per request, deleted on idle)
        │                     └── ArtifactDispositions (survive)
        │
@@ -448,7 +546,8 @@ PlayerAccount ─── persists forever ─────────────
 A SeasonalCharacter may be deleted ONLY after:
 1. Season finalization creates a SeasonRecord
 2. All SeasonRecords are verified as stored
-3. Then hard-deletion is permitted
+3. All owned ShedItems are discarded (artifacts are forfeit at season end)
+4. Then hard-deletion is permitted
 
 ---
 
@@ -459,6 +558,9 @@ A SeasonalCharacter may be deleted ONLY after:
 Artifacts are selected via weighted random selection from the YAML content
 pool. Each artifact spec has a `weight` field. Total weight sums across all
 specs, and a random roll selects one.
+
+The Prospecting skill level may influence the draw pool or base parameters
+(see 6.6 for skill effects marked as implementation detail).
 
 ### 6.2 Push Model (Artifact Destabilization)
 
@@ -490,7 +592,7 @@ Each push operation:
      - Artifact value set to new_value
      - Instability increases by `evolution_instability_spike`
      - Player receives `new_value` as both scrap and score
-      - pending_activity cleared (activity row deleted)
+      - Activity row deleted (no stop needed, artifact never enters shed)
      - At most ONE evolution per artifact
 
 6. **Value gain** (if no collapse and no breakthrough):
@@ -498,51 +600,149 @@ Each push operation:
    - `artifact.value += gain`
    - A random signal text is selected from the YAML spec for the current stage
 
-### 6.3 Buyer Offers (Market)
+### 6.3 Stop and Shed Entry
 
-When a player stops (not collapses, not breakthroughs), the Market generates
-buyer offers:
+When a player stops (not collapse, not breakthrough):
 
-1. **Eligibility**: Each faction has an `interested_behaviors` list. A faction
-   is eligible if:
-   - It has `*` (wildcard interest), OR
-   - Any artifact behavior matches any faction interest
+1. AP cost was already deducted at `begin` — stop does not cost additional AP
+2. An estimated value range is calculated from the artifact's current value:
+   - `estimated_value_min = floor(value × 0.8)`
+   - `estimated_value_max = floor(value × 1.2)`
+   - (May be influenced by Selling skill — see 6.6)
+3. A ShedItem is created with:
+   - Artifact spec data copied into `artifact_id`, `behaviors`, `archetypes`
+   - Current artifact state copied into `original_value`, `instability`, `stage`, `push_count`, `has_evolved`
+   - `decayed_value` set to `original_value` initially
+   - `condition` set to `fresh`
+   - `days_in_shed` set to 0
+   - `estimated_value_min` and `estimated_value_max` from step 2
+4. The activity row is deleted and `pending_activity_id` is cleared
+5. Player receives estimated value range as information only (no scrap or score yet)
 
-2. **Selection**: Up to two factions are selected from the eligible pool via
-   weighted random selection. If only one faction is eligible, a single
-   offer is generated. Each faction's weight = its `influence` value
-   (from faction influence tracking), defaulting to 1 if no influence is
-   recorded.
+No buyer offers are generated at stop time. Selling is a separate activity.
 
-3. **Offer generation**: For each selected faction:
-   - `multiplier = faction.base_multiplier` (may be overridden by special
-     faction logic, e.g., Faculty's `effective_multiplier` for evolved
-     artifacts)
-   - `offer_value = floor(artifact.value × multiplier)`
-   - An offer text is generated
-    - All offers are returned as an array and persisted in the activity row's `offers` column
+### 6.4 Artifact Decay
 
-**Market constraints**:
-- Does not mutate state or faction influence
-- Does not know about individual player standing
-- Influence is passed as a parameter, not read from state directly
-- Commission premiums are applied by the controller AFTER Market returns
+Decay is applied during daily maintenance. For each ShedItem:
 
-### 6.4 Sale Effects
+1. Increment `days_in_shed` by 1
+2. Determine condition based on `days_in_shed`:
+   - 0–1 days: `fresh`
+   - 2–4 days: `settling`
+   - 5+ days: `fading`
+3. Recalculate `decayed_value`:
+   - `fresh`: 100% of `original_value`
+   - `settling`: 75% of `original_value`
+   - `fading`: 40% of `original_value`
+   - These multipliers may be adjusted by artifact traits (e.g., thermal
+     artifacts decay faster, signal artifacts decay slower)
+4. Update `estimated_value_min` and `estimated_value_max` proportionally
 
-When a player sells to a faction (validates the chosen buyer against stored
-offers):
+**Trait-specific decay** (future refinement):
+- `thermal`, `food_processing`: decay faster (fresh → settling after 1 day,
+  settling → fading after 2 days)
+- `signal`, `revelation`, `field`: decay slower (fresh → settling after 2 days,
+  settling → fading after 4 days)
+- `unstable`: becomes more hazardous (may increase value for Purifiers,
+  decrease for others)
 
-1. Add chosen offer's `value` to both `scrap` and `score`
-2. Increment `faction_sales[faction_id]` counter
-3. Adjust `standing[faction_id]` by +1
-4. *(Planned)* Update `SeasonFactionState`: add offer value to faction's
-   influence, increment faction's `artifacts_received`
-5. *(Planned)* Create `ArtifactDisposition` record with full snapshot
-6. Record transcript event
-7. Delete activity row, clear `pending_activity_id` FK on character
-8. *(Planned)* Optionally return post-sale resolution text (from YAML content,
-   tiered by value)
+**Decay does not destroy artifacts.** Even `fading` artifacts can be sold,
+typically at reduced value. Certain factions (Purifiers, Revelationists) may
+prefer or even pay premiums for decayed artifacts.
+
+### 6.5 Market Negotiation (Customer-First Selling)
+
+When a player starts a Market Visit (costs 1 AP):
+
+1. **Customer generation**: A customer is generated from the eligible faction
+   pool, with:
+   - `faction_id`, `faction_name`
+   - `desired_behaviors` — a subset of the faction's interests (hidden from player)
+   - `base_multiplier` — the faction's standard offer multiplier
+   - `irritation` — starts at 0
+   - `irritation_threshold` — if exceeded, customer leaves
+   - `settle_chance` — probability the customer will accept a non-matching item
+
+2. **Player offer**: Player selects an artifact from their Shed and presents it
+   to the customer. The negotiation logic:
+   - If artifact behaviors intersect desired_behaviors:
+     - **Match**: High offer at `floor(decayed_value × base_multiplier × match_bonus)`
+       where `match_bonus` is determined by the number/strength of matching traits.
+       Positive narrative response. Irritation unchanged (or decreases).
+   - If no intersection:
+     - **Mismatch**: Low offer at `floor(decayed_value × base_multiplier × 0.5)`.
+       Negative narrative response. Irritation increases by 1-2.
+   - On match OR mismatch, the player may:
+     - **Accept**: Sale occurs — `offer_value` added to scrap and score,
+       artifact removed from Shed, customer leaves satisfied.
+     - **Counter-offer** (future): Negotiate for a better price.
+     - **Show another artifact**: Repeat offer step with a different shed item.
+     - **Send away**: No sale. Artifact remains in shed. Customer leaves. Market
+       Visit AP is consumed.
+
+3. **Customer leaves** if:
+   - A sale is agreed (success)
+   - Irritation exceeds threshold (failure — customer storms off)
+   - Player sends the customer away (neutral — no sale)
+   - Rare settle: on mismatch, a random roll against `settle_chance` may cause
+     the customer to accept the mismatched item at the low offer price
+
+4. **On successful sale**:
+   - Add `offer_value` to both `scrap` and `score`
+   - Increment `faction_sales[faction_id]` counter
+   - Adjust `standing[faction_id]` by +1 (or more for strong matches)
+   - Record transcript event
+   - Delete ShedItem
+   - Activity row deleted, `pending_activity_id` cleared
+
+5. **On failed/abandoned negotiation**:
+   - Artifact returns to Shed unchanged
+   - No scrap or score
+   - Activity row deleted, `pending_activity_id` cleared
+   - AP is still consumed
+
+**Invariants**:
+- Selling skill level affects negotiation outcomes (see 6.6)
+- Offers are generated fresh per customer interaction — never persisted across
+  visits
+- Customers do not remember previous offers or visits
+- At most ONE customer per Market Visit
+
+### 6.6 Skills (Mechanical Effects — TODO)
+
+Detailed skill effects are implementation-defined. This section outlines the
+intent for each skill category. Exact parameters will be tuned during
+development.
+
+**Prospecting (levels 1–3)**:
+- Intended effect: Bias artifact draw toward higher-value or more desirable
+  artifacts; may increase base_value range or weight selection.
+- Does NOT affect push/collapse math directly.
+
+**Upcycling (levels 1–3)**:
+- Intended effect: Improve value gain per push, reduce instability growth per
+  push, or increase evolution chance. Makes pushing more efficient without
+  removing collapse risk.
+
+**Selling (levels 1–3)**:
+- Intended effect: Improve estimated value accuracy, reduce customer irritation
+  gain, increase settle_chance, improve offer multiplier on matching artifacts.
+  May reveal one desired behavior to the player.
+
+Skill costs are defined in `content/skills.yml`. Cost scales per level (e.g.
+level 1 costs 10 scrap, level 2 costs 25, level 3 costs 50). Skill training
+does not cost AP.
+
+### 6.7 Market Dynamics — Planned
+
+Future refinement beyond MVP:
+- Similar artifacts sold repeatedly depress price for that trait
+- Factions have daily appetite caps
+- Rival sales affect supply and price
+- Late-season market saturation prevents optimal last-day dumping
+- Some days favor or punish certain artifact types
+
+These are not required for the initial implementation.
 
 ---
 
@@ -566,12 +766,32 @@ FactionRegistry loads the YAML definition. Subclass behavior is only justified
 when a faction has structurally unique mechanics (e.g., Faculty's evolved
 artifact premium).
 
-### 7.2 Commission System — Planned (Not Yet Implemented)
+### 7.2 Three-Layer Faction Model
+
+Factions have three connected layers:
+
+**Personal Standing** ("What do they think of me?"):
+- Per-character integer per faction
+- Increased by selling to them (especially high-value or matching artifacts)
+- Affects: customer frequency, prices, commissions, special text, faction access
+- Stored in `character.standing` map
+
+**Faction Influence** ("How powerful is this faction this season?"):
+- Aggregate of all sales to this faction across all players
+- Affects: Crier reports, customer mix, Bazaar conditions, rival behavior
+- Stored in `season.faction_state` (influence value)
+
+**Artifact Intake** ("What kinds of artifacts did this faction receive?"):
+- Tracks artifact traits received by faction
+- Affects: narrative events, faction behavior shifts, Crier reports
+- Stored in `season.faction_state.intake_by_trait` map
+
+### 7.3 Commission System — Planned
 
 After a player's second seasonal sale to a faction, that faction "notices" the
 player and may issue a commission:
 
-- **Trigger**: `faction_sales[faction_id] == 2` AND no active commission AND
+- **Trigger**: `faction_sales[faction_id] >= 2` AND no active commission AND
   faction not already `noticed`
 - **Effect**: Sets `noticed[faction_id] = true`
 - **Commission shape**:
@@ -584,24 +804,14 @@ player and may issue a commission:
     "trigger_text": "..."
   }
   ```
-
-- **Premium application**: After Market generates offers, the activity checks
-   if the artifact's behaviors intersect with the commission's requested
-  behaviors. If so, multiply that faction's offer value by `premium_multiplier`.
-  Only that faction's offer is affected; other offers are unchanged.
-
-- **Fulfillment**: Selling to the commission faction while a matching
-  commission is active fulfills it — `active_commission` is cleared.
-
+- **Premium application**: When selling a matching artifact to this faction
+  during a Market Visit, multiply offer value by `premium_multiplier`.
+- **Fulfillment**: Selling a matching artifact to the commission faction while
+  a matching commission is active fulfills it — `active_commission` is cleared.
 - **Expiry**: Decrements `remaining_attempts` each time the player starts a
-  new artifact. At 0, the commission expires and is cleared.
-
+  new prospecting attempt. At 0, the commission expires.
 - **Constraints**: At most ONE active commission. No quest-acceptance UI
-  required. Player may always ignore the commission. Commission never affects
-  push/collapse/breakthrough math.
-
-- **Bot policy**: `commission_seeker` — when a commission is active and a
-  matching offer exists, always picks that offer even over higher-value ones.
+  required. Player may always ignore the commission.
 
 ---
 
@@ -631,21 +841,17 @@ maintenance_window_minutes: 5   # planned gate duration (route guard fires
    c. Invokes the `on_maintenance` callback.
    d. Clears `in_maintenance` flag after callback completes.
 
-**`on_maintenance` callback** (extension point for day-rollover logic):
+**`on_maintenance` callback** (day-rollover logic):
 
 This callback is the single place where day-advancement logic lives. It
-receives the Maintenance object (`$self`). Planned implementation:
+receives the Maintenance object (`$self`). Implementation:
 
 1. Increment `season.day` by 1
-2. For every SeasonalCharacter: reset `turns_remaining` to the configured
-   daily allowance (e.g., 10)
-3. Preserve activity rows — in-progress artifacts survive rollover
-4. Update leaderboard (Hall of Fame snapshots)
-5. If `season.day > season_length`, emit a warning (season end is manual)
-
-The callback is currently a no-op; the day-rollover logic has not been
-wired up yet. The maintenance window infrastructure (timing, route gating,
-`in_maintenance` flag) is fully implemented and tested.
+2. For every SeasonalCharacter: reset `action_points` to `action_points_max`
+3. Apply artifact decay to every ShedItem (see 6.4)
+4. Preserve activity rows — in-progress prospecting survives rollover
+5. Update leaderboard snapshots
+6. If `season.day > season_length`, emit a warning (season end is manual)
 
 **Route gating during maintenance**:
 
@@ -655,14 +861,14 @@ Routes are partitioned into three tiers via Mojolicious `under` bridges:
 |------|--------|--------------------|
 | Public read-only | `GET /`, `/login`, `/logout`, `DELETE /sessions` | Allowed |
 | Writes (no auth) | `POST /sessions` | HTTP 503 |
-| Authenticated | `GET /player`, `DELETE /player`, `GET /game` | HTTP 503 |
+| Authenticated | `GET /player`, `DELETE /player`, `GET /game`, all game action endpoints | HTTP 503 |
 
 The `is_maintenance` helper checks `$app->maintenance->in_maintenance` and
 returns 503 for gated routes.
 
 **Invariants**:
 - Controllers NEVER check for or apply daily rollover
-- Controllers trust `turns_remaining` as written by the maintenance callback
+- Controllers trust `action_points` as written by the maintenance callback
 - The `in_maintenance` flag blocks concurrent writes during the callback
 - Login and account creation are rejected during maintenance (503)
 
@@ -670,8 +876,7 @@ returns 503 for gated routes.
 
 Admin-triggered. Creates a new Season record with status `active`, day 1.
 Season length is a game constant (e.g., 30 days). When a player joins
-mid-season, their character is created with full daily turns at the current
-season day.
+mid-season, their character is created with full AP at the current season day.
 
 ### 8.3 Season End (Finalization)
 
@@ -679,28 +884,29 @@ Admin-triggered. MUST execute in this exact order:
 
 1. Compute final leaderboard rank for each character
 2. For each SeasonalCharacter:
-   a. Collect final stats (score, scrap, standing, faction_sales)
+   a. Collect final stats (score, scrap, standing, faction_sales, skills)
    b. Collect significant ArtifactDisposition records
-   c. Build SeasonRecord (score, scrap, rank, standing snapshot, disposition
-      summaries, narrative hooks)
+   c. Build SeasonRecord (score, scrap, rank, standing snapshot, skills
+      snapshot, disposition summaries, narrative hooks)
    d. Store SeasonRecord (append-only, survives deletion)
 3. Verify ALL SeasonRecords are stored successfully
-4. Delete ALL SeasonalCharacter rows for this season
-5. Clear SeasonFactionState
-6. Set Season.status = "archived"
+4. Discard all ShedItems for this season
+5. Delete ALL SeasonalCharacter rows for this season
+6. Clear SeasonFactionState
+7. Set Season.status = "archived"
 
 Hard-deletion of characters is ONLY permitted after this formal sequence.
 Pending activities are discarded at season end — unresolved artifacts are
-forfeit.
+forfeit. Shed items are forfeit (not carried to next season).
 
 ---
 
 ## 9. Activity System
 
-Every expedition (Prospecting, future Contracts, Encounters) is a state machine
-and a persisted entity. Activity extends `MagicMountain::Model` — the same
-JSON-file CRUD base as Account, Character, and Season. Activity state lives in
-`activities.json`, linked to characters via `pending_activity_id`.
+Every expedition (Prospecting, MarketVisit) is a state machine and a persisted
+entity. Activity extends `MagicMountain::Model` — the same JSON-file CRUD base
+as Account, Character, and Season. Activity state lives in `activities.json`,
+linked to characters via `pending_activity_id`.
 
 ### 9.1 Activity Base Class
 
@@ -712,18 +918,17 @@ and implement handler methods.
 
 | Category | Mechanism | Examples |
 |----------|-----------|----------|
-| Persisted | Declared in `columns`, accessed via `getCol`/`setCol`, survives `save()` | `char_id`, `type`, `phase`, `artifact`, `offers` |
+| Persisted | Declared in `columns`, accessed via `getCol`/`setCol`, survives `save()` | `char_id`, `type`, `phase`, `artifact`, `customer` |
 | Ephemeral | Regular Mojo `has` attributes, set at construction, shared across instances | `transitions`, `app`, `content_filename`, `content_data`, `log` |
 
-**Column accessors:** `phase`, `artifact`, and `offers` have convenience
+**Column accessors:** `phase`, `artifact`, and `customer` have convenience
 accessor methods that bridge Mojo attribute syntax (`$self->phase('processing')`)
 to column storage (`getCol`/`setCol` — reading/writing `$self->row`).
 
 **Construction overrides:** The base class overrides `get()` and `create()` from
 Model. After calling `SUPER` (Model's versions which pass `file`/`log`/`table`/`row`
 to `new()`), they propagate ephemeral attributes (`transitions`, `app`, `content_data`)
-from the global instance to the new instance. This eliminates the need for separate
-factory methods or `_propagate` helpers.
+from the global instance to the new instance.
 
 **Dispatch:**
 
@@ -775,7 +980,7 @@ A subclass must:
         ok     => 1,
         result => 'push',
         artifact => { stage => 'strained', signal => 'It groans...', value => 24 },
-        player   => { turns_remaining => 6, scrap => 10, score => 10 },
+        player   => { action_points => 13, scrap => 10, score => 10 },
     },
 }
 ```
@@ -791,9 +996,19 @@ characters.json                    activities.json
 │ display_name: "J"  │──────FK────→│ char_id: "abc"          │
 │ score: 42          │             │ type: "prospecting"     │
 │ pending_activity_id│             │ phase: "processing"     │
-└────────────────────┘             │ artifact: { id, value,…}│
-                                   │ offers: null            │
-                                   └─────────────────────────┘
+│ action_points: 15  │             │ artifact: {...}         │
+└────────────────────┘             └─────────────────────────┘
+
+  │
+  │ owns
+  ▼
+shed.json                          skills.yml                   
+┌────────────────────┐            (content, not persistence)
+│ char_id: "abc"     │
+│ artifact_id: "..." │
+│ condition: "fresh" │
+│ decayed_value: 24  │
+└────────────────────┘
 ```
 
 ### 9.4 Global Instance as Factory
@@ -817,7 +1032,7 @@ $activity = $app->prospecting->get($char->getCol('pending_activity_id'));
 Both return fully-functional instances with persisted columns and propagated
 ephemeral attributes.
 
-### 9.5 Prospecting Example
+### 9.5 Prospecting Activity
 
 ```perl
 # In MagicMountain.pm startup:
@@ -832,7 +1047,7 @@ has prospecting => sub ($self) {
 
 # Prospecting subclass:
 has transitions => sub {
-    { idle => ['begin'], processing => ['push', 'stop'], awaiting_buyer => ['sell'] }
+    { idle => ['begin'], processing => ['push', 'stop'] }
 };
 
 sub create ($self, %params) {
@@ -842,12 +1057,62 @@ sub create ($self, %params) {
 }
 ```
 
-### 9.6 Bots
+**Prospecting flow**:
+
+| Phase | Action | Effect |
+|-------|--------|--------|
+| idle | begin | Deduct 2 AP. Draw artifact. Set phase to `processing` |
+| processing | push | Destabilize. May collapse (delete activity), breakthrough (auto-cashout + delete), or normal (update artifact) |
+| processing | stop | Calculate estimate. Create ShedItem. Delete activity. Set phase to `idle` |
+
+The `awaiting_buyer` phase and `offers` column have been removed. Prospecting
+no longer handles selling.
+
+### 9.6 MarketVisit Activity
+
+```perl
+has market => sub ($self) {
+    MagicMountain::Activity::MarketVisit->new(
+        file             => $self->dataDir . '/activities.json',
+        app              => $self,
+        content_filename => $self->home . '/content/market.yml',   # future: customer templates
+        log              => $self->log,
+    )->load_content;
+};
+
+# MarketVisit subclass:
+has transitions => sub {
+    { idle => ['begin'], negotiating => ['offer', 'send_away'] }
+};
+
+sub create ($self, %params) {
+    $params{type}  //= 'market_visit';
+    $params{phase} //= 'idle';
+    return $self->SUPER::create(%params);
+}
+```
+
+**MarketVisit flow**:
+
+| Phase | Action | Effect |
+|-------|--------|--------|
+| idle | begin | Deduct 1 AP. Generate customer. Set phase to `negotiating` |
+| negotiating | offer | Player offers shed item (by id). Run negotiation logic. If accepted: sale (scrap+score, delete shed item). If rejected: irritation increases. If threshold exceeded: customer leaves, phase→idle |
+| negotiating | send_away | Player declines further negotiation. Customer leaves. Phase → idle |
+
+The `offer` action takes a `shed_item_id` parameter identifying which artifact
+from the player's shed is being offered.
+
+### 9.7 Bots
 
 Bots call the same `dispatch()` method with the same character model.
 The transition table is checked identically — a bot cannot exploit HTTP
 endpoint knowledge because the state machine lives in the activity, not
 in the route.
+
+Bots use the same Shed and Market systems. Their inventory is stored alongside
+human players' in `shed.json`. Bot policies must be updated to handle the
+prospecting → shed → market visit flow (see section 14).
 
 ---
 
@@ -870,7 +1135,7 @@ sub action_name ($self) {
     return $self->render(json => { ok => 0, error => 'No character' }, status => 404)
         unless $char_model;
 
-    my $p   = $self->app->prospecting;
+    my $p   = $self->app->prospecting;       # or $self->app->market
     my $row = $char_model->row;
     my $id  = $row->{pending_activity_id};
 
@@ -905,19 +1170,26 @@ activity row internals or checks phases.
 | Sessions | login_form, create, destroy, logout | Authentication |
 | Player | show, destroy | Current player JSON; delete account |
 | Game | show | Game state page |
-| Artifact | begin, push, stop | Prospecting lifecycle |
-| Sale | create | Choose faction buyer |
+| Prospecting | begin, push, stop | Prospecting lifecycle |
+| Market | begin, offer, send_away | Market negotiation lifecycle |
+| Shed | index | List shed contents with condition and estimates |
+| Skills | index, purchase | View available skills, purchase upgrade |
 | Leaderboard | index | Player rankings |
+
+The old `Artifact` controller is renamed to `Prospecting`. The old `Sale`
+controller is removed (replaced by `Market`). New `Shed` and `Skills`
+controllers are added for inventory management and skill purchases.
 
 ### 10.3 What Controllers Do NOT Do
 
-- Do NOT check `last_refreshed_day` or apply daily rollover
-- Do NOT advance the season clock or refresh turns
-- Do NOT construct characters (created by the join-season flow or maintenance)
+- Do NOT check for or apply daily rollover
+- Do NOT advance the season clock or refresh AP
+- Do NOT construct characters (created by join-season flow or maintenance)
 - Do NOT create accounts (that's Sessions)
 - Do NOT validate activity phases (the activity base class does this)
 - Do NOT call persistence methods on models (the activity does this)
-- Do NOT generate offers or apply sale effects (Market and the activity handle this)
+- Do NOT apply skill effects or decay (activities and maintenance handle this)
+- Do NOT generate customers or match artifacts (Market activity handles this)
 - Do NOT record transcript events (the activity and app class handle this)
 - Do NOT inspect or filter the activity's view hashref — pipe it verbatim
 
@@ -964,12 +1236,15 @@ Display names must be unique.
 
 ```
 content/
-  prospecting.yml                 # All artifact definitions (one file per activity type)
+  prospecting.yml                 # All artifact definitions
+  skills.yml                      # Skill definitions and costs
+  factions.yml                    # Faction definitions (future: expanded traits)
   text/
     daily_messages.yml
     season_opening.yml
-    faction_resolutions.yml       (future)
+    customer_offers.yml           (future)
     commission_triggers.yml       (future)
+    negotiation_reactions.yml     (future)
 ```
 
 ### 12.2 Artifact Definition Shape
@@ -997,6 +1272,12 @@ Each YAML file contains an array of artifact definitions:
   state_thresholds:              # Ratio boundaries for stage text
     stable: 0.35
     strained: 0.70
+  decay_modifiers:               # How decay affects this artifact type
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.4
+    settling_day: 2
+    fading_day: 5
   intro: >-                      # Text shown when artifact is first drawn
     The box is warm to the touch...
   signals:                       # Arrays of flavor text per stage
@@ -1011,16 +1292,60 @@ Each YAML file contains an array of artifact definitions:
       - ...
   collapse:                      # Array of collapse descriptions
     - It splits open with a hiss...
-  sale:                          # Post-sale text by value tier
-    low:
-      - A curiosity for junk collectors.
-    medium:
-      - A functional thermal cell...
-    high:
-      - An intact energy chassis...
 ```
 
-### 12.3 Text Content Shape
+The `decay_modifiers` section is new — it defines how this artifact type
+responds to decay. If omitted, default values apply.
+
+### 12.3 Skill Definition Shape
+
+```yaml
+skills:
+  - id: prospecting
+    name: Prospecting
+    description: "Find better artifacts and richer yields"
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Better leads"
+      - level: 2
+        cost: 25
+        description: "Richer veins"
+      - level: 3
+        cost: 50
+        description: "Eye for the unusual"
+  - id: upcycling
+    name: Upcycling
+    description: "Push artifacts further with greater control"
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Firm touch"
+      - level: 2
+        cost: 25
+        description: "Steady hand"
+      - level: 3
+        cost: 50
+        description: "Master's feel"
+  - id: selling
+    name: Selling
+    description: "Read customers and close better deals"
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Better haggling"
+      - level: 2
+        cost: 25
+        description: "Customer reader"
+      - level: 3
+        cost: 50
+        description: "Dealmaker"
+```
+
+### 12.4 Text Content Shape
 
 **daily_messages.yml**: Array under `daily_messages` key. Shown on state
 requests, cycled by season day or random.
@@ -1028,26 +1353,30 @@ requests, cycled by season day or random.
 **season_opening.yml**: Array under `season_opening` key. Shown on day 1
 of each season.
 
-**faction_resolutions.yml** (future): Per-faction post-sale resolution text,
-tiered by value (low/medium/high). Pure narrative, no mechanical effect.
+**customer_offers.yml** (future): Per-faction customer offer text, tiered
+by match quality.
 
 **commission_triggers.yml** (future): Per-faction commission definitions
 (behaviors, premium_multiplier, trigger_text).
 
-### 12.4 Content Loading
+### 12.5 Content Loading
 
 The app class sets `content_filename` to the full path of the activity's YAML
-file (e.g. `$self->home . '/content/prospecting.yml'`). `load_content` is called
-once at startup on the global instance. The parsed data is stored in `content_data`
-and automatically propagated to per-request activity instances via the overridden
-`get()`/`create()` methods.
+file. `load_content` is called once at startup on the global instance. The
+parsed data is stored in `content_data` and automatically propagated to
+per-request activity instances via the overridden `get()`/`create()` methods.
 
-Adding a new artifact requires editing the relevant YAML file — no code changes,
-no manual registration.
+Skill definitions are loaded by `Model::Skill` from `content/skills.yml` and
+made available to the Skills controller and character wrapper.
+
+Adding a new artifact requires editing `content/prospecting.yml` — no code
+changes, no manual registration.
 
 ---
 
 ## 13. API Endpoints
+
+### 13.1 Endpoint Table
 
 | Method | Path | Controller#Action | Purpose |
 |--------|------|-------------------|---------|
@@ -1057,68 +1386,107 @@ no manual registration.
 | DELETE | `/sessions` | `Sessions#destroy` | Logout (API, JSON) |
 | GET | `/logout` | `Sessions#logout` | Logout (browser, redirects) |
 | GET | `/player` | `Player#show` | Current player JSON |
-| DELETE | `/player` | `Player#destroy` | Delete account (cascades: character, sessions, audit log) |
+| DELETE | `/player` | `Player#destroy` | Delete account |
 | GET | `/game` | `Game#show` | Game state page |
-| POST | `/artifact/begin` | `Artifact#begin` | Start new artifact (consumes turn) |
-| POST | `/artifact/push` | `Artifact#push` | Destabilize artifact |
-| POST | `/artifact/stop` | `Artifact#stop` | Halt, generate buyer offers |
-| POST | `/sale` | `Sale#create` | Choose buyer, award value |
+| POST | `/prospecting/begin` | `Prospecting#begin` | Start prospecting (costs 2 AP) |
+| POST | `/prospecting/push` | `Prospecting#push` | Destabilize artifact |
+| POST | `/prospecting/stop` | `Prospecting#stop` | Halt, create shed entry |
+| POST | `/market/begin` | `Market#begin` | Start market visit (costs 1 AP) |
+| POST | `/market/offer` | `Market#offer` | Offer shed item to customer |
+| POST | `/market/send_away` | `Market#send_away` | End negotiation, no sale |
+| GET | `/shed` | `Shed#index` | List shed contents |
+| GET | `/skills` | `Skills#index` | List available skills and current levels |
+| POST | `/skills/purchase` | `Skills#purchase` | Buy skill upgrade (costs scrap) |
 | GET | `/leaderboard` | `Leaderboard#index` | Player rankings |
 
-### 13.1 Controller Action Contracts
+### 13.2 Controller Action Contracts
 
-**Artifact#begin**: Requires `turns_remaining > 0` and no active activity
-(`pending_activity_id` null). Draws random artifact from Content pool. Creates
-a new activity row with phase `processing`. Decrements `turns_remaining`.
+**Prospecting#begin**: Requires `action_points >= 2` and no active activity
+(`pending_activity_id` null). Deducts 2 AP. Draws random artifact from Content
+pool. Creates a new activity row with phase `processing`.
 
-**Artifact#push**: Requires activity `type == "prospecting"` and
+**Prospecting#push**: Requires activity `type == "prospecting"` and
 `phase == "processing"`. Delegates to `Activity::Prospecting::push()`.
 Possible outcomes: normal (updated artifact), collapse (row deleted),
 breakthrough (cashed out, row deleted).
 
-**Artifact#stop**: Requires activity `phase == "processing"`. Generates
-offers via Market (passing artifact + faction influence). Sets phase to
-`"awaiting_buyer"`. Returns offers.
+**Prospecting#stop**: Requires activity `phase == "processing"`. Creates
+ShedItem with estimated value range. Deletes activity row. Returns shed item
+summary to client.
 
-**Sale#create**: Requires activity `phase == "awaiting_buyer"`.
-Receives `faction_id` in request body. Validates against stored offers.
-Applies sale effects (scrap, score, standing, faction_sales). Deletes
-activity row.
+**Market#begin**: Requires `action_points >= 1` and no active activity.
+Deducts 1 AP. Generates customer. Creates activity row with phase
+`negotiating`. Returns customer info (faction name, disposition — NOT
+desired_behaviors).
 
-### 13.2 Response Shape for Game State
+**Market#offer**: Requires activity `type == "market_visit"` and
+`phase == "negotiating"`. Receives `shed_item_id` in request body.
+Runs negotiation logic. May result in sale (scrap+score, shed item deleted,
+activity deleted) or continued negotiation (irritation updated, activity
+saved).
+
+**Market#send_away**: Requires activity `phase == "negotiating"`. Ends
+negotiation without sale. Artifact remains in shed. Activity row deleted.
+
+**Shed#index**: No activity required. Returns all ShedItems for the character
+with condition, estimated value range, artifact name, and age.
+
+**Skills#index**: Returns skill definitions from YAML plus the character's
+current skill levels.
+
+**Skills#purchase**: Receives `skill_id`. Validates character has enough scrap
+and current level < max_level. Deducts scrap. Increments skill level on
+character.
+
+### 13.3 Response Shape for Game State
 
 ```json
 {
   "ok": true,
   "player": {
     "name": "Joe",
-    "turns_remaining": 7,
+    "action_points": 13,
+    "action_points_max": 15,
     "scrap": 42,
     "score": 42,
-    "faction_sales": { "syndicate": 2, "libremount": 1 }
+    "faction_sales": { "syndicate": 2, "libremount": 1 },
+    "skills": { "prospecting": 1, "upcycling": 0, "selling": 2 }
   },
-  "artifact": {
+  "prospecting": {
     "id": "thermal_box_001",
     "stage": "strained",
     "value": 18,
     "signal": "The box grows uncomfortably hot...",
     "intro": "The box is warm to the touch..."
   },
-  "pending_sale": {
-    "offers": [
-      { "faction_id": "syndicate", "faction_name": "The Syndicate",
-        "value": 20, "text": "...", "disposition": "pragmatic" }
-    ]
+  "market_visit": {
+    "customer": {
+      "faction_id": "syndicate",
+      "faction_name": "The Syndicate",
+      "disposition": "commercial_resale"
+    },
+    "irritation": 0
   },
+  "shed": [
+    {
+      "id": "<uuid>",
+      "artifact_id": "thermal_box_001",
+      "condition": "fresh",
+      "estimated_value_min": 14,
+      "estimated_value_max": 22,
+      "days_in_shed": 0
+    }
+  ],
   "season": { "day": 5, "total_days": 30 },
   "world_message": "The air tastes faintly of ozone...",
   "season_opening": null
 }
 ```
 
-`artifact` is present only when prospecting is in `processing` phase.
-`pending_sale` is present only in `awaiting_buyer` phase.
-Both are null when idle.
+`prospecting` is present only when the active activity is type `prospecting`.
+`market_visit` is present only when the active activity is type `market_visit`.
+`shed` is always present when idle (listing all owned artifacts).
+Both `prospecting` and `market_visit` are null when idle.
 
 ---
 
@@ -1126,9 +1494,9 @@ Both are null when idle.
 
 Bots are automated players that invoke the same service classes as the web
 controllers. The simulate CLI command reads artifact content, iterates through
-a population of bots, and calls `Activity::Prospecting`, `Market`, and
-`SeasonalCharacter` mutators directly — producing game outcomes identical to
-human play.
+a population of bots, and calls `Activity::Prospecting`, `Activity::MarketVisit`,
+`Shed`, and `SeasonalCharacter` mutators directly — producing game outcomes
+identical to human play.
 
 ### 14.1 Push Policies
 
@@ -1141,16 +1509,29 @@ human play.
 | `value_target` | `min` (default 20) | Push until value exceeds target |
 | `composite` | `op` ("and"/"or"), `policies` (sub-policy array) | Combine multiple policies |
 
-### 14.2 Buyer Policies
+### 14.2 Selling Policies
 
 | Policy | Behavior |
 |--------|----------|
-| `highest_offer` | Pick the numerically highest offer value |
-| `syndicate_loyalist` | Always pick Syndicate if present, otherwise highest |
-| `libremount_loyalist` | Always pick LibreMount if present, otherwise highest |
-| `faculty_anomaly_hunter` | Pick Faculty for evolved artifacts, otherwise highest |
-| `mixed_opportunist` | 50% random choice, 50% highest offer |
-| `commission_seeker` | (future) Pick commission-matching offer if active |
+| `highest_offer` | Accept any offer above a value threshold |
+| `faction_loyalist` | Sell only to specific faction, pass on others |
+| `opportunist` | Accept any match, pass on mismatches |
+| `desperate` | Accept any offer including mismatches at low value |
+| `hoarder` | Skip market visits, accumulate shed items |
+
+### 14.3 Bot Strategy Profile
+
+A bot profile combines a push policy with a selling policy:
+
+```yaml
+- id: alice
+  display_name: "Alice"
+  push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
+  sell_policy: { name: "opportunist" }
+  skill_profile: { prospecting: 1, upcycling: 2, selling: 0 }
+```
+
+Bot profiles are defined in YAML content (future: `content/bots.yml`).
 
 ---
 
@@ -1159,7 +1540,8 @@ human play.
 JSONL (JSON Lines) file for recording game events. Each event is one JSON
 object per line. Used for simulation analysis, balance evaluation, and
 diagnostics. Events include: `artifact_start`, `push`, `collapse`,
-`breakthrough`, `stop`, `sell`, and future `commission_triggered`,
+`breakthrough`, `stop`, `shed_entry`, `market_visit`, `customer_offer`,
+`sale`, `negotiation_fail`, `skill_purchase`, and future `commission_triggered`,
 `commission_fulfilled`, `commission_expired`.
 
 **Transcript lifecycle**: The app class opens a transcript context on each
@@ -1187,7 +1569,7 @@ These are non-negotiable rules for all content:
 
 - **Scope**: Violence and combat are not depicted. Conflict is economic,
   political, and environmental. Artifact collapse is mechanical failure, not
-  human harm.
+  human harm. PvP is economic interference, not direct harm.
 
 ---
 
@@ -1196,18 +1578,18 @@ These are non-negotiable rules for all content:
 ### Persistence
 
 1. **Models own their own persistence.** `Model::Character`, `Model::Account`,
-   etc. provide `save()`, `create()`, `find()`. No separate State or
-   persistence coordinator layer wraps them.
+   `Model::ShedItem`, etc. provide `save()`, `create()`, `find()`. No separate
+   State or persistence coordinator layer wraps them.
 
 2. **Models must not contain game logic.** A model's columns and CRUD
-   operations are pure data access. Artifact math, faction rules, and
-   transition validation live in activities and services.
+   operations are pure data access. Artifact math, decay, negotiation rules,
+   and transition validation live in activities and services.
 
 ### Activities
 
 3. **Activities are persisted entities, not transient services.** They extend
    `MagicMountain::Model` and store state in `activities.json`. Phase, artifact,
-   offers, and type are persisted columns. Transitions, app, content_data, and
+   and customer are persisted columns. Transitions, app, content_data, and
    log are ephemeral attributes propagated from the global instance.
 
 4. **The activity base class enforces state-machine transitions.** Every
@@ -1222,26 +1604,24 @@ These are non-negotiable rules for all content:
    The global instance is constructed with `file`, `app`, `content_filename`,
    and `log`. Context data (character state, user input) arrives per-call.
 
-### Market
+### Market & Negotiation
 
-7. **Market generates offers only.** It never applies sale effects or mutates
-   persistent state. Influence is passed as an input snapshot and never
-   mutated.
+7. **MarketVisit generates customers only.** It never directly modifies the
+   Shed or character. Negotiation is handled by the MarketVisit activity,
+   which calls Shed methods to remove sold items and Character methods to
+   award scrap/score.
 
-### Offers & Sales
+8. **Once a negotiation ends, offers are not preserved.** The customer and
+   their offers are ephemeral. No offer survives across market visits.
 
-8. **Once buyer offers are generated, they are persisted** in the activity
-   row's `offers` column and must not be rerolled at selection time. The sell
-   action validates the submitted faction against stored offers.
+### Action Points & Rollover
 
-9. **Starting a daily activity consumes one daily event.** Resolving its later
-   steps does not.
+9. **Prospecting costs 2 AP. Market visits cost 1 AP.** These costs are
+   deducted at `begin` time and are non-refundable.
 
-### Rollover & Maintenance
-
-10. **Only the on_maintenance callback (driven by the Maintenance IOLoop timer)
-    advances the season clock or refreshes turns.** Controllers never check
-    for or apply daily rollover.
+10. **Only the on_maintenance callback advances the season clock, refreshes
+    AP, or applies decay.** Controllers never check for or apply daily
+    rollover.
 
 11. **Active activity rows survive day rollover** and are discarded only at
     season finalization.
@@ -1249,16 +1629,16 @@ These are non-negotiable rules for all content:
 ### Characters & Deletion
 
 12. **Seasonal characters may be deleted only after** final SeasonRecord
-    creation succeeds.
+    creation succeeds. ShedItems are forfeit at season end.
 
 ### Gameplay Invariants
 
 13. **Faction standing and influence must not alter artifact push/collapse
-    physics.** Market offerings may vary, but artifact behavior does not.
+    physics.** Market offers may vary, but artifact behavior does not.
 
-14. **Score is cumulative seasonal leaderboard value and never decreases.**
-    Scrap is spendable seasonal currency that may decrease through future
-    systems.
+14. **Score is cumulative sale value and never decreases.**
+    Scrap is spendable seasonal currency that may decrease through skill
+    purchases. Score is NOT reduced by scrap expenditure.
 
 15. **Collapse = zero salvage.** No partial recovery. This is the game's core
     risk.
@@ -1279,7 +1659,8 @@ These are non-negotiable rules for all content:
 19. **Faction definitions are data, not code.** FactionRegistry loads YAML.
     Subclass behavior is an exception, not the pattern.
 
-20. **Narrative emissions are not activities.** They do not consume turns.
+20. **Narrative emissions are not activities.** They do not consume action
+    points.
 
 ### Transcript
 
@@ -1287,6 +1668,17 @@ These are non-negotiable rules for all content:
     on each request (session, player, endpoint, timestamp). Activities enrich
     it with game events. The app closes it (duration, outcome). No single
     module is the sole transcript writer.
+
+### Shed & Decay
+
+22. **Shed items are forfeit at season end.** They are never carried over.
+
+23. **Estimated values are ranges, not exact figures.** The player sees
+    `estimated_value_min` and `estimated_value_max`, never the precise
+    `decayed_value`.
+
+24. **Decay never destroys artifacts.** Even `fading` artifacts can be sold.
+    Value may approach zero but the artifact remains.
 
 ---
 
@@ -1304,8 +1696,7 @@ available to controllers at request time.
 
 ## 19. Implementation Status (New Codebase)
 
-The new codebase (`lib/`) is a ground-up rebuild. The original working
-implementation lives in `original/` as a reference.
+The new codebase (`lib/`) is a ground-up rebuild.
 
 ### 19.1 Implemented
 
@@ -1322,25 +1713,39 @@ implementation lives in `original/` as a reference.
 | **Day maintenance** | `Maintenance.pm` | IOLoop timer, `in_maintenance` flag, route gating, `on_maintenance` extension point. Rollover logic not wired yet. |
 | **Audit logging** | `Model::AuditLog` | JSONL login/logout/account events |
 
-### 19.2 Planned (Not Yet Implemented)
+### 19.2 Needs Update (Existing Code to Refactor)
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Activity base class | Not started | State-machine transition enforcement, `dispatch()` |
-| Content system (YAML artifacts) | In progress | Artifact definitions in `content/prospecting.yml`, loaded via Activity::load_content |
-| Activity::Prospecting | In progress | Push/collapse/breakthrough math implemented; stop/sell stubbed (Market integration pending) |
-| Market (buyer offers) | Not started | Faction-based offer generation |
-| SeasonalCharacter wrapper | Not started | Invariant-preserving character mutations |
-| Model::Character expansion | In progress | Added `pending_activity_id` FK column; `scrap`, `turns_remaining` still via TestCharacter hashref |
-| Faction system | Not started | FactionRegistry, YAML-driven faction config |
-| advance-day rollover logic | Not started | The `on_maintenance` callback in Maintenance.pm is currently a no-op. Day increment, turn refresh, and leaderboard snapshot still need to be implemented inside that callback. |
-| Artifact/Sale controllers | Not started | Game action HTTP endpoints |
-| Bot simulation | Planned | Automated players using same service classes |
-| Transcript (event recording) | Planned | JSONL for simulation and balance analysis |
-| Leaderboard | Planned | Player rankings |
-| ArtifactDisposition records | Planned | Append-only immutable sale records |
-| SeasonFactionState tracking | Planned | Per-faction influence/artifacts tracking |
-| Commission system | Planned | Faction notices, active commissions, expiry |
+| Module | Change Required |
+|--------|-----------------|
+| `Controller/Game.pm` | Update game state response to include shed, skills, new AP fields |
+| `Model/Character.pm` | Rename `turns_remaining` to `action_points`, add `action_points_max`, add skill columns |
+| `templates/game/show.html.ep` | Update UI for new game state shape |
+| Existing test data | Update character fixtures to use `action_points` instead of `turns_remaining` |
+
+### 19.3 Planned (Not Yet Implemented)
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| Activity base class | High | State-machine transition enforcement, `dispatch()` |
+| Activity::Prospecting | High | Push/collapse/breakthrough math, stop → shed entry |
+| Activity::MarketVisit | High | Customer generation, negotiation logic |
+| Shed model (Model::ShedItem) | High | `shed.json` CRUD, per-character queries |
+| Artifact decay (in maintenance) | High | Condition states, value recalculation |
+| Skill system | High | YAML-driven skill definitions, purchase flow |
+| MarketVisit negotiation math | High | Match detection, irritation, settle rolls |
+| Content YAML files (prospecting, skills) | High | Artifact definitions, skill definitions |
+| SeasonalCharacter wrapper | High | Invariant-preserving character mutations |
+| Model::Character expansion | High | Action points, skill columns |
+| Prospecting/Market/Shed/Skills controllers | High | HTTP endpoints for all game actions |
+| Bot simulation (updated) | Medium | Update bot policies for new activity split |
+| Faction system (FactionRegistry, YAML config) | Medium | Customer generation |
+| SeasonFactionState tracking | Medium | Influence, intake tracking |
+| ArtifactDisposition records | Medium | Append-only immutable sale records |
+| Commission system | Low | Faction notices, active commissions |
+| Transcript events | Low | JSONL for simulation and balance analysis |
+| Leaderboard | Low | Player rankings |
+| Crier narrative system | Low | Faction/economic state driven reports |
+| Market dynamics (supply/demand) | Low | Price depression, faction appetites |
 | MariaDB migration | Future | Replace JSON file persistence |
 
 ---
@@ -1358,7 +1763,7 @@ implementation lives in `original/` as a reference.
    the row is deleted.
 
 3. **Activity extends Model**: Activity is a persisted entity with columns
-   (phase, artifact, offers) and ephemeral attributes (transitions, content_data).
+   (phase, artifact) and ephemeral attributes (transitions, content_data).
    One global instance per activity type holds the persistence table and loaded
    content; per-request rows are created/loaded via Model's `get()`/`create()`.
 
@@ -1366,33 +1771,88 @@ implementation lives in `original/` as a reference.
    `Mojo::IOLoop` recurring timer drives the `Maintenance.pm` state machine.
    The `in_maintenance` flag gates write routes during the maintenance
    window, and the `on_maintenance` callback is the single extension point
-   for all day-rollover logic. This eliminates rollover checks from every
-   HTTP request, simplifies controllers, keeps maintenance self-contained
-   (no external cron), and provides a natural lock point for bulk updates.
+   for all day-rollover logic (AP refresh, decay, day increment).
 
-5. **Admin-triggered season end**: Never automatic. The maintenance callback
-   may warn when configured season length is reached but does not
-   auto-finalize.
+5. **Prospecting and selling are separate activities**: They are different
+   mental modes with different AP costs. Prospecting is push-your-luck
+   mechanical tension. Selling is social/economic negotiation. Separating them
+   keeps both loops clean and allows each to be developed and balanced
+   independently.
 
-6. **Collapse = zero salvage**: No partial recovery on collapse. This is the
-   game's core risk; partial salvage would weaken the push-your-luck tension.
+6. **Inventory (Shed) between prospecting and selling**: Artifacts enter the
+   shed after prospecting and remain until sold or season end. This enables
+   decay pressure, market timing decisions, and inventory strategy —
+   the player must decide when to sell, not just sell immediately.
 
-7. **At most one evolution per artifact**: `has_evolved` flag. No artifact
-   can breakthrough more than once.
+7. **Single action pool with weighted costs**: 15 AP/day shared across all
+   activities. Prospecting costs 2 AP (heavier commitment). Market visits cost
+   1 AP (lighter commitment). This lets players choose their daily mix rather
+   than forcing a fixed split.
 
-8. **Offers never rerolled**: Once generated at `stop`, offers are frozen in
-    the activity row's `offers` column. The `sell` action matches by faction_id,
-    not by regenerating. This prevents save-scumming and ensures offer data
-    integrity.
+8. **Customer-first selling model**: The customer appears with hidden demand.
+   The player offers from inventory. This creates good and bad market days,
+   rewards Selling skill, and makes each market visit a unique negotiation
+   rather than a menu pick.
 
-9. **Score vs Scrap separation**: Score is the leaderboard metric (never
-   decreases). Scrap is currency (future spendable). Currently they track
-   together, but the separate fields enable future mechanics (purchases,
-   bribes, commissions) that spend scrap without affecting score.
+9. **Offers never persist**: Customers and their offers are ephemeral per
+   market visit. This prevents save-scumming and creates urgency. "Opportunity
+   is not a lengthy visitor."
 
-10. **Commission premiums applied by activity, not Market**: Market knows
-    nothing about player state. The activity post-processes Market output to
-    apply commission premiums. This keeps Market pure.
+10. **Admin-triggered season end**: Never automatic. The maintenance callback
+    may warn when configured season length is reached but does not
+    auto-finalize.
 
-11. **SeasonalCharacter deletion after formal SeasonRecord creation**: The
+11. **Collapse = zero salvage**: No partial recovery on collapse. This is the
+    game's core risk; partial salvage would weaken the push-your-luck tension.
+
+12. **At most one evolution per artifact**: `has_evolved` flag. No artifact
+    can breakthrough more than once.
+
+13. **Score vs Scrap separation**: Score is cumulative sale value (leaderboard
+    metric, never decreases). Scrap is currency (spendable on skills). Score
+    is NOT reduced by scrap expenditure — this encourages spending scrap on
+    skills.
+
+14. **Estimated values are ranges**: Players see `estimated_value_min` and
+    `estimated_value_max`, never the precise internal `decayed_value`. This
+    maintains uncertainty and makes Selling skill (which improves estimate
+    accuracy) valuable.
+
+15. **Three-layer faction model**: Personal standing (per player), faction
+    influence (global per season), and artifact intake (what traits received).
+    These layers connect economic activity to narrative without simulating
+    everything.
+
+16. **Commission premiums applied by activity, not customer generator**: The
+    customer generator knows nothing about player state. The MarketVisit
+    activity post-processes base offers to apply commission premiums.
+
+17. **Decay applied during daily maintenance, not per-action**: All artifacts
+    decay simultaneously at day rollover. This is predictable and avoids
+    per-action overhead. The maintenance window is the natural sync point.
+
+18. **Skills are YAML-driven, not hardcoded**: Skill definitions, costs, and
+    descriptions in `content/skills.yml`. Adding or rebalancing a skill is a
+    content edit, not a code change.
+
+19. **SeasonalCharacter deletion after formal SeasonRecord creation**: The
     deletion is safe because the meaningful history has already been archived.
+
+---
+
+## 21. Open Design Questions (Implementation-Facing)
+
+These questions remain unresolved and should be answered during implementation:
+
+1. **Skill mechanical effects**: What does each level of Prospecting,
+   Upcycling, and Selling actually do numerically? (See 6.6)
+2. **Negotiation math**: Exact formulas for match bonus, irritation gain,
+   settle probability, and offer values. (See 6.5)
+3. **Customer generation**: How are customers selected from the faction pool?
+   Weighted? Random? Standing-influenced?
+4. **Action point count**: Is 15 the right default? Should `action_points_max`
+   be configurable per season?
+5. **Score display**: Should the game state show running score, or only the
+   leaderboard? Score is visible until season end.
+6. **Character-owned history name**: transcript, chronicle, ledger, or
+   something else? (Refinements §21, item 4)

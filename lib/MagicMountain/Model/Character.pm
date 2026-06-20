@@ -4,7 +4,7 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'turns_remaining', 'pending_activity_id' ];
+    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'turns_remaining', 'pending_activity_id', 'faction_sales', 'standing', 'current_location' ];
 };
 
 1;
