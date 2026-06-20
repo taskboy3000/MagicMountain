@@ -18,8 +18,8 @@ my $season = MagicMountain::Model::Season->new(file => $file);
 subtest 'columns extend defaults with length, day, end_of_day_hour' => sub {
     is_deeply(
         $season->columns,
-        [qw{id updatedAt createdAt length day end_of_day_hour}],
-        'Season columns include length, day, end_of_day_hour'
+        [qw{id updatedAt createdAt label length day end_of_day_hour}],
+        'Season columns include label, length, day, end_of_day_hour'
     );
 };
 
