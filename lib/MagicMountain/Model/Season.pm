@@ -4,7 +4,7 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'length', 'day', 'end_of_day_hour' ];
+    return [ @$cols, 'label', 'length', 'day', 'end_of_day_hour', 'status' ];
 };
 
 1;

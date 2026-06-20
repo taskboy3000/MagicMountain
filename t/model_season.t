@@ -15,11 +15,11 @@ write_file($file, '{}');
 
 my $season = MagicMountain::Model::Season->new(file => $file);
 
-subtest 'columns extend defaults with length, day, end_of_day_hour' => sub {
+subtest 'columns extend defaults with length, day, end_of_day_hour, status' => sub {
     is_deeply(
         $season->columns,
-        [qw{id updatedAt createdAt label length day end_of_day_hour}],
-        'Season columns include label, length, day, end_of_day_hour'
+        [qw{id updatedAt createdAt label length day end_of_day_hour status}],
+        'Season columns include label, length, day, end_of_day_hour, status'
     );
 };
 
@@ -35,13 +35,21 @@ subtest 'create - with season columns' => sub {
     is($obj->row->{end_of_day_hour}, 22, 'create sets end_of_day_hour');
 };
 
+subtest 'create - with status' => sub {
+    my $obj = $season->create(status => 'active');
+    is($obj->row->{status}, 'active', 'create sets status');
+};
+
 subtest 'getCol / setCol on season columns' => sub {
-    my $obj = $season->create(length => 10, day => 5, end_of_day_hour => 18);
+    my $obj = $season->create(length => 10, day => 5, end_of_day_hour => 18, status => 'active');
     is($obj->getCol('length'), 10, 'getCol returns length');
     is($obj->getCol('day'), 5, 'getCol returns day');
     is($obj->getCol('end_of_day_hour'), 18, 'getCol returns end_of_day_hour');
+    is($obj->getCol('status'), 'active', 'getCol returns status');
     $obj->setCol('day', 6);
     is($obj->row->{day}, 6, 'setCol updates day');
+    $obj->setCol('status', 'archived');
+    is($obj->row->{status}, 'archived', 'setCol updates status');
 };
 
 done_testing;

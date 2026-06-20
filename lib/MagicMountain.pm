@@ -25,6 +25,8 @@ has defaultConfig => sub ($self) {
         session_timeout_minutes   => 60,
         end_of_day_hour           => 0,
         maintenance_window_minutes => 5,
+        default_season_length     => 30,
+        default_season_label_prefix => 'Season',
     }
 };
 
@@ -108,6 +110,8 @@ sub startup ($self) {
         mkdir $self->dataDir or die("Cannot make dataDir[$!]: " . $self->dataDir);
     }
 
+    $self->ensureActiveSeason;
+
     $self->renderer->cache->max_keys(0);
     $self->defaults(layout => 'default');
 
@@ -175,6 +179,29 @@ sub buildRoutes ($self) {
     $auth->post('/artifact/stop')->to('artifact#stop');
     $auth->post('/sale/:faction_id')->to('sale#create');
     # $auth->get('/leaderboard')->to('leaderboard#index');
+}
+
+sub ensureActiveSeason ($self) {
+    my $seasons_file = $self->dataDir . '/seasons.json';
+
+    if (!-e $seasons_file) {
+        $self->log->info("No season data found. Creating default active season.");
+        my $season = $self->seasons->create(
+            label           => $self->config->{default_season_label_prefix} . ' 1',
+            length          => $self->config->{default_season_length},
+            day             => 1,
+            end_of_day_hour => $self->config->{end_of_day_hour},
+            status          => 'active',
+        );
+        $season->save;
+        return;
+    }
+
+    $self->seasons->load;
+    my $active = $self->seasons->find(sub { ($_->{status} // '') eq 'active' });
+    unless (@$active) {
+        $self->log->warn("No active season found. Run 'create-season' to start one.");
+    }
 }
 
 

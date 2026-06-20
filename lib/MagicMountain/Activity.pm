@@ -46,18 +46,21 @@ sub load_content ($self) {
 # column storage ($self->row->{phase}). Persistence via save() reads
 # from row, so values flow through correctly.
 
-sub phase ($self, $value = undef) {
-    if (@_ > 1) { return $self->setCol('phase', $value); }
+sub phase {
+    my $self = shift;
+    return $self->setCol('phase', shift) if @_;
     return $self->getCol('phase') // 'idle';
 }
 
-sub artifact ($self, $value = undef) {
-    if (@_ > 1) { return $self->setCol('artifact', $value); }
+sub artifact {
+    my $self = shift;
+    return $self->setCol('artifact', shift) if @_;
     return $self->getCol('artifact');
 }
 
-sub offers ($self, $value = undef) {
-    if (@_ > 1) { return $self->setCol('offers', $value); }
+sub offers {
+    my $self = shift;
+    return $self->setCol('offers', shift) if @_;
     return $self->getCol('offers');
 }
 
