@@ -163,6 +163,7 @@ sub find ($self, $codeRefOrHashRef) {
     $self->load;
     my @found;
     if (ref $codeRefOrHashRef eq 'CODE') {
+        # Was given a truth test that must pass for many column values in this row
         for my $row ( values %{$self->table} ) {
             if ($codeRefOrHashRef->($row)) {
                 my $record = $self->get($row->{'id'});
@@ -171,7 +172,6 @@ sub find ($self, $codeRefOrHashRef) {
         }
         return \@found;
     } elsif (ref $codeRefOrHashRef eq 'HASH') {
-        
         for my $row (values %{$self->table} ) {
             my $matched = 1;
             while (my ($column, $regex) = each %{$codeRefOrHashRef}) {
@@ -202,3 +202,333 @@ sub delete ($self, $id) {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+MagicMountain::Model - Base persistence class for Magic Mountain records
+
+=head1 SYNOPSIS
+
+  # Define a subclass
+  package MagicMountain::Model::Account;
+  use Mojo::Base 'MagicMountain::Model', '-signatures';
+
+  has columns => sub ($self) {
+      my $cols = $self->defaultColumns;
+      return [ @$cols, qw(username passwordHash disabled) ];
+  };
+
+  # Later, in application code:
+  my $accts = MagicMountain::Model::Account->new(
+      file => '/path/to/accounts.json',
+      log  => sub ($level, @msg) { say "[$level] @msg" },
+  );
+
+  # Create a new record (in-memory only):
+  my $record = $accts->create(username => 'alice', passwordHash => '...');
+
+  # Persist to disk:
+  $record->save;
+
+  # Retrieve by ID:
+  my $alice = $accts->get($record->row->{id});
+
+  # Query with a code reference:
+  my $found = $accts->find(sub ($row) { $row->{username} eq 'alice' });
+
+  # Query with a hash of regexes:
+  my $active = $accts->find({ disabled => qr/^0$/ });
+
+  # Get all records:
+  my $all = $accts->all;
+
+  # Delete a record:
+  $accts->delete($id);
+
+=head1 DESCRIPTION
+
+C<MagicMountain::Model> is the base class for all persisted objects in the
+Magic Mountain game. It provides a simple JSON file-backed key-value store
+where each file holds a hash of records keyed by UUID.
+
+Each subclass declares its own columns (via the C<columns> attribute) and
+inherits CRUD operations, lazy-loading, and atomic file writes.
+
+=head2 Persistence Strategy
+
+Data is stored as a single JSON object per file:
+
+  {
+      "uuid-1": { "id": "uuid-1", "createdAt": 1700000000, "updatedAt": 1700000100, ... },
+      "uuid-2": { "id": "uuid-2", "createdAt": 1700000001, "updatedAt": 1700000101, ... }
+  }
+
+Writes are atomic: data is written to a temporary file (C<< <file>$$.tmp >>)
+then renamed over the target. This prevents corruption on crash or power loss.
+
+The C<load> method is idempotent and uses file mtime to avoid re-reading
+unchanged data.
+
+=head2 Lifecycle Summary
+
+  1. Instantiate a model object (pointing at a JSON file).
+  2. Call C<create(%params)> to build an in-memory record.
+  3. Call C<< $record->save >> to persist (auto-assigns C<id>, C<createdAt>,
+     C<updatedAt>).
+  4. Retrieve records with C<get>, C<all>, or C<find>.
+  5. Delete with C<delete>.
+
+=head1 ATTRIBUTES
+
+=head2 file
+
+  has 'file' => sub ($self) { die("Add a path to the state file") };
+
+Required. The filesystem path to the JSON file used for persistence. Must be
+provided to the constructor. Dies on access if not set.
+
+=head2 log
+
+  has 'log' => sub ($self) {
+      sub ($alertLevel, @payload) { say "DEFAULT LOGGER[$alertLevel]> " . join(',', @payload) };
+  };
+
+Optional. A coderef called as C<< $log->($level, @messages) >>. Defaults to a
+simple C<say>-based logger.
+
+=head2 table
+
+  has table => sub ($self) { return {} };
+
+The in-memory hashref of all records: C<< { $id => \%record, ... } >>.
+Shared across all instances created from the same model object so that
+in-memory changes are visible to siblings without re-reading the file.
+
+=head2 row
+
+  has 'row' => sub ($self) { return {} };
+
+The current record's data hashref. Populated by C<create>, C<get>, and C<find>.
+Access individual fields via C<getCol> / C<setCol> or directly through the
+hashref.
+
+=head2 columns
+
+  has columns => sub ($self) { return $self->defaultColumns };
+
+Override in subclasses to declare the valid column names. Should begin with the
+result of C<defaultColumns> and append custom columns:
+
+  has columns => sub ($self) {
+      my $cols = $self->defaultColumns;
+      return [ @$cols, qw(col1 col2 col3) ];
+  };
+
+=head2 defaultColumns
+
+  has defaultColumns => sub ($self) { return [qw{id updatedAt createdAt}] };
+
+Returns the column list managed by the base class: C<id>, C<updatedAt>,
+C<createdAt>. Subclass C<columns> overrides should include these.
+
+=head1 METHODS
+
+=head2 getCol
+
+  my $val = $model->getCol('username');
+
+Returns the value of the named column from the current C<row>. Dies if the
+column name is not declared in C<columns>.
+
+=head2 setCol
+
+  $model->setCol('username', 'bob');
+
+Sets the value of the named column on the current C<row>. Dies if the column
+name is not declared. Returns the new value.
+
+=head2 hasCol
+
+  if ($model->hasCol('faction')) { ... }
+
+Returns true if the named column is declared in C<columns>.
+
+=head2 load
+
+  $model->load;
+
+Reads the JSON file from disk and populates C<table>. Skips re-reading if the
+file's mtime has not changed. Called automatically by C<save>, C<get>,
+C<all>, C<find>, and C<delete>, so explicit calls are rarely needed.
+
+Dies on JSON decode failure.
+
+=head2 create
+
+  my $record = $model->create(username => 'alice', score => 100);
+
+Returns a B<new> model instance (same C<file>, C<log>, C<table>) with
+C<row> populated from the given parameters. The record is B<not> persisted
+until C<save> is called on the returned object.
+
+Dies if any parameter name is not a declared column.
+
+=head2 save
+
+  $record->save;
+
+Persists the current C<row> to disk. On first save:
+
+=over
+
+=item * Assigns a UUID v4 string to C<< row->{id} >> if absent.
+
+=item * Sets C<< row->{createdAt} >> to the current epoch time if absent.
+
+=back
+
+Always updates C<< row->{updatedAt} >> to the current epoch time.
+
+Internally calls C<load> first to ensure the in-memory table is current, then
+writes the updated table atomically.
+
+=head2 get
+
+  my $record = $model->get($uuid);
+
+Returns a new model instance for the given UUID, or C<undef> if not found.
+The returned object shares the same C<file>, C<log>, and C<table> as the
+caller.
+
+=head2 all
+
+  my $records = $model->all;
+
+Returns a hashref clone of every record: C<< { $uuid => \%data, ... } >>.
+The returned data is a shallow copy; modifying it does B<not> affect the
+model's internal table.
+
+=head2 find
+
+  # With a code reference:
+  my $matches = $model->find(sub ($row) { $row->{username} eq 'alice' });
+
+  # With a hash of column => regex pairs (all must match):
+  my $matches = $model->find({ username => qr/^a/, disabled => qr/^0$/ });
+
+Searches all records and returns an arrayref of model instances matching the
+criteria.
+
+Supports two argument forms:
+
+=over
+
+=item C<CODE> ref
+
+A truth-test coderef receives each record hashref; return true to include.
+
+=item C<HASH> ref
+
+Keys are column names, values are C<qr//> regex objects. A record matches if
+B<all> column values match their corresponding regex.
+
+=back
+
+=head2 delete
+
+  $model->delete($uuid);
+
+Removes the record with the given UUID from the table and persists. Returns
+true on success, C<undef> if the UUID was not found.
+
+=head1 SUBCLASSING
+
+Subclasses must:
+
+=over
+
+=item 1. Use C<Mojo::Base> to inherit from C<MagicMountain::Model>:
+
+  package MagicMountain::Model::Account;
+  use Mojo::Base 'MagicMountain::Model', '-signatures';
+
+=item 2. Override C<columns> to declare the record's fields:
+
+  has columns => sub ($self) {
+      my $cols = $self->defaultColumns;
+      return [ @$cols, qw(username passwordHash disabled) ];
+  };
+
+=item 3. Optionally define convenience accessor methods using C<getCol> /
+C<setCol>:
+
+  sub username ($self) { $self->getCol('username') }
+
+=back
+
+See existing subclasses (C<MagicMountain::Model::Account>,
+C<MagicMountain::Model::Character>, etc.) for examples.
+
+=head1 DIAGNOSTICS
+
+=over
+
+=item C<Add a path to the state file>
+
+The C<file> attribute was accessed but not provided to the constructor.
+
+=item C<assert: no such column '...' declared on ...>
+
+A call to C<getCol>, C<setCol>, or C<create> referenced a column name not
+listed in the subclass's C<columns> attribute.
+
+=item C<JSON DECODE FAILURE: ...>
+
+The JSON file on disk could not be parsed. The error details from
+C<Mojo::JSON> are appended.
+
+=item C<assert - unsupport criteria>
+
+C<find> was called with an argument that is neither a CODE nor a HASH
+reference.
+
+=back
+
+=head1 CONFIGURATION
+
+The C<file> path is typically set from the application config:
+
+  # In MagicMountain.pm or a startup helper:
+  $self->{accountModel} = MagicMountain::Model::Account->new(
+      file => $self->config('data_dir') . '/accounts.json',
+  );
+
+=head1 DEPENDENCIES
+
+=over
+
+=item L<File::Slurp> - Atomic file read/write
+
+=item L<Mojo::Base> - Object system (Mojolicious)
+
+=item L<Mojo::JSON> - JSON encoding/decoding
+
+=item L<UUID::Tiny> - UUID v4 generation
+
+=item L<Modern::Perl> - Modern Perl language features
+
+=back
+
+=head1 SEE ALSO
+
+L<MagicMountain::Model::Account>, L<MagicMountain::Model::Character>,
+L<MagicMountain::Model::Season>, L<MagicMountain::Model::Session>,
+L<MagicMountain::Model::HallOfFame>, L<MagicMountain::Model::AuditLog>
+
+=head1 AUTHOR
+
+Magic Mountain Development Team
+
+=cut

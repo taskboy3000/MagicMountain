@@ -20,7 +20,7 @@ sub run ($self, @args) {
     }
 
     $self->app->seasons->load;
-    my $active = $self->app->seasons->find(sub { $_->{status} eq 'active' });
+    my $active = $self->app->seasons->find(sub { $_[0]->{status} eq 'active' });
     if (@$active && !$force) {
         say "An active season already exists (" . $active->[0]->getCol('label') . ").";
         say "Use --force to archive it and create a new season.";

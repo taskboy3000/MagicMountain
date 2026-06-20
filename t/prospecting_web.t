@@ -15,7 +15,6 @@ sub setup {
     write_file("$dataDir/accounts.json",    '{}');
     write_file("$dataDir/characters.json",  '{}');
     write_file("$dataDir/sessions.json",    '{}');
-    write_file("$dataDir/seasons.json",     '{}');
     write_file("$dataDir/activities.json",  '{}');
 
     my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");

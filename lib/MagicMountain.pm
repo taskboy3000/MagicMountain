@@ -110,7 +110,9 @@ sub startup ($self) {
         mkdir $self->dataDir or die("Cannot make dataDir[$!]: " . $self->dataDir);
     }
 
-    $self->ensureActiveSeason;
+    if (!$self->ensureActiveSeason) {
+        die("halting.");
+    };
 
     $self->renderer->cache->max_keys(0);
     $self->defaults(layout => 'default');
@@ -194,14 +196,16 @@ sub ensureActiveSeason ($self) {
             status          => 'active',
         );
         $season->save;
-        return;
+        return 1;
     }
 
     $self->seasons->load;
-    my $active = $self->seasons->find(sub { ($_->{status} // '') eq 'active' });
-    unless (@$active) {
+    my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
+    if (!@$active) {
         $self->log->warn("No active season found. Run 'create-season' to start one.");
+        return;
     }
+    return 1;
 }
 
 

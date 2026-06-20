@@ -8,19 +8,8 @@ has columns => sub ($self) {
 };
 
 sub find_by_player_id ($self, $player_id) {
-    $self->load;
-    for my $id (keys %{$self->table}) {
-        my $row = $self->table->{$id};
-        if (($row->{player_id} // '') eq $player_id) {
-            return $self->new(
-                file  => $self->file,
-                log   => $self->log,
-                table => $self->table,
-                row   => { %{ $row } },
-            );
-        }
-    }
-    return;
+    my $found = $self->find(sub { $_[0]->{player_id} eq $player_id });
+    return $found->[0];
 }
 
 sub is_expired ($self, $timeout_minutes) {

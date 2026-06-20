@@ -8,19 +8,8 @@ has columns => sub ($self) {
 };
 
 sub find_by_username ($self, $username) {
-    $self->load;
-    for my $id (keys %{$self->table}) {
-        my $row = $self->table->{$id};
-        if (($row->{username} // '') eq $username) {
-            return $self->new(
-                file  => $self->file,
-                log   => $self->log,
-                table => $self->table,
-                row   => { %{ $row } },
-            );
-        }
-    }
-    return;
+    my $found = $self->find(sub { $_[0]->{username} eq $username });
+    return $found->[0];
 }
 
 1;
