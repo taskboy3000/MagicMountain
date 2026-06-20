@@ -4,6 +4,7 @@ requires 'JSON';
 requires 'YAML::XS';
 requires 'File::Slurp';
 requires 'UUID::Tiny';
+requires 'Perl::Tidy';
 
 on 'test' => sub {
     requires 'Test::More';
