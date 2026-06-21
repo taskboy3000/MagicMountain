@@ -3,9 +3,11 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub _activity_action ($self, $action, %params) {
     my $player_id = $self->session('playerId');
+    my $season = $self->app->active_season;
+    my $season_id = $season ? $season->getCol('id') : undef;
 
     my ($char_model) = @{ $self->app->characters->find(
-        sub { $_[0]->{account_id} eq $player_id }
+        sub { $_[0]->{account_id} eq $player_id && (!$season_id || $_[0]->{season_id} eq $season_id) }
     ) };
     return $self->render(json => { ok => 0, error => 'No character' }, status => 404)
         unless $char_model;

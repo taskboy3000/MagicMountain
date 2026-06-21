@@ -113,11 +113,8 @@ has maintenance => sub ($self) {
         on_maintenance  => sub ($maint) {
             $maint->app->log->info("Daily maintenance: advancing season day and resetting character AP");
 
-            $maint->app->seasons->load;
-            my $active = $maint->app->seasons->find(sub { $_[0]->{status} && $_[0]->{status} eq 'active' });
-            return unless @$active;
-
-            my $season = $active->[0];
+            my $season = $maint->app->active_season;
+            return unless $season;
             my $day    = $season->getCol('day') + 1;
             $season->setCol('day', $day);
             $season->save;
@@ -184,6 +181,11 @@ sub startup ($self) {
         return $c->app->maintenance->in_maintenance;
     });
 
+    $self->helper(skills_data => sub ($c) {
+        state $data = YAML::XS::LoadFile($c->app->home . '/content/skills.yml');
+        return $data->{skills};
+    });
+
     $self->helper(current_player => sub ($c) {
         my $player_id = $c->session('playerId');
         return undef unless $player_id;
@@ -238,6 +240,10 @@ sub buildRoutes ($self) {
     $auth->delete('/player')->to('player#destroy')->name('delete_player');
     $auth->get('/game')->to('game#show')->name('game');
 
+    $auth->get('/shed')->to('shed#index');
+    $auth->get('/skills')->to('skills#index');
+    $auth->post('/skills/purchase')->to('skills#purchase');
+
     # Future (under auth):
     $auth->post('/prospecting/begin')->to('prospecting#begin');
     $auth->post('/prospecting/push')->to('prospecting#push');
@@ -245,7 +251,13 @@ sub buildRoutes ($self) {
     $auth->post('/market/begin')->to('market#begin');
     $auth->post('/market/offer')->to('market#offer');
     $auth->post('/market/send_away')->to('market#send_away');
-    # $auth->get('/leaderboard')->to('leaderboard#index');
+    $auth->get('/leaderboard')->to('leaderboard#index');
+}
+
+sub active_season ($self) {
+    $self->seasons->load;
+    my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
+    return @$active ? $active->[0] : undef;
 }
 
 sub ensureActiveSeason ($self) {

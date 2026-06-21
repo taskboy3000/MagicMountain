@@ -5,74 +5,57 @@
 
     <div class="card mb-3">
       <div class="card-body text-center">
-        <h5 class="card-title mb-0"><%= $player_name %></h5>
+        <h5 class="card-title mb-0" id="player-name">—</h5>
       </div>
     </div>
 
-    <!-- Stats bar -->
     <div class="row mb-3 text-center" id="stats-bar">
       <div class="col">
         <div class="card"><div class="card-body py-2">
           <small class="text-muted">Score</small>
-          <h5 class="mb-0" id="stat-score"><%= $score // 0 %></h5>
+          <h5 class="mb-0" id="stat-score">—</h5>
         </div></div>
       </div>
       <div class="col">
         <div class="card"><div class="card-body py-2">
           <small class="text-muted">Scrap</small>
-          <h5 class="mb-0" id="stat-scrap"><%= $scrap // 0 %></h5>
+          <h5 class="mb-0" id="stat-scrap">—</h5>
         </div></div>
       </div>
       <div class="col">
         <div class="card"><div class="card-body py-2">
           <small class="text-muted">AP</small>
-          <h5 class="mb-0" id="stat-ap"><%= $action_points // 0 %></h5>
+          <h5 class="mb-0" id="stat-ap">—</h5>
         </div></div>
       </div>
     </div>
 
-    <!-- Season -->
     <div class="card mb-3">
       <div class="card-body text-center py-2">
         <small class="text-muted">Season</small>
-        <span class="ms-2">
-          % if ($season_is_active) {
-            <%= $season_label %> &mdash; Day <%= $season_day %> of <%= $season_total_days %>
-          % } else {
-            No active season.
-          % }
-        </span>
+        <span class="ms-2" id="season-info">—</span>
       </div>
     </div>
 
-    <!-- Prospecting -->
-    <div class="card mb-3" id="prospecting-card">
-      <div class="card-header">Prospecting</div>
-      <div class="card-body" id="prospecting-body">
-        % if (my $phase = stash('active_phase')) {
-          % if ($phase eq 'processing') {
-            <div id="artifact-display">
-              <p class="mb-1"><strong id="art-name">—</strong></p>
-              <p class="mb-1 text-muted" id="art-intro"></p>
-              <p class="mb-1">Value: <strong id="art-value">—</strong></p>
-              <p class="mb-1">Stage: <span class="badge bg-secondary" id="art-stage">—</span></p>
-              <p class="mb-3 fst-italic" id="art-signal"></p>
-            </div>
-            <div class="d-grid gap-2 d-md-flex">
-              <button class="btn btn-primary" id="btn-push">Push</button>
-              <button class="btn btn-warning" id="btn-stop">Stop</button>
-            </div>
-          % }
-        % } else {
-          % if (($action_points // 0) > 0) {
-            <p class="mb-0 text-center">Ready to prospect.</p>
-            <div class="d-grid mt-3">
-              <button class="btn btn-success" id="btn-begin">Begin Expedition</button>
-            </div>
-          % } else {
-            <p class="mb-0 text-center text-muted">No AP remaining today.</p>
-          % }
-        % }
+    <div id="action-card"></div>
+
+    <div class="card mb-3" id="shed-card">
+      <div class="card-header">Shed</div>
+      <div class="card-body" id="shed-body">
+        <p class="text-muted mb-0 text-center" id="shed-empty">No artifacts in storage.</p>
+        <div id="shed-items"></div>
+      </div>
+    </div>
+
+    <div class="card mb-3" id="skills-card">
+      <div class="card-header">Skills</div>
+      <div class="card-body" id="skills-body"></div>
+    </div>
+
+    <div class="card mb-3" id="leaderboard-card">
+      <div class="card-header">Leaderboard</div>
+      <div class="card-body" id="leaderboard-body">
+        <p class="text-muted text-center mb-0">Loading...</p>
       </div>
     </div>
 
@@ -85,89 +68,4 @@
   </div>
 </div>
 
-<script>
-const STAT_SCORE = document.getElementById('stat-score');
-const STAT_SCRAP = document.getElementById('stat-scrap');
-const STAT_AP = document.getElementById('stat-ap');
-
-function updateStats(p) {
-  if (STAT_SCORE) STAT_SCORE.textContent = p.score ?? 0;
-  if (STAT_SCRAP) STAT_SCRAP.textContent = p.scrap ?? 0;
-  if (STAT_AP) STAT_AP.textContent = p.action_points ?? 0;
-}
-
-function updateArtifact(a) {
-  if (!a) return;
-  const nameEl = document.getElementById('art-name');
-  const introEl = document.getElementById('art-intro');
-  const valueEl = document.getElementById('art-value');
-  const stageEl = document.getElementById('art-stage');
-  const signalEl = document.getElementById('art-signal');
-  if (nameEl)   nameEl.textContent = a.id || '—';
-  if (introEl)  introEl.textContent = a.intro || '';
-  if (valueEl)  valueEl.textContent = a.value ?? '—';
-  if (stageEl) {
-    stageEl.textContent = a.stage || '—';
-    stageEl.className = 'badge ' + (
-      a.stage === 'stable'   ? 'bg-success' :
-      a.stage === 'strained' ? 'bg-warning text-dark' :
-                               'bg-danger'
-    );
-  }
-  if (signalEl) signalEl.textContent = a.signal || '';
-}
-
-async function begin() {
-  const resp = await fetch('/prospecting/begin', { method: 'POST' });
-  const data = await resp.json();
-  if (data.ok) {
-    updateStats(data.player);
-    updateArtifact(data.artifact);
-    location.reload();
-  }
-}
-
-async function push() {
-  const resp = await fetch('/prospecting/push', { method: 'POST' });
-  const data = await resp.json();
-  if (data.ok) {
-    updateStats(data.player);
-    if (data.result === 'push') {
-      updateArtifact(data.artifact);
-    } else {
-      location.reload();
-    }
-  }
-}
-
-async function stop() {
-  const resp = await fetch('/prospecting/stop', { method: 'POST' });
-  const data = await resp.json();
-  if (data.ok) {
-    updateStats(data.player);
-    location.reload();
-  }
-}
-
-// Wire buttons
-const btnBegin = document.getElementById('btn-begin');
-const btnPush  = document.getElementById('btn-push');
-const btnStop  = document.getElementById('btn-stop');
-
-if (btnBegin) btnBegin.addEventListener('click', begin);
-if (btnPush)  btnPush.addEventListener('click', push);
-if (btnStop)  btnStop.addEventListener('click', stop);
-
-// Populate artifact data from initial stash
-% if (my $aj = stash('artifact_json')) {
-  updateArtifact(JSON.parse('<%== $aj %>'));
-% }
-
-// Delete account
-document.getElementById('delete-account-btn').addEventListener('click', async () => {
-  if (!confirm('Delete your account permanently? This cannot be undone.')) return;
-  const resp = await fetch('/player', { method: 'DELETE' });
-  const data = await resp.json();
-  if (data.ok) window.location.href = '/login';
-});
-</script>
+<script src="/js/game.js"></script>

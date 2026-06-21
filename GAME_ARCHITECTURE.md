@@ -1720,50 +1720,45 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Routing gateway** | `Controller::Root` | `GET /` redirect |
 | **Login flow** | `Controller::Sessions` | Auto-creates accounts on first login |
 | **Player info** | `Controller::Player` | `GET /player` JSON or 401 |
-| **Game page** | `Controller::Game`, `templates/game/show.html.ep` | Authenticated home with season info |
+| **Game page** | `Controller::Game`, `templates/game/show.html.ep`, `public/js/game.js` | `respond_to` JSON/HTML dispatch; JS-driven SPA fetches `/game` JSON on load; includes shed, skills, leaderboard panels |
 | **Session management** | `Model::Session`, `current_player` helper | Configurable inactivity timeout |
-| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::simulate` | Account lifecycle, bot simulation |
+| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::create_season`, `Command::simulate` | Account lifecycle, season management, bot simulation |
 | **Layout** | `templates/layouts/default.html.ep` | Bootstrap 5.3 CDN wrapper |
 | **Day maintenance** | `Maintenance.pm` | IOLoop timer, route gating, `on_maintenance` callback for AP refresh, day increment, decay |
 | **Audit logging** | `Model::AuditLog` | JSONL login/logout/account events |
 | **Activity base class** | `Activity.pm` | State-machine dispatch, column accessors, content loading |
 | **Prospecting activity** | `Activity::Prospecting` | Push/collapse/breakthrough math, stop → shed entry, activity-owned persistence |
-| **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, empty shed guard |
+| **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, empty shed guard, irritation |
 | **ShedItem model** | `Model::ShedItem` | `shed.json` CRUD, per-character queries |
 | **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skills 0–3 |
 | **Character column expansion** | `Model::Character` | `action_points`, `action_points_max`, skill columns |
 | **Prospecting/Market controllers** | `Controller::Prospecting`, `Controller::Market` | Thin dispatch+render, no persistence |
-| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml` | Artifact definitions, skills, factions |
-| **Transcript system** | `Model::Transcript` | JSONL event log with narrative, integrated into all activity handlers |
+| **Shed controller** | `Controller::Shed` | `GET /shed` with query-string filtering (condition, artifact_id, behavior, min/max value, sort, order); `respond_to` JSON/HTML |
+| **Skills controller + purchase** | `Controller::Skills`, `skills_data` helper | `GET /skills` lists YAML definitions + current levels; `POST /skills/purchase` validates scrap, enforces level cap, deducts and increments |
+| **Leaderboard controller** | `Controller::Leaderboard` | `GET /leaderboard` — seasonal character rankings sorted by score |
+| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions |
+| **Transcript system** | `Model::Transcript` | JSONL event log with narrative, integrated into all activity handlers and simulation |
 | **Bot simulation** | `Command::simulate`, `script/analyze` | Naive bot strategy, real game engine, reproducible, analysis script |
+| **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
+| **Season-aware character lookup** | `Controller.pm` base class, `MagicMountain.pm` | `_require_character` filters by active season; `active_season` method (non-memoized, fresh each call) on app class |
+| **JS SPA** | `public/js/game.js` | Extracted from template per unobtrusive JS principle; renders idle/prospecting/market cards, shed inventory, skills, leaderboard from JSON |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
 | Module | Change Required |
 |--------|-----------------|
-| `Controller/Game.pm` | Update game state response to include shed, skills, new AP fields |
 | Skill mechanical effects (§6.6) | Implement per-level effects for prospecting, upcycling, selling |
 
 ### 19.3 Planned (Not Yet Implemented)
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Shed/Skills/Leaderboard controllers | High | HTTP endpoints for inventory, skill purchase, rankings |
-| Artifact decay (in maintenance) | High | Condition states, value recalculation |
-| Skill system purchase flow | High | YAML-driven skill definitions, purchase endpoint |
 | MarketVisit negotiation math | Medium | Irritation, settle rolls, counter-offers, multiple items per visit |
 | Bot policy framework | Medium | Pluggable push/sell policies, YAML bot profiles |
 | Faction system (FactionRegistry, YAML config) | Medium | Standing, influence, intake tracking |
-| Commission system | Low | Faction notices, active commissions |
-| Crier narrative system | Low | Faction/economic state driven reports |
-| Market dynamics (supply/demand) | Low | Price depression, faction appetites |
-| MariaDB migration | Future | Replace JSON file persistence |
-| Faction system (FactionRegistry, YAML config) | Medium | Customer generation |
 | SeasonFactionState tracking | Medium | Influence, intake tracking |
 | ArtifactDisposition records | Medium | Append-only immutable sale records |
 | Commission system | Low | Faction notices, active commissions |
-| Transcript events | Low | JSONL for simulation and balance analysis |
-| Leaderboard | Low | Player rankings |
 | Crier narrative system | Low | Faction/economic state driven reports |
 | Market dynamics (supply/demand) | Low | Price depression, faction appetites |
 | MariaDB migration | Future | Replace JSON file persistence |

@@ -81,8 +81,8 @@ subtest 'GET /game shows game page when authenticated' => sub {
     $t->get_ok('/game')
       ->status_is(200)
       ->content_like(qr/<!DOCTYPE html>/, 'layout template rendered')
-      ->content_like(qr{alice}, 'shows player name')
-      ->content_like(qr/Season 1 &mdash; Day 1 of 30/, 'shows active season');
+      ->content_like(qr/id="player-name"/, 'player name element present')
+      ->content_like(qr/id="season-info"/, 'season info element present');
 };
 
 subtest 'touch updates last_active' => sub {
