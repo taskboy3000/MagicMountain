@@ -1067,7 +1067,7 @@ sub create ($self, %params) {
 
 | Phase | Action | Effect | Persistence |
 |-------|--------|--------|-------------|
-| idle | begin | Deduct 2 AP. Draw artifact. Set phase to `processing` | `$self->save`, `$char->save` |
+| idle | begin | Deduct 2 AP. Draw artifact. Set phase to `processing`. Set FK | `$self->save`, `$char->save` |
 | processing | push | Destabilize. May collapse, breakthrough, or normal (update artifact) | Collapse/breakthrough: `$self->delete`, clear FK, `$char->save`. Normal: `$self->save`, `$char->save` |
 | processing | stop | Calculate estimate. Create ShedItem. Set phase to `idle` | `$item->save`, `$self->delete`, clear FK, `$char->save` |
 

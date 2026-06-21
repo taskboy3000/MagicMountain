@@ -57,10 +57,13 @@ sub getCol ($self, $columnName) {
 
 sub setCol ($self, $columnName, $optionalValue=undef) {
     if (grep {$_ eq $columnName} @{$self->columns}) {
+        $self->validate($columnName, $optionalValue);
         return $self->row->{$columnName} = $optionalValue
     }
     die ("assert: no such column '$columnName' declared on " . ref $self);
 }
+
+sub validate ($self, $columnName, $value) { 1 }  # no-op base
 
 sub hasCol ($self, $columnName) {
     return grep {$_ eq $columnName} @{$self->columns};
@@ -191,7 +194,7 @@ sub find ($self, $codeRefOrHashRef) {
 }
 
 
-sub delete ($self, $id) {
+sub delete ($self, $id = undef) {
     $id //= $self->getCol('id');
     return unless $id;
 

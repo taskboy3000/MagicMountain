@@ -25,8 +25,8 @@
       </div>
       <div class="col">
         <div class="card"><div class="card-body py-2">
-          <small class="text-muted">Turns</small>
-          <h5 class="mb-0" id="stat-turns"><%= $turns_remaining // 0 %></h5>
+          <small class="text-muted">AP</small>
+          <h5 class="mb-0" id="stat-ap"><%= $action_points // 0 %></h5>
         </div></div>
       </div>
     </div>
@@ -62,22 +62,15 @@
               <button class="btn btn-primary" id="btn-push">Push</button>
               <button class="btn btn-warning" id="btn-stop">Stop</button>
             </div>
-          % } elsif ($phase eq 'awaiting_buyer') {
-            <p class="mb-1 fst-italic" id="art-signal"></p>
-            <p class="mb-1">Value: <strong id="art-value">—</strong></p>
-            <p class="mb-3">Choose a buyer:</p>
-            <div id="offer-list" class="d-grid gap-2 mb-3">
-              <p class="text-muted">Loading offers...</p>
-            </div>
           % }
         % } else {
-          % if (($turns_remaining // 0) > 0) {
+          % if (($action_points // 0) > 0) {
             <p class="mb-0 text-center">Ready to prospect.</p>
             <div class="d-grid mt-3">
               <button class="btn btn-success" id="btn-begin">Begin Expedition</button>
             </div>
           % } else {
-            <p class="mb-0 text-center text-muted">No turns remaining today.</p>
+            <p class="mb-0 text-center text-muted">No AP remaining today.</p>
           % }
         % }
       </div>
@@ -95,12 +88,12 @@
 <script>
 const STAT_SCORE = document.getElementById('stat-score');
 const STAT_SCRAP = document.getElementById('stat-scrap');
-const STAT_TURNS = document.getElementById('stat-turns');
+const STAT_AP = document.getElementById('stat-ap');
 
 function updateStats(p) {
   if (STAT_SCORE) STAT_SCORE.textContent = p.score ?? 0;
   if (STAT_SCRAP) STAT_SCRAP.textContent = p.scrap ?? 0;
-  if (STAT_TURNS) STAT_TURNS.textContent = p.turns_remaining ?? 0;
+  if (STAT_AP) STAT_AP.textContent = p.action_points ?? 0;
 }
 
 function updateArtifact(a) {
@@ -124,25 +117,8 @@ function updateArtifact(a) {
   if (signalEl) signalEl.textContent = a.signal || '';
 }
 
-function showOffers(offers) {
-  const list = document.getElementById('offer-list');
-  if (!list) return;
-  list.innerHTML = '';
-  if (!offers || !offers.length) {
-    list.innerHTML = '<p class="text-muted">No offers available.</p>';
-    return;
-  }
-  offers.forEach(o => {
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-outline-primary text-start';
-    btn.textContent = o.faction_name + ': ' + o.value + ' scrap';
-    btn.addEventListener('click', () => sell(o.faction_id));
-    list.appendChild(btn);
-  });
-}
-
 async function begin() {
-  const resp = await fetch('/artifact/begin', { method: 'POST' });
+  const resp = await fetch('/prospecting/begin', { method: 'POST' });
   const data = await resp.json();
   if (data.ok) {
     updateStats(data.player);
@@ -152,7 +128,7 @@ async function begin() {
 }
 
 async function push() {
-  const resp = await fetch('/artifact/push', { method: 'POST' });
+  const resp = await fetch('/prospecting/push', { method: 'POST' });
   const data = await resp.json();
   if (data.ok) {
     updateStats(data.player);
@@ -165,16 +141,7 @@ async function push() {
 }
 
 async function stop() {
-  const resp = await fetch('/artifact/stop', { method: 'POST' });
-  const data = await resp.json();
-  if (data.ok) {
-    updateStats(data.player);
-    location.reload();
-  }
-}
-
-async function sell(factionId) {
-  const resp = await fetch('/sale/' + factionId, { method: 'POST' });
+  const resp = await fetch('/prospecting/stop', { method: 'POST' });
   const data = await resp.json();
   if (data.ok) {
     updateStats(data.player);
@@ -194,9 +161,6 @@ if (btnStop)  btnStop.addEventListener('click', stop);
 // Populate artifact data from initial stash
 % if (my $aj = stash('artifact_json')) {
   updateArtifact(JSON.parse('<%== $aj %>'));
-% }
-% if (my $oj = stash('offers_json')) {
-  showOffers(JSON.parse('<%== $oj %>'));
 % }
 
 // Delete account

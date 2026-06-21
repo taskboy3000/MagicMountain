@@ -23,7 +23,7 @@ sub setup {
     my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
     $chars->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
-        score => 0, scrap => 0, turns_remaining => 5,
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
     my $t = Test::Mojo->new('MagicMountain');
@@ -34,14 +34,14 @@ sub setup {
 subtest 'unauthenticated' => sub {
     my $t = setup;
     $t->delete_ok('/sessions')->status_is(200);
-    $t->post_ok('/artifact/begin')
+    $t->post_ok('/prospecting/begin')
       ->status_is(302)
       ->header_like(Location => qr{/login});
 };
 
 subtest 'begin — starts a new artifact' => sub {
     my $t = setup;
-    $t->post_ok('/artifact/begin')
+    $t->post_ok('/prospecting/begin')
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/result' => 'start')
@@ -51,47 +51,39 @@ subtest 'begin — starts a new artifact' => sub {
 
 subtest 'begin while processing fails' => sub {
     my $t = setup;
-    $t->post_ok('/artifact/begin')->status_is(200);
-    $t->post_ok('/artifact/begin')->status_is(500);
+    $t->post_ok('/prospecting/begin')->status_is(200);
+    $t->post_ok('/prospecting/begin')->status_is(500);
 };
 
 subtest 'push — advances artifact' => sub {
     my $t = setup;
-    $t->post_ok('/artifact/begin')->status_is(200);
-    $t->post_ok('/artifact/push')
+    $t->post_ok('/prospecting/begin')->status_is(200);
+    $t->post_ok('/prospecting/push')
       ->status_is(200)
       ->json_is('/ok' => 1);
 };
 
-subtest 'full lifecycle: begin → push → stop → sell' => sub {
+subtest 'full lifecycle: begin → push → stop' => sub {
     my $t = setup;
     srand(42);
-    $t->post_ok('/artifact/begin')
+    $t->post_ok('/prospecting/begin')
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/result' => 'start');
 
     my $collapsed = 0;
     for (1 .. 3) {
-        $t->post_ok('/artifact/push')->status_is(200);
+        $t->post_ok('/prospecting/push')->status_is(200);
         $collapsed = $t->tx->res->json->{result} ne 'push';
         last if $collapsed;
     }
 
     SKIP: {
-        skip 'artifact collapsed during pushes', 3 if $collapsed;
-        $t->post_ok('/artifact/stop')
+        skip 'artifact collapsed during pushes', 1 if $collapsed;
+        $t->post_ok('/prospecting/stop')
           ->status_is(200)
           ->json_is('/ok' => 1)
-          ->json_is('/result' => 'stop');
-
-        my $offers = $t->tx->res->json->{pending_sale}{offers};
-        ok(@$offers > 0, 'offers generated');
-
-        $t->post_ok('/sale/' . $offers->[0]{faction_id})
-          ->status_is(200)
-          ->json_is('/ok' => 1)
-          ->json_is('/result' => 'sold');
+          ->json_is('/result' => 'stopped');
     }
 };
 

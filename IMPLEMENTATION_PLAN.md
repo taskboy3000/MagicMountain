@@ -52,21 +52,66 @@ $char->{action_points} -= 2;
 The controller never calls `save` or `delete` on any model — its sole job is
 dispatch + render.
 
+**Validation convention**: Add a `validate` hook to `Model.pm` called by `setCol`.
+Override in `Model::Character` to enforce invariants. Dies on invalid assignment
+— fails fast at the write site.
+
 All character column dependencies must be updated atomically with the rename:
 
 | File | Change |
 |------|--------|
-| `MagicMountain.pm:93-98` (maintenance) | `setCol('turns_remaining', ...)` → `setCol('action_points', ...)`. Use per-character `action_points_max` column — not the config default |
+| `MagicMountain.pm:93-98` (maintenance) | `setCol('turns_remaining', ...)` → `setCol('action_points', ...)`. Use per-character `action_points_max` column — not the config default. Also update log message line 82: "turns" → "AP" |
 | `MagicMountain.pm:30` (config) | `default_daily_turns` → `default_action_points`, value 15 |
 | `Controller/Game.pm:25,32,43` | `daily_turns` var → `daily_ap`. `turns_remaining:` key → `action_points:` |
 | `Controller/Game.pm:30` | Add `action_points_max => $daily_ap` |
 | `templates/game/show.html.ep:28-30` | "Turns" → "AP" |
 | `show.html.ep:98,103` | `STAT_TURNS` → `STAT_AP`, `p.turns_remaining` → `p.action_points` |
-| `t/activity_prospecting.t` | `_fresh_char` uses `action_points => 15` |
+| `t/model_character.t:21,33,40,44,50` | `turns_remaining` → `action_points` in column list, test data, assertions. Add `action_points_max` where needed |
+| `t/activity_prospecting.t` | `_fresh_char` uses `action_points => 15`. TestCharacter: `turns_remaining` → `action_points`. Assertions: `$char->{turns_remaining}` → `$char->getCol('action_points')` |
 | `t/prospecting_web.t` | Character setup uses `action_points => 15` |
 
 These must be done as a single unit — the codebase has no `turns_remaining` from
 the moment Phase 0.1 starts.
+
+### 0.1b Model Validation Hook
+
+**Files**: `lib/MagicMountain/Model.pm` + `lib/MagicMountain/Model/Character.pm`
+
+Add a `validate` hook to `Model.pm` called by `setCol` before assignment:
+
+```perl
+# Model.pm — add to setCol and new method
+sub setCol ($self, $columnName, $optionalValue=undef) {
+    if (grep {$_ eq $columnName} @{$self->columns}) {
+        $self->validate($columnName, $optionalValue);
+        return $self->row->{$columnName} = $optionalValue
+    }
+    die ("assert: no such column '$columnName' declared on " . ref $self);
+}
+
+sub validate ($self, $columnName, $value) { 1 }  # no-op base
+```
+
+Override in `Model/Character.pm` to enforce invariants:
+
+```perl
+sub validate ($self, $col, $val) {
+    if ($col eq 'score' && defined($val) && defined($self->getCol('score'))
+        && $val < $self->getCol('score')) {
+        die "invariant: score must never decrease";
+    }
+    if ($col eq 'scrap' && defined($val) && $val < 0) {
+        die "invariant: scrap must be non-negative";
+    }
+    if ($col eq 'action_points' && defined($val)) {
+        my $max = $self->getCol('action_points_max') // 15;
+        die "invariant: action_points ($val) exceeds max ($max)" if $val > $max;
+    }
+    if ($col =~ /^skill_/ && defined($val) && ($val < 0 || $val > 3)) {
+        die "invariant: $col must be 0-3";
+    }
+}
+```
 
 ### 0.2 Activity Base Columns
 
@@ -163,8 +208,10 @@ Change deduction — use setCol:
 $char->setCol('action_points', $char->getCol('action_points') - 2);
 ```
 
-Add persistence — handler saves both the activity row and the character:
+Add persistence — handler saves both the activity row and the character,
+and sets the FK so subsequent requests find this activity:
 ```perl
+$char->setCol('pending_activity_id', $self->getCol('id'));
 $self->save;
 $char->save;
 
@@ -240,7 +287,7 @@ New:
 3. Create ShedItem via `$self->app->shed->create(...)` with current artifact state
 4. Call `$item->save` to persist the new ShedItem row
 5. Set phase to `idle`, clear artifact
-6. Delete own activity row: `$self->app->prospecting->delete($self->getCol('id'))`
+6. Delete own activity row: `$self->delete`
 7. Clear FK and save char: `$char->setCol('pending_activity_id', undef)`; `$char->save`
 8. Return view with shed item summary
 
@@ -437,7 +484,59 @@ with the Shed controller in a later phase.
 
 ---
 
+### 0.5 Foundation Model Tests
+
+**File**: `t/model_validate.t` (new file)
+
+Tests for the `Model::validate` hook and `Model::Character` override:
+
+| Test | Code | Expected |
+|------|------|----------|
+| Base validate is no-op | `Model->setCol('id', 'x')` | Succeeds (no die) |
+| Score decrease dies | `$char->setCol('score', 5); $char->setCol('score', 3)` | Dies with "invariant: score" |
+| Score increase OK | `$char->setCol('score', 5); $char->setCol('score', 8)` | Succeeds |
+| Score set on new char | `$char->setCol('score', 5)` | Succeeds (no previous value) |
+| Negative scrap dies | `$char->setCol('scrap', -1)` | Dies with "invariant: scrap" |
+| AP above max dies | `$char->setCol('action_points_max', 15); $char->setCol('action_points', 16)` | Dies with "invariant: action_points" |
+| AP at max OK | `$char->setCol('action_points_max', 15); $char->setCol('action_points', 15)` | Succeeds |
+| AP zero OK | `$char->setCol('action_points', 0)` | Succeeds |
+| Skill below 0 dies | `$char->setCol('skill_prospecting', -1)` | Dies with "invariant: must be 0-3" |
+| Skill above 3 dies | `$char->setCol('skill_prospecting', 4)` | Dies with "invariant: must be 0-3" |
+| Skill at 3 OK | `$char->setCol('skill_prospecting', 3)` | Succeeds |
+| Non-invariant column unchanged | `$char->setCol('name', 'bob')` | Succeeds (no validate interference) |
+
+**File**: `t/model_delete.t` (new file)
+
+Tests for `Model::delete` default-arg behavior:
+
+| Test | Code | Expected |
+|------|------|----------|
+| delete with no arg | `$instance->delete` | Deletes own row from table, returns true |
+| delete with explicit id | `$model->delete($id)` | Deletes row by id, backward compatible |
+| delete on unsaved instance | `$instance->delete` where id is undef | Returns undef, no crash |
+| row gone after delete | delete then `$model->get($id)` | Returns undef |
+
+**File**: `t/model_shed_item.t` (new file)
+
+Basic CRUD — create, save, load by id, find by char_id, delete.
+
+---
+
 ## Phase 4 — Tests
+
+### 4.0 Model::Character Invariant Integration
+
+**File**: `t/model_character_invariants.t` (new file)
+
+Integration-level tests that validate enforcement in a realistic sequence
+(mimicking how handlers write to the character):
+
+- Full prospecting lifecycle: begin → push → stop → check AP never went negative
+- Breakthrough auto-cashout: verify score only increases, never decreases
+- Multiple days of activity: AP refresh respects `action_points_max`
+- Direct `$char->{score} = 5` bypass test: verify raw hashref access is not used
+  (enforced by convention and code review, not by validate — validate only
+  catches `setCol` calls)
 
 ### 4.1 Activity Base Tests
 
@@ -453,14 +552,17 @@ with the Shed controller in a later phase.
 
 - TestCharacter: Use `action_points` key (5 → 15 AP for fresh char)
 - `turns exhausted` → `AP exhausted`, check `>= 2` not `> 0`
-- Update `begin` test: verify 2 AP deducted (15 → 13)
+- Update `begin` test: verify 2 AP deducted (15 → 13), and that `$char->save` was called (character persisted)
 - Remove `stop→awaiting_buyer` test (lines 320-338)
 - Remove `sell` tests (lines 352-399)
 - Remove `stop→sell` from `delete` test (lines 443-461)
 - Remove `stop→sell` from full lifecycle test (lines 465-490)
-- Add new `stop→ShedItem` test: verify ShedItem created with estimated value
+- Add new `stop→ShedItem` test: verify ShedItem created with estimated value, and verify `$self->delete` removed the activity row from the table
 - Update collapse formula test expectations (ratio² × 0.95)
 - Update columns assertion: no `offers`, expect `customer`
+- **New**: `begin` persistence test — after begin, verify activity row exists in `activities.json` and character AP persisted
+- **New**: `push` persistence test — after normal push, verify `$self->save` persisted updated artifact state
+- **New**: `stop` persistence test — after stop, verify activity row deleted from table, ShedItem created, character FK cleared
 
 ### 4.3 Web Integration Tests
 
@@ -476,14 +578,17 @@ with the Shed controller in a later phase.
 ## Execution Order
 
 ```
-Phase 0.1 — Character columns + ALL reader/writer updates (atomic),
+Phase 0.1  — Character columns + ALL reader/writer updates (atomic),
               convention blocks (getCol/setCol, activity-owned persistence)
               Character.pm, MagicMountain.pm (config + maintenance),
               Controller/Game.pm, templates/game/show.html.ep,
               test character fixtures
-Phase 0.2 — Activity base columns & accessors (offers→customer)
+Phase 0.1b — Model validation hook (Model.pm setCol calls validate,
+              Character.pm overrides with invariants)
+Phase 0.2  — Activity base columns & accessors (offers→customer)
 Phase 0.3 — ShedItem model (new file, MagicMountain::Model subclass)
 Phase 0.4 — App shed attribute + use import
+Phase 0.5 — Foundation model tests (delete default-arg, Character invariants, ShedItem CRUD)
   ↓
 Phase 1.1 — Transition table (remove awaiting_buyer, sell)
 Phase 1.2 — begin handler (AP check/deduction)
@@ -500,7 +605,7 @@ Phase 2.3 — Delete Sale controller
   ↓
 Phase 3.1 — Game controller (remove offers stash only)
 Phase 3.2 — Game template (remove sell UI, update URLs)
-  ↓
+Phase 4.0 — Model::Character invariant integration tests
 Phase 4.1 — Activity base tests
 Phase 4.2 — Prospecting unit tests
 Phase 4.3 — Web integration tests

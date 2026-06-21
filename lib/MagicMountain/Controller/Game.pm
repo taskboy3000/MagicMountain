@@ -22,15 +22,16 @@ sub show ($self) {
     ) };
 
     unless ($char_model) {
-        my $daily_turns = $self->app->config->{default_daily_turns} // 10;
+        my $daily_ap = $self->app->config->{default_action_points} // 15;
         $char_model = $self->app->characters->create(
-            name       => $account->getCol('username'),
-            account_id => $player_id,
-            season_id  => $season ? $season->getCol('id') : undef,
-            score      => 0,
-            scrap      => 0,
-            turns_remaining => $season ? $daily_turns : 0,
-            pending_activity_id => undef,
+            name                  => $account->getCol('username'),
+            account_id            => $player_id,
+            season_id             => $season ? $season->getCol('id') : undef,
+            score                 => 0,
+            scrap                 => 0,
+            action_points         => $season ? $daily_ap : 0,
+            action_points_max     => $daily_ap,
+            pending_activity_id   => undef,
         );
         $char_model->save;
     }
@@ -40,7 +41,8 @@ sub show ($self) {
         $self->stash(
             score           => $row->{score} // 0,
             scrap           => $row->{scrap} // 0,
-            turns_remaining => $row->{turns_remaining} // 0,
+            action_points   => $row->{action_points} // 0,
+            action_points_max => $row->{action_points_max} // 15,
         );
 
         my $id = $row->{pending_activity_id};
@@ -51,7 +53,6 @@ sub show ($self) {
                     $self->stash(
                         active_phase  => $activity->phase,
                         artifact_json => $self->_json($activity->artifact),
-                        offers_json   => $self->_json($activity->offers),
                     );
                 }
             }

@@ -17,6 +17,22 @@ use_ok('TestCharacter');
     package FakeApp;
     sub new { bless {}, shift }
     sub log { bless {}, 'FakeLogger' }
+    sub shed {
+        my $self = shift;
+        $self->{_shed_items} //= [];
+        return $self;
+    }
+    sub create {
+        my ($self, %params) = @_;
+        my $item = bless { %params }, 'FakeShedItem';
+        push @{ $self->{_shed_items} }, $item;
+        return $item;
+    }
+}
+{
+    package FakeShedItem;
+    sub getCol { my ($self, $col) = @_; $self->{$col} }
+    sub save { 1 }
 }
 {
     package FakeLogger;
@@ -109,9 +125,9 @@ sub _make_singleton {
 
 sub _fresh_char {
     TestCharacter->new(
-        turns_remaining => 5,
-        scrap           => 0,
-        score           => 0,
+        action_points => 15,
+        scrap         => 0,
+        score         => 0,
     );
 }
 
@@ -170,7 +186,7 @@ subtest 'begin draws artifact and transitions to processing' => sub {
     ok(length $v->{artifact}{signal} > 0, 'signal text present');
     ok(length $v->{artifact}{intro}  > 0, 'intro text present');
 
-    is($char->{turns_remaining}, 4, 'turn consumed');
+    is($char->{action_points}, 13, 'AP deducted (15 → 13)');
 
     my $artifact = $p->artifact;
     ok($artifact->{instability} == 0, 'instability starts at 0');
@@ -181,10 +197,10 @@ subtest 'begin draws artifact and transitions to processing' => sub {
 subtest 'begin dies if no turns remaining' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
-    my $char         = TestCharacter->new(turns_remaining => 0, scrap => 0, score => 0);
+    my $char         = TestCharacter->new(action_points => 0, scrap => 0, score => 0);
 
     eval { $p->dispatch($char, 'begin') };
-    like($@, qr/turns exhausted/, 'begin dies on zero turns');
+    like($@, qr/AP exhausted/, 'begin dies on zero AP');
 };
 
 subtest 'begin from wrong phase dies' => sub {
@@ -272,7 +288,6 @@ subtest 'guaranteed collapse when instability exceeds max' => sub {
     ok(length($result->{view}{message}) > 0, 'collapse message present');
     is($p->phase,               'idle',     'phase -> idle');
     is($p->artifact,            undef,      'artifact cleared');
-    is($p->offers,              undef,      'offers cleared');
 
     is($char->{scrap}, 0, 'scrap unchanged on collapse');
     is($char->{score}, 0, 'score unchanged on collapse');
@@ -317,27 +332,6 @@ subtest 'breakthrough awards value and clears activity' => sub {
 
 # ── Stop ──────────────────────────────────────────────────────────────
 
-subtest 'stop generates offers and transitions to awaiting_buyer' => sub {
-    my $content_file = _make_content_file();
-    my $p            = _make_singleton($content_file);
-    my $char         = _fresh_char();
-
-    $p->dispatch($char, 'begin');
-    my $result = $p->dispatch($char, 'stop');
-
-    is($result->{view}{result}, 'stop', 'result is stop');
-    is($p->phase, 'awaiting_buyer',      'phase -> awaiting_buyer');
-
-    my $offers = $p->offers;
-    ok(@$offers >= 1, 'at least one offer generated');
-    ok($offers->[0]{faction_id},   'offer has faction_id');
-    ok($offers->[0]{faction_name}, 'offer has faction_name');
-    ok($offers->[0]{value} > 0,    'offer has positive value');
-    ok($offers->[0]{text},         'offer has text');
-
-    ok($result->{view}{pending_sale}{offers}, 'pending_sale in view');
-};
-
 subtest 'stop from idle dies' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
@@ -345,57 +339,6 @@ subtest 'stop from idle dies' => sub {
 
     eval { $p->dispatch($char, 'stop') };
     like($@, qr/illegal transition/, 'stop from idle dies');
-};
-
-# ── Sell ──────────────────────────────────────────────────────────────
-
-subtest 'sell awards value and clears activity' => sub {
-    my $content_file = _make_content_file();
-    my $p            = _make_singleton($content_file);
-    my $char         = _fresh_char();
-
-    $p->dispatch($char, 'begin');
-    $p->dispatch($char, 'stop');
-
-    my $offers     = $p->offers;
-    my $faction_id = $offers->[0]{faction_id};
-    my $offer_val  = $offers->[0]{value};
-
-    my $result = $p->dispatch($char, 'sell', faction_id => $faction_id);
-
-    is($result->{view}{result}, 'sold', 'result is sold');
-    is($result->{view}{value_awarded}, $offer_val, 'correct value awarded');
-    is($result->{view}{faction_id},    $faction_id, 'correct faction');
-
-    is($char->{scrap}, $offer_val, 'scrap increased');
-    is($char->{score}, $offer_val, 'score increased');
-    is($p->phase,      'idle',     'phase -> idle');
-    is($p->artifact,   undef,      'artifact cleared');
-    is($p->offers,     undef,      'offers cleared');
-};
-
-subtest 'sell with invalid faction_id dies' => sub {
-    my $content_file = _make_content_file();
-    my $p            = _make_singleton($content_file);
-    my $char         = _fresh_char();
-
-    $p->dispatch($char, 'begin');
-    $p->dispatch($char, 'stop');
-
-    eval { $p->dispatch($char, 'sell', faction_id => 'nonexistent') };
-    like($@, qr/invalid faction_id/, 'sell with bad faction dies');
-};
-
-subtest 'sell without faction_id dies' => sub {
-    my $content_file = _make_content_file();
-    my $p            = _make_singleton($content_file);
-    my $char         = _fresh_char();
-
-    $p->dispatch($char, 'begin');
-    $p->dispatch($char, 'stop');
-
-    eval { $p->dispatch($char, 'sell') };
-    like($@, qr/faction_id is required/, 'sell without faction_id dies');
 };
 
 # ── Persistence: save/load via Model ──────────────────────────────────
@@ -409,7 +352,7 @@ subtest 'save and load activity from JSON via Model' => sub {
     is($activity->getCol('type'), 'prospecting', 'type defaults to prospecting');
 
     $activity->dispatch($char, 'begin');
-    is($activity->getCol('id'), undef, 'no id yet before save');
+    ok($activity->getCol('id'), 'begin handler saves and assigns id');
     $activity->save;
     ok($activity->getCol('id'), 'save assigns id');
 
@@ -440,7 +383,7 @@ subtest 'create returns unsaved instance' => sub {
     ok($a->content_data, 'content_data propagated to new instance');
 };
 
-subtest 'delete activity on completion clears row' => sub {
+subtest 'stop deletes activity row and creates shed item' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
     my $char         = _fresh_char();
@@ -451,25 +394,23 @@ subtest 'delete activity on completion clears row' => sub {
     my $id = $p->getCol('id');
 
     $p->dispatch($char, 'stop');
-    $p->dispatch($char, 'sell', faction_id => $p->offers->[0]{faction_id});
 
-    is($p->phase, 'idle', 'phase is idle after full lifecycle');
+    ok($p->app->{_shed_items} && @{ $p->app->{_shed_items} } == 1, 'shed item created');
 
-    $p->delete($id);
     my $reloaded = $p->get($id);
-    is($reloaded, undef, 'row deleted from table');
+    is($reloaded, undef, 'activity row deleted from table');
 };
 
 # ── Full lifecycle ───────────────────────────────────────────────────
 
-subtest 'full begin -> push×N -> stop -> sell lifecycle' => sub {
+subtest 'full begin -> push×N -> stop lifecycle' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
-    my $char         = TestCharacter->new(turns_remaining => 3, scrap => 0, score => 0);
+    my $char         = TestCharacter->new(action_points => 3, scrap => 0, score => 0);
 
     srand(777);
     $p->dispatch($char, 'begin');
-    is($char->{turns_remaining}, 2, 'turn 1 consumed');
+    is($char->{action_points}, 1, 'AP deducted (3 → 1)');
 
     for (1 .. 2) {
         my $r = $p->dispatch($char, 'push');
@@ -478,14 +419,9 @@ subtest 'full begin -> push×N -> stop -> sell lifecycle' => sub {
     }
 
     SKIP: {
-        skip 'artifact collapsed during pushes', 2 if $p->phase ne 'processing';
-        $p->dispatch($char, 'stop');
-        is($p->phase, 'awaiting_buyer', 'stop -> awaiting_buyer');
-
-        my $faction = $p->offers->[0]{faction_id};
-        my $r = $p->dispatch($char, 'sell', faction_id => $faction);
-        is($r->{view}{result}, 'sold', 'sell -> sold');
-        ok($char->{score} > 0,    'positive score after sale');
+        skip 'artifact collapsed during pushes', 1 if $p->phase ne 'processing';
+        my $r = $p->dispatch($char, 'stop');
+        is($r->{view}{result}, 'stopped', 'stop -> stopped');
     }
 };
 

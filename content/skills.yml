@@ -1,0 +1,45 @@
+skills:
+  - id: prospecting
+    name: Prospecting
+    description: "Find better artifacts and richer yields"
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Better leads"
+      - level: 2
+        cost: 25
+        description: "Richer veins"
+      - level: 3
+        cost: 50
+        description: "Eye for the unusual"
+
+  - id: upcycling
+    name: Upcycling
+    description: "Push artifacts further with greater control"
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Firm touch"
+      - level: 2
+        cost: 25
+        description: "Steady hand"
+      - level: 3
+        cost: 50
+        description: "Master's feel"
+
+  - id: selling
+    name: Selling
+    description: "Read customers and close better deals"
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Better haggling"
+      - level: 2
+        cost: 25
+        description: "Customer reader"
+      - level: 3
+        cost: 50
+        description: "Dealmaker"

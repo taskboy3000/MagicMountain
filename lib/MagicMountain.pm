@@ -12,6 +12,7 @@ use MagicMountain::Model::AuditLog;
 use MagicMountain::Model::Character;
 use MagicMountain::Model::Season;
 use MagicMountain::Model::Session;
+use MagicMountain::Model::ShedItem;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 
@@ -28,6 +29,7 @@ has defaultConfig => sub ($self) {
         default_season_length     => 30,
         default_season_label_prefix => 'Season',
         default_daily_turns       => 10,
+        default_action_points     => 15,
     }
 };
 
@@ -63,6 +65,13 @@ has characters => sub ($self) {
     );
 };
 
+has shed => sub ($self) {
+    MagicMountain::Model::ShedItem->new(
+        file => $self->dataDir . '/shed.json',
+        log  => $self->log,
+    );
+};
+
 has prospecting => sub ($self) {
     my $p = MagicMountain::Activity::Prospecting->new(
         file             => $self->dataDir . '/activities.json',
@@ -79,7 +88,7 @@ has maintenance => sub ($self) {
         app             => $self,
         end_of_day_hour => $self->config->{end_of_day_hour} // 0,
         on_maintenance  => sub ($maint) {
-            $maint->app->log->info("Daily maintenance: advancing season day and resetting character turns");
+            $maint->app->log->info("Daily maintenance: advancing season day and resetting character AP");
 
             $maint->app->seasons->load;
             my $active = $maint->app->seasons->find(sub { $_[0]->{status} && $_[0]->{status} eq 'active' });
@@ -90,11 +99,11 @@ has maintenance => sub ($self) {
             $season->setCol('day', $day);
             $season->save;
 
-            my $daily_turns = $maint->app->config->{default_daily_turns} // 10;
             $maint->app->characters->load;
             my $chars = $maint->app->characters->find(sub { $_[0]->{season_id} eq $season->getCol('id') });
             for my $char (@$chars) {
-                $char->setCol('turns_remaining', $daily_turns);
+                my $max = $char->getCol('action_points_max') // $maint->app->config->{default_action_points} // 15;
+                $char->setCol('action_points', $max);
                 $char->save;
             }
 
@@ -205,10 +214,9 @@ sub buildRoutes ($self) {
     $auth->get('/game')->to('game#show')->name('game');
 
     # Future (under auth):
-    $auth->post('/artifact/begin')->to('artifact#begin');
-    $auth->post('/artifact/push')->to('artifact#push');
-    $auth->post('/artifact/stop')->to('artifact#stop');
-    $auth->post('/sale/:faction_id')->to('sale#create');
+    $auth->post('/prospecting/begin')->to('prospecting#begin');
+    $auth->post('/prospecting/push')->to('prospecting#push');
+    $auth->post('/prospecting/stop')->to('prospecting#stop');
     # $auth->get('/leaderboard')->to('leaderboard#index');
 }
 

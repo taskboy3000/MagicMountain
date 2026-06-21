@@ -41,7 +41,7 @@ subtest 'columns include defaults + activity fields' => sub {
     my $a = _new_activity();
     is_deeply(
         $a->columns,
-        [qw(id updatedAt createdAt char_id type phase artifact offers)],
+        [qw(id updatedAt createdAt char_id type phase artifact customer)],
         'columns extend defaults with activity fields'
     );
 };
@@ -63,11 +63,11 @@ subtest 'artifact column stores hashref' => sub {
     is_deeply($a->getCol('artifact'), $hash, 'artifact column stores hashref');
 };
 
-subtest 'offers column stores arrayref' => sub {
+subtest 'customer column stores hashref' => sub {
     my $a = _new_activity();
-    my $arr = [ { faction_id => 'a', value => 10 } ];
-    $a->setCol('offers', $arr);
-    is_deeply($a->getCol('offers'), $arr, 'offers column stores arrayref');
+    my $hash = { faction_id => 'syndicate', irritation => 0 };
+    $a->setCol('customer', $hash);
+    is_deeply($a->getCol('customer'), $hash, 'customer column stores hashref');
 };
 
 # ── Convenience accessors ────────────────────────────────────────────
@@ -101,11 +101,11 @@ subtest 'artifact accessor returns undef when not set' => sub {
     is($a->artifact, undef, 'artifact returns undef when empty');
 };
 
-subtest 'offers accessor round-trip' => sub {
+subtest 'customer accessor round-trip' => sub {
     my $a = _new_activity();
-    my $arr = [ { o => 1 } ];
-    $a->offers($arr);
-    is_deeply($a->offers, $arr, 'offers accessor round-trip');
+    my $hash = { faction_id => 'syndicate', offer => 10 };
+    $a->customer($hash);
+    is_deeply($a->customer, $hash, 'customer accessor round-trip');
 };
 
 # ── Ephemeral attributes ─────────────────────────────────────────────

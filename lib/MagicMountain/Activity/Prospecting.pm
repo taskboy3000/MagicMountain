@@ -8,7 +8,6 @@ has transitions => sub {
     {
         idle           => ['begin'],
         processing     => ['push', 'stop'],
-        awaiting_buyer => ['sell'],
     }
 };
 
@@ -74,13 +73,13 @@ sub _apply_defaults ($self, $artifact) {
     $artifact->{push_count}                   = 0;
     $artifact->{has_evolved}                  = 0;
     $artifact->{value}                        = $artifact->{base_value} // 5;
-    $artifact->{max_instability}            //= 12;
+    $artifact->{max_instability}            //= 14;
     $artifact->{instability_growth_min}     //= 1;
-    $artifact->{instability_growth_max}     //= 3;
-    $artifact->{base_gain_min}              //= 2;
+    $artifact->{instability_growth_max}     //= 2;
+    $artifact->{base_gain_min}              //= 3;
     $artifact->{base_gain_max}              //= 5;
-    $artifact->{evolution_threshold}        //= 0.50;
-    $artifact->{evolution_chance}           //= 0.08;
+    $artifact->{evolution_threshold}        //= 0.25;
+    $artifact->{evolution_chance}           //= 0.03;
     $artifact->{evolution_instability_spike} //= 3;
     $artifact->{breakthrough_multiplier_min} //= 1.5;
     $artifact->{breakthrough_multiplier_max} //= 2.5;
@@ -108,9 +107,9 @@ sub _update_stage ($self, $artifact) {
 
 sub _player_snapshot ($self, $char) {
     return {
-        turns_remaining => $char->{turns_remaining},
-        scrap           => $char->{scrap} // 0,
-        score           => $char->{score} // 0,
+        action_points => $char->getCol('action_points'),
+        scrap         => $char->getCol('scrap'),
+        score         => $char->getCol('score'),
     };
 }
 
@@ -130,7 +129,7 @@ sub _artifact_view ($self, $artifact) {
 # ── begin ─────────────────────────────────────────────────────────────
 
 sub begin ($self, $char, %params) {
-    die "turns exhausted" unless ($char->{turns_remaining} // 0) > 0;
+    die "AP exhausted" unless ($char->getCol('action_points') // 0) >= 2;
 
     my $spec     = $self->_draw_artifact;
     my $artifact = { %$spec };
@@ -139,7 +138,10 @@ sub begin ($self, $char, %params) {
 
     $self->artifact($artifact);
     $self->phase('processing');
-    $char->{turns_remaining}--;
+    $char->setCol('action_points', $char->getCol('action_points') - 2);
+    $self->save;
+    $char->setCol('pending_activity_id', $self->getCol('id'));
+    $char->save;
 
     return {
         view => {
@@ -172,7 +174,7 @@ sub push ($self, $char, %params) {
     $self->_update_stage($artifact);
 
     my $ratio           = $artifact->{instability} / $artifact->{max_instability};
-    my $collapse_chance = $ratio * 0.8;
+    my $collapse_chance = ($ratio ** 2) * 0.95;
     $collapse_chance    = 1.0  if $collapse_chance > 1.0;
     $collapse_chance    = 0.05 if $collapse_chance < 0.05;
 
@@ -197,6 +199,8 @@ sub push ($self, $char, %params) {
     $artifact->{signal} = $self->_pick_signal($artifact, $artifact->{stage});
 
     $self->artifact($artifact);
+    $self->save;
+    $char->save;
 
     return {
         view => {
@@ -213,61 +217,43 @@ sub push ($self, $char, %params) {
 sub stop ($self, $char, %params) {
     my $artifact = $self->artifact;
 
-    my $offers = [
-        {
-            faction_id   => 'syndicate',
-            faction_name => 'The Syndicate',
-            value        => int($artifact->{value} * 1.1),
-            text         => 'The Syndicate offers ' . int($artifact->{value} * 1.1) . ' scrap.',
-            disposition  => 'pragmatic',
-        },
-        {
-            faction_id   => 'faculty',
-            faction_name => 'The Faculty',
-            value        => int($artifact->{value} * 0.9),
-            text         => 'The Faculty offers ' . int($artifact->{value} * 0.9) . ' scrap.',
-            disposition  => 'scholarly',
-        },
-    ];
+    my $est_min = int($artifact->{value} * 0.8);
+    my $est_max = int($artifact->{value} * 1.2);
 
-    $self->offers($offers);
-    $self->phase('awaiting_buyer');
+    my $item = $self->app->shed->create(
+        char_id             => $char->getCol('id'),
+        artifact_id         => $artifact->{id},
+        original_value      => $artifact->{value},
+        decayed_value       => $artifact->{value},
+        condition           => 'fresh',
+        days_in_shed        => 0,
+        instability         => $artifact->{instability},
+        stage               => $artifact->{stage},
+        push_count          => $artifact->{push_count},
+        has_evolved         => $artifact->{has_evolved},
+        behaviors           => $artifact->{behaviors},
+        archetypes          => $artifact->{archetypes},
+        estimated_value_min => $est_min,
+        estimated_value_max => $est_max,
+    );
+    $item->save;
 
-    return {
-        view => {
-            ok           => 1,
-            result       => 'stop',
-            pending_sale => { offers => $offers },
-            artifact     => $self->_artifact_view($artifact),
-            player       => $self->_player_snapshot($char),
-        },
-    };
-}
-
-# ── sell ───────────────────────────────────────────────────────────────
-
-sub sell ($self, $char, %params) {
-    my $faction_id = $params{faction_id} or die "faction_id is required";
-    my $offers     = $self->offers;
-
-    my ($chosen) = grep { $_->{faction_id} eq $faction_id } @{$offers // []};
-    die "invalid faction_id: $faction_id" unless $chosen;
-
-    my $value = $chosen->{value};
-    $char->{scrap} += $value;
-    $char->{score} += $value;
-
-    $self->phase('idle');
-    $self->artifact(undef);
-    $self->offers(undef);
+    $self->delete;
+    $char->setCol('pending_activity_id', undef);
+    $char->save;
 
     return {
         view => {
-            ok            => 1,
-            result        => 'sold',
-            value_awarded => $value,
-            faction_id    => $faction_id,
-            player        => $self->_player_snapshot($char),
+            ok        => 1,
+            result    => 'stopped',
+            shed_item => {
+                id                   => $item->getCol('id'),
+                artifact_id          => $artifact->{id},
+                estimated_value_min  => $est_min,
+                estimated_value_max  => $est_max,
+                condition            => 'fresh',
+            },
+            player => $self->_player_snapshot($char),
         },
     };
 }
@@ -281,7 +267,9 @@ sub _do_collapse ($self, $char, $artifact) {
 
     $self->phase('idle');
     $self->artifact(undef);
-    $self->offers(undef);
+    $self->delete;
+    $char->setCol('pending_activity_id', undef);
+    $char->save;
 
     return {
         view => {
@@ -304,12 +292,14 @@ sub _do_breakthrough ($self, $char, $artifact) {
 
     $artifact->{instability} += $artifact->{evolution_instability_spike};
 
-    $char->{scrap} += $new_value;
-    $char->{score} += $new_value;
+    $char->setCol('scrap', $char->getCol('scrap') + $new_value);
+    $char->setCol('score', $char->getCol('score') + $new_value);
 
     $self->phase('idle');
     $self->artifact(undef);
-    $self->offers(undef);
+    $self->delete;
+    $char->setCol('pending_activity_id', undef);
+    $char->save;
 
     return {
         view => {

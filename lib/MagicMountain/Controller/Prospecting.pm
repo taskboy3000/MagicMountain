@@ -1,4 +1,4 @@
-package MagicMountain::Controller::Artifact;
+package MagicMountain::Controller::Prospecting;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub _activity_action ($self, $action, %params) {

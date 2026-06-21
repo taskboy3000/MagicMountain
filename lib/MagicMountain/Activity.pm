@@ -8,13 +8,13 @@ use YAML::XS qw(LoadFile);
 # id, createdAt, updatedAt come from Model::defaultColumns
 # char_id  — FK to characters table
 # type     — discriminator (e.g. "prospecting")
-# phase    — state-machine phase: idle | processing | awaiting_buyer
+# phase    — state-machine phase: idle | processing
 # artifact — live artifact state (hashref, JSON-serialized by Model)
-# offers   — buyer offers arrayref (JSON-serialized by Model)
+# customer — current customer state (hashref, JSON-serialized by Model)
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, qw(char_id type phase artifact offers) ];
+    return [ @$cols, qw(char_id type phase artifact customer) ];
 };
 
 # ── Ephemeral attributes (NOT persisted) ───────────────────────────
@@ -58,10 +58,10 @@ sub artifact {
     return $self->getCol('artifact');
 }
 
-sub offers {
+sub customer {
     my $self = shift;
-    return $self->setCol('offers', shift) if @_;
-    return $self->getCol('offers');
+    return $self->setCol('customer', shift) if @_;
+    return $self->getCol('customer');
 }
 
 # ── State-machine dispatch ─────────────────────────────────────────

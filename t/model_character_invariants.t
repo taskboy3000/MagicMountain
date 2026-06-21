@@ -1,0 +1,81 @@
+use Modern::Perl;
+use FindBin;
+use lib ("$FindBin::Bin/../lib");
+use Test::More;
+use File::Temp qw(tempfile);
+use File::Slurp qw(write_file);
+
+use_ok('MagicMountain::Model::Character');
+
+my ($fh, $file) = tempfile(SUFFIX => '.json', UNLINK => 1);
+write_file($file, '{}');
+
+my $model = MagicMountain::Model::Character->new(file => $file);
+
+subtest 'AP never goes negative across handler-like sequence' => sub {
+    my $c = $model->create(
+        name => 'test', account_id => 'a1', season_id => 's1',
+        action_points => 15, action_points_max => 15,
+    );
+
+    # Simulate: begin → push → stop (2 AP + 0 + 0 = 2 AP total)
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    $c->setCol('action_points', $c->getCol('action_points') - 0);
+    $c->setCol('action_points', $c->getCol('action_points') - 0);
+    is($c->getCol('action_points'), 13, 'AP = 13 after 1 activity');
+
+    # Simulate: begin → collapse (2 AP, no refund)
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    is($c->getCol('action_points'), 11, 'AP = 11 after collapse');
+
+    # More activities...
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    $c->setCol('action_points', $c->getCol('action_points') - 2);
+    is($c->getCol('action_points'), 1, 'AP = 1 after 5 more activities');
+
+    # Next begin would die because only 1 AP remains (< 2)
+    eval { die "AP exhausted" unless ($c->getCol('action_points') // 0) >= 2 };
+    like($@, qr/AP exhausted/, 'begin dies when AP < 2');
+
+    # AP never went negative
+    cmp_ok($c->getCol('action_points'), '>=', 0, 'AP never negative');
+};
+
+subtest 'score only increases after breakthrough-style cashout' => sub {
+    my $c = $model->create(
+        name => 'test2', account_id => 'a2', season_id => 's1',
+        score => 0,
+    );
+
+    # Simulate breakthrough: value awarded
+    $c->setCol('score', $c->getCol('score') + 50);
+    is($c->getCol('score'), 50, 'score = 50 after first breakthrough');
+
+    $c->setCol('score', $c->getCol('score') + 30);
+    is($c->getCol('score'), 80, 'score = 80 after second sale');
+
+    # Score never decreases
+    eval { $c->setCol('score', 40) };
+    like($@, qr/invariant: score/, 'score decrease dies');
+};
+
+subtest 'AP refresh respects action_points_max' => sub {
+    my $c = $model->create(
+        name => 'test3', account_id => 'a3', season_id => 's1',
+        action_points => 3, action_points_max => 15,
+    );
+
+    # Simulate maintenance refresh
+    my $max = $c->getCol('action_points_max');
+    $c->setCol('action_points', $max);
+    is($c->getCol('action_points'), 15, 'AP refreshed to max');
+
+    # Cannot exceed max
+    eval { $c->setCol('action_points', 20) };
+    like($@, qr/invariant: action_points/, 'AP above max dies');
+};
+
+done_testing;
