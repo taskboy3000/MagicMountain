@@ -11,23 +11,13 @@ sub _activity_action ($self, $action, %params) {
         unless $char_model;
 
     my $p   = $self->app->prospecting;
-    my $row = $char_model->row;
-    my $id  = $row->{pending_activity_id};
+    my $id  = $char_model->getCol('pending_activity_id');
 
-    my $activity = $id && $p->get($id)
+    my $activity = $id
         ? $p->get($id)
-        : $p->create(char_id => $row->{id});
+        : $p->create(char_id => $char_model->getCol('id'));
 
-    my $result = $activity->dispatch($row, $action, %params);
-
-    if ($activity->phase eq 'idle') {
-        $p->delete($activity->getCol('id'));
-        $char_model->setCol('pending_activity_id', undef);
-    } else {
-        $activity->save;
-        $char_model->setCol('pending_activity_id', $activity->getCol('id'));
-    }
-    $char_model->save;
+    my $result = $activity->dispatch($char_model, $action, %params);
 
     $self->render(json => $result->{view});
 }

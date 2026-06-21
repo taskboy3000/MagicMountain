@@ -192,6 +192,9 @@ sub find ($self, $codeRefOrHashRef) {
 
 
 sub delete ($self, $id) {
+    $id //= $self->getCol('id');
+    return unless $id;
+
     $self->load;
 
     if ($self->table->{$id}) {

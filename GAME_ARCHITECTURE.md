@@ -3,6 +3,12 @@
 *Intended as a specification for rebuilding this game on a new foundation.
 No source code. All mechanics, boundaries, and invariants preserved.*
 
+> **Rails conventions applied where fitting**: Thin controllers (dispatch + render
+> only), fat models with invariant enforcement, activities that own their own
+> persistence (`save`, `delete` on the instance), and a separation of concerns
+> that mirrors ActiveRecord's controller/model boundary. This is a Perl codebase
+> with a Rails-inspired architecture — not a port.
+
 ---
 
 ## 1. Game Concept
@@ -92,19 +98,17 @@ Browser → Mojo route → Controller action
                           │     $id = $char->getCol('pending_activity_id')
                           │     $activity = $id ? $app->prospecting->get($id)
                           │                     : $app->prospecting->create(char_id => $char->getCol('id'))
-                          ├── Delegate: $activity->dispatch($char, $action, %params)
-                          │     │
-                          │     ├── Activity base: read $self->phase (column), validate transition
-                          │     ├── Validate handler exists ($self->can($action))
-                          │     ├── Activity subclass: execute game math
-                          │     ├── Mutate $char fields (scrap, score, action_points)
-                          │     ├── Set phase directly: $self->phase('processing')
-                          │     └── Return { view => {...} }
-                          │
-                          ├── If phase == 'idle': delete activity row, clear FK
-                          │     else: $activity->save, $char->setCol('pending_activity_id', $activity->getCol('id'))
-                          ├── $char->save — persist character mutations
-                          └── Pipe $result->{view} to render/json
+├── Delegate: $activity->dispatch($char, $action, %params)
+│     │
+│     ├── Activity base: read $self->phase (column), validate transition
+│     ├── Validate handler exists ($self->can($action))
+│     ├── Activity subclass: execute game math
+│     ├── Mutate $char fields via setCol (scrap, score, action_points)
+│     ├── Persist: $self->save; $char->save
+│     │   (If terminal outcome: delete own row, clear FK, save $char)
+│     └── Return { view => {...} }
+│
+└── Pipe $result->{view} to render/json
 ```
 
 Controllers are dumb pipes. They do not inspect or filter what the activity
@@ -167,7 +171,7 @@ second coordinator layered over one that already exists.
 **The real architectural rule is not "all gameplay must go through Engine."**
 It is: *gameplay behavior must not leak into controllers, raw state hashes,
 timers, or persistence plumbing.* That rule is satisfied by focused service
-classes (Activity, Market, Shed, SeasonalCharacter) without a central dispatcher.
+classes (Activity, Market, Shed, Model::Character) without a central dispatcher.
 
 **Daily maintenance is an application lifecycle concern, not an ad hoc game
 action.** Mojolicious is the correct place to schedule it. The maintenance
@@ -205,7 +209,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
 | **Shed** (inventory manager) | ShedItem rows, decay logic, query/filter by traits | Market, Faction objects, Account model |
 | **Market** (customer generator) | Faction objects, content reference, customer generation | Character model, Account model, Shed |
-| **SeasonalCharacter** (character wrapper) | Model row data hashref, player_id, invariant enforcement | Market, Faction, Content, Shed |
+| **Model::Character** | File path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–3) | Market, Faction, Content, Shed, game math, artifact logic |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
 | **Model::Character** | File path, column definitions, JSON CRUD | Game logic, artifact math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
@@ -249,12 +253,12 @@ Controllers are dumb pipes. Their entire job:
    - `$id = $char->getCol('pending_activity_id')`
    - `$activity = $id ? $self->app->prospecting->get($id) : $self->app->prospecting->create(char_id => $char->getCol('id'))`
 5. Delegate to the activity: `$activity->dispatch($char, $action, %params)`
-6. If phase is `'idle'` after dispatch: delete activity row, clear FK. Otherwise: `$activity->save`, set FK.
-7. Call `$char->save` to persist
-8. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
+6. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
 
-No phase validation. No game math. No persistence orchestration (except the two
-saves). No transcript recording. Controllers trust `action_points` as written.
+No phase validation. No game math. No persistence orchestration. No transcript
+recording. The activity handler owns all persistence — character saves, activity
+saves, row deletion, shed item creation. Controllers trust `action_points` as
+written.
 
 ---
 
@@ -282,7 +286,7 @@ Survives across seasons. Contains no gameplay data.
 | ended_at | timestamp | When season was finalized |
 | faction_state | map | Per-faction influence and artifacts_received counts |
 
-### 5.3 SeasonalCharacter (one per player per season)
+### 5.3 Model::Character (one per player per season)
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -305,7 +309,7 @@ Survives across seasons. Contains no gameplay data.
 > The old "lazy rollover" design using `last_refreshed_day` was already removed
 > in favor of in-process maintenance AP refresh.
 
-**Invariants enforced by SeasonalCharacter wrapper:**
+**Invariants enforced by Model::Character:**
 - `action_points` cannot go below zero and cannot exceed `action_points_max`
 - `scrap` must be non-negative
 - `pending_activity_id` must reference a valid activities.json row if set
@@ -934,7 +938,7 @@ from the global instance to the new instance.
 
 ```perl
 sub dispatch ($self, $char, $action, %params) {
-    die "illegal transition: $self->{phase} -> $action"
+    die "illegal transition: " . ($self->phase // 'undef') . " -> $action"
         unless grep { $_ eq $action } @{ $self->transitions->{$self->phase} // [] };
     die "no handler for action: $action"
         unless $self->can($action);
@@ -970,9 +974,11 @@ A subclass must:
 2. Override `create()` to set type/phase column defaults, then chain to `SUPER`
 3. Implement one handler method per action in the transition table
 4. Each handler receives `($self, $char, %params)`
-5. Mutate character fields directly (e.g. `$char->{scrap} += $value`)
+5. Mutate character fields via `setCol` (e.g. `$char->setCol('scrap', $char->getCol('scrap') + $value)`)
 6. Set phase directly: `$self->phase('processing')`
-7. Return `{ view => {...} }` — the controller pipes `view` directly to the template
+7. Persist activity row: `$self->save` (or on terminal outcomes: `$self->delete`.
+   Also call `$char->save` — handlers own all persistence)
+8. Return `{ view => {...} }` — the controller pipes `view` directly to the template
 
 ```perl
 {
@@ -1059,14 +1065,15 @@ sub create ($self, %params) {
 
 **Prospecting flow**:
 
-| Phase | Action | Effect |
-|-------|--------|--------|
-| idle | begin | Deduct 2 AP. Draw artifact. Set phase to `processing` |
-| processing | push | Destabilize. May collapse (delete activity), breakthrough (auto-cashout + delete), or normal (update artifact) |
-| processing | stop | Calculate estimate. Create ShedItem. Delete activity. Set phase to `idle` |
+| Phase | Action | Effect | Persistence |
+|-------|--------|--------|-------------|
+| idle | begin | Deduct 2 AP. Draw artifact. Set phase to `processing` | `$self->save`, `$char->save` |
+| processing | push | Destabilize. May collapse, breakthrough, or normal (update artifact) | Collapse/breakthrough: `$self->delete`, clear FK, `$char->save`. Normal: `$self->save`, `$char->save` |
+| processing | stop | Calculate estimate. Create ShedItem. Set phase to `idle` | `$item->save`, `$self->delete`, clear FK, `$char->save` |
 
 The `awaiting_buyer` phase and `offers` column have been removed. Prospecting
-no longer handles selling.
+no longer handles selling. Activities own all persistence — the controller
+never calls `save` or `delete`.
 
 ### 9.6 MarketVisit Activity
 
@@ -1130,37 +1137,28 @@ sub action_name ($self) {
     my $player_id = $self->current_player;
 
     my ($char_model) = @{ $self->app->characters->find(
-        sub { $_->{account_id} eq $player_id }
+        sub ($row) { $row->{account_id} eq $player_id }
     ) };
     return $self->render(json => { ok => 0, error => 'No character' }, status => 404)
         unless $char_model;
 
     my $p   = $self->app->prospecting;       # or $self->app->market
-    my $row = $char_model->row;
-    my $id  = $row->{pending_activity_id};
+    my $id  = $char_model->getCol('pending_activity_id');
 
     my $activity = $id
         ? $p->get($id)
-        : $p->create(char_id => $row->{id});
+        : $p->create(char_id => $char_model->getCol('id'));
 
-    my $result = $activity->dispatch($row, $action, %params);
-
-    if ($activity->phase eq 'idle') {
-        $p->delete($activity->getCol('id'));
-        $char_model->setCol('pending_activity_id', undef);
-    } else {
-        $activity->save;
-        $char_model->setCol('pending_activity_id', $activity->getCol('id'));
-    }
-    $char_model->save;
+    my $result = $activity->dispatch($char_model, $action, %params);
 
     $self->render(json => $result->{view});
 }
 ```
 
-The controller loads or creates the activity row via the global instance,
-dispatches, saves the activity row, and saves the character. It never inspects
-activity row internals or checks phases.
+The controller loads or creates the activity row, dispatches, and renders.
+The activity handler owns all persistence — character saves, activity saves and
+deletes, shed item creation. The controller never calls `save` or `delete` on
+any model.
 
 ### 10.2 Controller Inventory
 
@@ -1367,7 +1365,7 @@ parsed data is stored in `content_data` and automatically propagated to
 per-request activity instances via the overridden `get()`/`create()` methods.
 
 Skill definitions are loaded by `Model::Skill` from `content/skills.yml` and
-made available to the Skills controller and character wrapper.
+made available to the Skills controller and Model::Character.
 
 Adding a new artifact requires editing `content/prospecting.yml` — no code
 changes, no manual registration.
@@ -1734,8 +1732,8 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | Skill system | High | YAML-driven skill definitions, purchase flow |
 | MarketVisit negotiation math | High | Match detection, irritation, settle rolls |
 | Content YAML files (prospecting, skills) | High | Artifact definitions, skill definitions |
-| SeasonalCharacter wrapper | High | Invariant-preserving character mutations |
-| Model::Character expansion | High | Action points, skill columns |
+| Model::Character invariants | High | Add enforcement of AP bounds, scrap≥0, score never decreases, skills 0–3 |
+| Model::Character column expansion | High | Add action_points, action_points_max, skill columns |
 | Prospecting/Market/Shed/Skills controllers | High | HTTP endpoints for all game actions |
 | Bot simulation (updated) | Medium | Update bot policies for new activity split |
 | Faction system (FactionRegistry, YAML config) | Medium | Customer generation |

@@ -35,6 +35,23 @@ skill_upcycling         integer  (0-3, default 0)
 skill_selling           integer  (0-3, default 0)
 ```
 
+**API convention**: All character field access must use `getCol`/`setCol` methods,
+not raw hashref access. Controllers pass the model instance (`$char_model`) to
+`dispatch()`, and handlers access fields through the Model accessor API:
+```perl
+# Correct:
+my $ap = $char->getCol('action_points');
+$char->setCol('action_points', $ap - 2);
+
+# Wrong — bypasses column validation:
+$char->{action_points} -= 2;
+```
+
+**Persistence convention**: Activities own all persistence. Handlers call
+`$self->save`, `$char->save`, and `$self->delete` (on terminal outcomes).
+The controller never calls `save` or `delete` on any model — its sole job is
+dispatch + render.
+
 All character column dependencies must be updated atomically with the rename:
 
 | File | Change |
@@ -136,25 +153,49 @@ has shed => sub ($self) {
 
 ### 1.2 `begin` Handler
 
-Change guard: `die "AP exhausted" unless ($char->{action_points} // 0) >= 2`
+Change guard — use accessor:
+```perl
+die "AP exhausted" unless ($char->getCol('action_points') // 0) >= 2;
+```
 
-Change deduction: `$char->{action_points} -= 2` (instead of `turns_remaining--`)
+Change deduction — use setCol:
+```perl
+$char->setCol('action_points', $char->getCol('action_points') - 2);
+```
+
+Add persistence — handler saves both the activity row and the character:
+```perl
+$self->save;
+$char->save;
+
+return {
+    view => {
+        ...
+    },
+};
+```
 
 ### 1.2b `_player_snapshot`
 
 **File**: `Prospecting.pm:109-114`
 
+Replace raw hashref access with getCol calls:
+
 ```perl
 # Old:
 turns_remaining => $char->{turns_remaining},
+scrap           => $char->{scrap} // 0,
+score           => $char->{score} // 0,
 
 # New:
-action_points => $char->{action_points},
+action_points => $char->getCol('action_points'),
+scrap         => $char->getCol('scrap'),
+score         => $char->getCol('score'),
 ```
 
 Must be done immediately after 1.2 so views don't return the wrong key name.
 
-### 1.3 `push` Handler — Collapse Formula
+### 1.3 `push` Handler — Collapse Formula + Persistence
 
 **File**: `Prospecting.pm:174-177`
 
@@ -170,6 +211,23 @@ $collapse_chance = 1.0  if $collapse_chance > 1.0;
 $collapse_chance = 0.05 if $collapse_chance < 0.05;
 ```
 
+**Persistence**: On the normal (no collapse, no breakthrough) path, add saves:
+```perl
+$self->artifact($artifact);
+$self->save;
+$char->save;
+
+return {
+    view => {
+        ok       => 1,
+        result   => 'push',
+        artifact => $self->_artifact_view($artifact),
+        player   => $self->_player_snapshot($char),
+    },
+};
+```
+Collapse and breakthrough paths handle their own terminal persistence (see 1.6).
+
 ### 1.4 `stop` Handler — Complete Rewrite
 
 **File**: `Prospecting.pm:213-245`
@@ -182,19 +240,17 @@ New:
 3. Create ShedItem via `$self->app->shed->create(...)` with current artifact state
 4. Call `$item->save` to persist the new ShedItem row
 5. Set phase to `idle`, clear artifact
-6. Return view with shed item summary
+6. Delete own activity row: `$self->app->prospecting->delete($self->getCol('id'))`
+7. Clear FK and save char: `$char->setCol('pending_activity_id', undef)`; `$char->save`
+8. Return view with shed item summary
 
-The handler does NOT delete the activity row — it sets phase to `idle`, then the
-existing controller pattern (`if phase eq 'idle' → delete activity row, clear FK`)
-handles teardown automatically. The handler also cannot directly call
-`$self->app->prospecting->delete()` because it has no reference to the activity
-instance's own ID from within the dispatch — the controller owns the lifecycle.
+The handler owns teardown completely — activity row deletion, FK clear, and
+character persistence all happen inside the handler. The controller never calls
+save or delete on any model.
 
 ```perl
-# Creates and persists the ShedItem, then returns to idle.
-# Controller will delete the activity row and clear the FK.
 my $item = $self->app->shed->create(
-    char_id            => $char->{id},
+    char_id            => $char->getCol('id'),
     artifact_id        => $artifact->{id},
     original_value     => $artifact->{value},
     decayed_value      => $artifact->{value},
@@ -211,8 +267,10 @@ my $item = $self->app->shed->create(
 );
 $item->save;
 
-$self->phase('idle');
-$self->artifact(undef);
+# Activity owns teardown — delete own row, clear FK, save char
+$self->delete;
+$char->setCol('pending_activity_id', undef);
+$char->save;
 
 return {
     view => {
@@ -237,9 +295,31 @@ Delete entire `sell` method (lines 247-273). Selling is now handled by `Activity
 ### 1.6 Clean Up Internal Outcomes
 
 - `_do_collapse`: Remove `$self->offers(undef)` line
+- `_do_collapse`: No AP refund — `action_points` unchanged by collapse (correct)
+- `_do_collapse`: Add terminal persistence — delete own row, clear FK, save char:
+  ```perl
+  $self->delete;
+  $char->setCol('pending_activity_id', undef);
+  $char->save;
+  ```
 - `_do_breakthrough`: Remove `$self->offers(undef)` line
-- `_do_breakthrough`: Add `$char->{action_points}` remains unchanged (correct — breakthrough auto-cashout already works)
-- `_do_collapse`: Verify `action_points` not changed (correct — no AP refund on collapse)
+- `_do_breakthrough`: Replace raw hashref access with getCol/setCol:
+  ```perl
+  # Old:
+  $char->{scrap} += $new_value;
+  $char->{score} += $new_value;
+
+  # New:
+  $char->setCol('scrap', $char->getCol('scrap') + $new_value);
+  $char->setCol('score', $char->getCol('score') + $new_value);
+  ```
+- `_do_breakthrough`: Add terminal persistence — same as collapse:
+  ```perl
+  $self->delete;
+  $char->setCol('pending_activity_id', undef);
+  $char->save;
+  ```
+- Verify `action_points` not changed by breakthrough (correct — no AP refund or cost)
 
 ### 1.7 Update Defaults
 
@@ -267,8 +347,40 @@ is already correct — these defaults only matter if a spec is missing a field.
 
 - **Rename** `lib/MagicMountain/Controller/Artifact.pm` → `lib/MagicMountain/Controller/Prospecting.pm`
 - Package name change: `MagicMountain::Controller::Artifact` → `MagicMountain::Controller::Prospecting`
-- No functional change — the controller is already a thin pipe
 - Must be done BEFORE updating routes so Mojolicious can resolve `to => 'prospecting#...'`
+- **Functional changes in `_activity_action`**:
+  1. Pass `$char_model` (model instance) to `dispatch()` instead of `$char_model->row`
+  2. Remove all save/delete persistence logic — activity handlers own persistence
+
+  ```perl
+  # Old:
+  my $row = $char_model->row;
+  my $id  = $row->{pending_activity_id};
+  my $activity = $id && $p->get($id)
+      ? $p->get($id)
+      : $p->create(char_id => $row->{id});
+  my $result = $activity->dispatch($row, $action, %params);
+
+  if ($activity->phase eq 'idle') {
+      $p->delete($activity->getCol('id'));
+      $char_model->setCol('pending_activity_id', undef);
+  } else {
+      $activity->save;
+      $char_model->setCol('pending_activity_id', $activity->getCol('id'));
+  }
+  $char_model->save;
+  $self->render(json => $result->{view});
+
+  # New:
+  my $id  = $char_model->getCol('pending_activity_id');
+  my $activity = $id
+      ? $p->get($id)
+      : $p->create(char_id => $char_model->getCol('id'));
+  my $result = $activity->dispatch($char_model, $action, %params);
+  $self->render(json => $result->{view});
+  ```
+  The controller is now a true dumb pipe — dispatch + render. Activity handlers
+  own all persistence (character saves, activity saves/deletes, FK management).
 
 ### 2.2 Rename Routes
 
@@ -364,7 +476,8 @@ with the Shed controller in a later phase.
 ## Execution Order
 
 ```
-Phase 0.1 — Character columns + ALL reader/writer updates (atomic)
+Phase 0.1 — Character columns + ALL reader/writer updates (atomic),
+              convention blocks (getCol/setCol, activity-owned persistence)
               Character.pm, MagicMountain.pm (config + maintenance),
               Controller/Game.pm, templates/game/show.html.ep,
               test character fixtures
