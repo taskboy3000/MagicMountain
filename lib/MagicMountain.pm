@@ -17,6 +17,7 @@ use MagicMountain::Model::Transcript;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::ShedManager;
+use MagicMountain::Crier;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -78,6 +79,12 @@ has shed_manager => sub ($self) {
     MagicMountain::ShedManager->new(app => $self);
 };
 
+has crier => sub ($self) {
+    MagicMountain::Crier->new(
+        content_file => $self->home . '/content/text/crier.yml',
+    );
+};
+
 has transcript => sub ($self) {
     MagicMountain::Model::Transcript->new(
         file => $self->dataDir . '/transcript.jsonl',
@@ -128,6 +135,11 @@ has maintenance => sub ($self) {
             }
 
             $maint->app->shed_manager->apply_decay;
+
+            my $msg = $maint->app->crier->generate($season);
+            $season->setCol('crier_message', $msg);
+            $season->setCol('crier_snapshot', $season->getCol('faction_state'));
+            $season->save;
 
             my $length = $season->getCol('length');
             if ($day > $length) {

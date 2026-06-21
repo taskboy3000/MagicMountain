@@ -1,181 +1,83 @@
-# Faction Standing — Implementation Plan
+# Town Crier — Narrative System
 
-**Current state**: `character.faction_sales` and `character.standing` columns
-exist but are never written. Customer generation is purely random. The
-faction system is a content file with no runtime effect.
+## Data Source
 
----
+The crier detects faction-state changes by diffing `faction_state` snapshots
+day over day. During maintenance, before applying the new day's decay/AP
+refresh, snapshot the current `faction_state`. After all maintenance work is
+done, compare old vs new to generate messages.
 
-## Phase 1 — Standing Updates on Sale
+Storage: `season.crier_snapshot` column (hashref, a copy of faction_state
+from the previous day). Set during maintenance after generating messages.
 
-**File**: `lib/MagicMountain/Activity/MarketVisit.pm`
+## Content
 
-Update `_do_sale` to track faction interactions. The sale handler already
-knows which faction bought the item and whether it was a match (via the
-`$intersect` flag computed in `offer`).
+**File**: `content/text/crier.yml`
 
-Standing formula:
-- **Match sale**: `standing[faction_id] += 2` (good deal, customer happy)
-- **Mismatch sale** (via settle): `standing[faction_id] += 1` (sale happened
-  but reluctant)
-- **Send away / customer leaves**: No change
-- **Bonus +1** if `has_evolved` is true on the sold item (Faculty's premium)
-
-`faction_sales[faction_id]` increments by 1 on every sale regardless.
-
-The `offer` handler needs to pass the `$intersect` flag and item to
-`_do_sale` so it can compute the correct standing delta:
-
-```perl
-sub _do_sale ($self, $char, $item, $value, $was_match) {
-    ...
-    my $fid = $self->customer->{faction_id};
-    my $sales = $char->getCol('faction_sales') // {};
-    my $standing = $char->getCol('standing') // {};
-
-    $sales->{$fid}++;
-    $standing->{$fid} += $was_match ? 2 : 1;
-    $standing->{$fid}++ if $item->getCol('has_evolved');
-
-    $char->setCol('faction_sales', $sales);
-    $char->setCol('standing', $standing);
-    ...
-}
+```yaml
+crier_messages:
+  faction_surge:
+    - "The {faction} is on a tear — {influence_gain} value in artifacts acquired overnight."
+    - "Word from the Bazaar: {faction} buyers can't get enough. Up {count} deals today."
+  faction_slump:
+    - "The {faction} caravan was light today. Only {count} artifacts changed hands."
+    - "A {faction} quartermaster was seen leaving empty-handed. Slow day."
+  faction_dominance:
+    - "The {faction} now leads all factions with {influence} total value. Their flag flies higher."
+  milestone:
+    - "The {faction} just received their {count}th artifact of the season. The Crier notes the occasion."
+  season_opening:
+    - "A new season dawns. The mountain stirs. Five factions circle."
+  generic:
+    - "The mountain looms as always. Another day, another chance."
+    - "Trade routes are open. The Bazaar hums."
 ```
 
-### Tests
+## Message Selection Logic
 
-Update `t/market_visit.t` to verify:
-- Match sale: `faction_sales[fid]` incremented by 1, `standing[fid]` by 2
-- Mismatch sale: `standing[fid]` incremented by 1
-- Evolved artifact sale: bonus +1 standing
-- `faction_sales` and `standing` reflected in character after sale
+Ran during `on_maintenance` callback:
 
----
+1. Load `season.faction_state` → `season.crier_snapshot`
+2. If no snapshot exists (day 1): pick a `season_opening` or `generic` message
+3. For each faction, diff:
+   - `influence_gain = current.influence - snapshot.influence`
+   - If influence_gain > threshold: `faction_surge` message
+   - If influence_gain == 0 and `artifacts_received > 0`: `faction_slump` message
+   - If faction is the new leader: `faction_dominance` message
+   - If `artifacts_received` crossed a round number (10, 25, 50): `milestone`
+4. Pick at most ONE message per day (highest priority wins)
+5. Store as `season.crier_message` (plain text)
+6. Update snapshot: `season.crier_snapshot = current faction_state`
 
-## Phase 2 — Season-Level Faction State
+## Integration
 
-**File**: `lib/MagicMountain/Model/Season.pm`
+**Maintenance callback**: Add crier logic after decay/AP refresh, before the
+season-length warning.
 
-Add `faction_state` column (hashref). Shape per §5.6:
+**Game state** (`/game` JSON): Include `world_message` field:
 
-```perl
+```json
 {
-    syndicate => {
-        influence          => 245,  # cumulative sale value
-        artifacts_received => 5,
-        intake_by_trait    => { thermal => 3, power => 2 },
-    },
-    ...
+  "ok": 1,
+  "player": { ... },
+  "season": { "day": 5, "total_days": 30 },
+  "world_message": "The Syndicate is on a tear — 42 value in artifacts acquired overnight."
 }
 ```
 
-Updated during `_do_sale` by loading the active season and mutating its
-`faction_state`. This is a global aggregate — every player's sales
-contribute.
-
-### Where to update
-
-The sale happens in `Activity::MarketVisit::_do_sale`. It has access to
-`$self->app->seasons` and `$self->app->active_season`. Add after standing
-update:
-
-```perl
-my $season = $self->app->active_season;
-if ($season) {
-    my $fs = $season->getCol('faction_state') // {};
-    my $fid = $self->customer->{faction_id};
-    $fs->{$fid}->{influence}          += $value;
-    $fs->{$fid}->{artifacts_received}++;
-    for my $t (@{ $item->getCol('behaviors') // [] }) {
-        $fs->{$fid}->{intake_by_trait}->{$t}++;
-    }
-    $season->setCol('faction_state', $fs);
-    $season->save;
-}
-```
-
-### Test
-
-`t/faction_state.t` — Create a season and a character, run a sale, verify
-the season's `faction_state` reflects the sale value and artifact traits.
-
----
-
-## Phase 3 — Standing-Weighted Customer Generation
-
-**File**: `lib/MagicMountain/Activity/MarketVisit.pm`
-
-Replace `_random_faction` with a function that weights faction selection by
-the character's standing. Higher standing → more likely to see that faction.
-
-```perl
-sub _weighted_faction ($self, $char) {
-    my $factions = $self->_factions;
-    my $standing = $char->getCol('standing') // {};
-
-    # Base weight 1.0; add 0.5 per standing point
-    my $total = 0;
-    my @weights;
-    for my $f (@$factions) {
-        my $w = 1.0 + (($standing->{$f->{id}} // 0) * 0.5);
-        push @weights, { faction => $f, weight => $w };
-        $total += $w;
-    }
-
-    my $roll = rand($total);
-    my $cumulative = 0;
-    for my $entry (@weights) {
-        $cumulative += $entry->{weight};
-        return $entry->{faction} if $roll < $cumulative;
-    }
-    return $factions->[0];
-}
-```
-
-Also apply a small `base_multiplier` bonus based on standing:
-
-```perl
-my $mult_bonus = ($standing->{$faction->{id}} // 0) * 0.05;
-$customer->{base_multiplier} += $mult_bonus;
-```
-
-### Test
-
-Update `t/market_visit.t`:
-- Character with standing 5 for a faction → that faction appears more often
-  (statistical test over many runs, or deterministic with mocked rand)
-- `base_multiplier` increases with standing
-
----
-
-## Phase 4 — Standing Display in UI
-
-**File**: `public/js/game.js`, `templates/game/show.html.ep`
-
-Add a faction standing panel showing each faction the player has interacted
-with:
-
-```
-Faction Standing
-  The Syndicate      ★★☆☆☆  3 sales
-  The Faculty        ★★★★☆  8 sales
-  LibreMount         ★☆☆☆☆  1 sale
-```
-
-Stars derived from `standing[fid]` (0-5 mapping). Data already in the
-`/game` JSON response (`player.faction_sales`, `player.standing`).
-
----
+**UI**: The `world_message` is already slotted in the spec (§13.3). The game
+JS SPA would display it in a banner or flavor-text area. Currently absent
+from both the JSON response and the template — needs wiring.
 
 ## Execution Order
 
 ```
-Phase 1 — Standing updates in _do_sale + tests
-  ↓
-Phase 2 — faction_state column on Season + updates on sale + tests
-  ↓
-Phase 3 — Standing-weighted customer generation + tests
-  ↓
-Phase 4 — Faction standing UI panel
+Phase 1 — Add crier_snapshot and crier_message columns to Season model
+Phase 2 — Create content/text/crier.yml
+Phase 3 — Implement Crier message selection logic (standalone module or
+          inline in maintenance, no app coupling)
+Phase 4 — Wire into on_maintenance callback
+Phase 5 — Add world_message to /game JSON response
+Phase 6 — Display world_message in game UI template
+Phase 7 — Tests
 ```

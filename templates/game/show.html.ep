@@ -37,6 +37,10 @@
       </div>
     </div>
 
+    <div class="alert alert-secondary text-center py-2 mb-3" id="crier-message" role="alert" style="display:none">
+      <em id="crier-text"></em>
+    </div>
+
     <div id="action-card"></div>
 
     <div class="card mb-3" id="shed-card">

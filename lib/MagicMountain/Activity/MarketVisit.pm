@@ -254,7 +254,8 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
     my $season = $self->app->active_season;
     if ($season) {
         my $fs = $season->getCol('faction_state') // {};
-        $fs->{$fid}->{influence}          += $value;
+        $fs->{$fid}->{name}                //= $self->customer->{faction_name};
+        $fs->{$fid}->{influence}           += $value;
         $fs->{$fid}->{artifacts_received}++;
         for my $t (@{ $item->getCol('behaviors') // [] }) {
             $fs->{$fid}->{intake_by_trait}->{$t}++;

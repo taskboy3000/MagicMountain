@@ -109,6 +109,7 @@ sub show ($self) {
                     day        => $season ? $season->getCol('day')     : 0,
                     total_days => $season ? $season->getCol('length')  : 0,
                 },
+                world_message => $season ? $season->getCol('crier_message') : undef,
             });
         },
         html => sub {

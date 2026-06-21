@@ -26,6 +26,16 @@ function render() {
   document.getElementById('season-info').textContent =
     s.total_days ? `Day ${s.day} of ${s.total_days}` : 'No active season.';
 
+  const msg = G.world_message;
+  const crierEl = document.getElementById('crier-message');
+  const crierText = document.getElementById('crier-text');
+  if (msg) {
+    crierText.textContent = msg;
+    crierEl.style.display = '';
+  } else {
+    crierEl.style.display = 'none';
+  }
+
   renderActionCard();
   renderShed();
   renderSkills();
