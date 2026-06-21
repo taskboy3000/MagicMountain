@@ -34,15 +34,22 @@ sub _find_spec ($self, $artifact_id) {
 
 # ── Artifact drawing ─────────────────────────────────────────────────
 
-sub _draw_artifact ($self) {
+sub _draw_artifact ($self, $char) {
     my $specs = $self->_specs;
     die "no artifact specs loaded" unless @$specs;
+    my $prosp = $char->getCol('skill_prospecting') // 0;
     my $total_weight = 0;
-    $total_weight += $_->{weight} // 1 for @$specs;
+    for my $spec (@$specs) {
+        my $w = $spec->{weight} // 1;
+        $w *= 2 if $prosp >= 2 && ($spec->{base_value} // 0) >= 8;
+        $total_weight += $w;
+    }
     my $roll = rand($total_weight);
     my $cumulative = 0;
     for my $spec (@$specs) {
-        $cumulative += $spec->{weight} // 1;
+        my $w = $spec->{weight} // 1;
+        $w *= 2 if $prosp >= 2 && ($spec->{base_value} // 0) >= 8;
+        $cumulative += $w;
         if ($roll < $cumulative) {
             return $spec;
         }
@@ -85,16 +92,22 @@ sub _decay_modifiers ($self, $artifact) {
     return $mods;
 }
 
-sub _apply_defaults ($self, $artifact) {
+sub _apply_defaults ($self, $artifact, $char) {
+    my $prosp = $char->getCol('skill_prospecting') // 0;
+
     $artifact->{instability}                  = $artifact->{starting_instability} // 0;
     $artifact->{push_count}                   = 0;
     $artifact->{has_evolved}                  = 0;
-    $artifact->{value}                        = $artifact->{base_value} // 5;
+    $artifact->{value}                        = ($artifact->{base_value} // 5) + ($prosp >= 1 ? 2 : 0) + ($prosp >= 2 ? 2 : 0);
     $artifact->{max_instability}            //= 14;
     $artifact->{instability_growth_min}     //= 1;
     $artifact->{instability_growth_max}     //= 2;
     $artifact->{base_gain_min}              //= 3;
     $artifact->{base_gain_max}              //= 5;
+    if ($prosp >= 3) {
+        $artifact->{base_gain_min} += 1;
+        $artifact->{base_gain_max} += 1;
+    }
     $artifact->{evolution_threshold}        //= 0.25;
     $artifact->{evolution_chance}           //= 0.03;
     $artifact->{evolution_instability_spike} //= 3;
@@ -149,9 +162,9 @@ sub _artifact_view ($self, $artifact) {
 sub begin ($self, $char, %params) {
     die "AP exhausted" unless ($char->getCol('action_points') // 0) >= 2;
 
-    my $spec     = $self->_draw_artifact;
+    my $spec     = $self->_draw_artifact($char);
     my $artifact = { %$spec };
-    $self->_apply_defaults($artifact);
+    $self->_apply_defaults($artifact, $char);
     $artifact->{signal} = $self->_pick_signal($artifact, 'stable');
 
     $self->artifact($artifact);
@@ -191,12 +204,15 @@ sub begin ($self, $char, %params) {
 
 sub push ($self, $char, %params) {
     my $artifact = $self->artifact;
+    my $upcyc = $char->getCol('skill_upcycling') // 0;
 
     $artifact->{push_count}++;
 
     my $growth = $artifact->{instability_growth_min}
                + int(rand($artifact->{instability_growth_max}
                         - $artifact->{instability_growth_min} + 1));
+    $growth -= $upcyc;
+    $growth = 0 if $growth < 0;
     $artifact->{instability} += $growth;
 
     $self->_update_stage($artifact);
@@ -214,7 +230,9 @@ sub push ($self, $char, %params) {
         && !$artifact->{has_evolved}
         &&  $ratio >= $artifact->{evolution_threshold})
     {
-        if (rand() < $artifact->{evolution_chance}) {
+        my $evo_chance = $artifact->{evolution_chance};
+        $evo_chance += 0.02 if $upcyc >= 3;
+        if (rand() < $evo_chance) {
             return $self->_do_breakthrough($char, $artifact);
         }
     }
@@ -222,6 +240,7 @@ sub push ($self, $char, %params) {
     my $gain = $artifact->{base_gain_min}
              + int(rand($artifact->{base_gain_max}
                       - $artifact->{base_gain_min} + 1));
+    $gain += ($upcyc >= 2 ? ($upcyc - 1) : 0);
     $artifact->{value} += $gain;
 
     $artifact->{signal} = $self->_pick_signal($artifact, $artifact->{stage});
@@ -256,8 +275,10 @@ sub push ($self, $char, %params) {
 sub stop ($self, $char, %params) {
     my $artifact = $self->artifact;
 
-    my $est_min = int($artifact->{value} * 0.8);
-    my $est_max = int($artifact->{value} * 1.2);
+    my $sell = $char->getCol('skill_selling') // 0;
+    my $range = $sell >= 1 ? 0.15 : 0.20;
+    my $est_min = int($artifact->{value} * (1 - $range));
+    my $est_max = int($artifact->{value} * (1 + $range));
 
     my $item = $self->app->shed->create(
         char_id             => $char->getCol('id'),

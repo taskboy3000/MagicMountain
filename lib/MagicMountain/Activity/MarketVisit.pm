@@ -79,6 +79,7 @@ sub begin ($self, $char, %params) {
     my $faction = $self->_weighted_faction($char);
     my $standing = $char->getCol('standing') // {};
     my $mult_bonus = ($standing->{$faction->{id}} // 0) * 0.05;
+    my $sell = $char->getCol('skill_selling') // 0;
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
@@ -88,6 +89,11 @@ sub begin ($self, $char, %params) {
         irritation          => 0,
         irritation_threshold => 5,
     };
+
+    my $revealed = [];
+    if ($sell >= 3) {
+        $revealed = [$customer->{desired_behaviors}[0]];
+    }
 
     $char->setCol('action_points', $char->getCol('action_points') - 1);
     $self->customer($customer);
@@ -112,6 +118,7 @@ sub begin ($self, $char, %params) {
                 faction_id   => $faction->{id},
                 faction_name => $faction->{name},
                 disposition  => $faction->{disposition} // 'unknown',
+                (scalar @$revealed ? (revealed_behavior => $revealed->[0]) : ()),
             },
             player => $self->_player_snapshot($char),
         },
@@ -138,10 +145,12 @@ sub offer ($self, $char, %params) {
     }
 
     my $decayed  = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
+    my $sell     = $char->getCol('skill_selling') // 0;
     my $offer_value;
 
     if ($intersect) {
-        $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * 1.2);
+        my $match_mult = $sell >= 3 ? 1.4 : 1.2;
+        $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * $match_mult);
         $self->_log_event($char, {
             type          => 'offer',
             shed_item_id  => $shed_item_id,
@@ -155,7 +164,9 @@ sub offer ($self, $char, %params) {
         return $self->_do_sale($char, $item, $offer_value, 1);
     } else {
         $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * 0.5);
-        $customer->{irritation}++;
+        my $irritation_gain = 1;
+        $irritation_gain = 0 if $sell >= 2;
+        $customer->{irritation} += $irritation_gain;
 
         if ($customer->{irritation} >= $customer->{irritation_threshold}) {
             $self->_log_event($char, {
