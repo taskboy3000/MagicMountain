@@ -143,9 +143,8 @@ sub begin ($self, $char, %params) {
     $char->setCol('pending_activity_id', $self->getCol('id'));
     $char->save;
 
-    $self->app->transcript->log_event({
+    $self->_log_event($char, {
         type        => 'artifact_start',
-        char_id     => $char->getCol('id'),
         artifact_id => $artifact->{id},
         value       => $artifact->{value},
         instability => $artifact->{instability},
@@ -185,7 +184,7 @@ sub push ($self, $char, %params) {
     $self->_update_stage($artifact);
 
     my $ratio           = $artifact->{instability} / $artifact->{max_instability};
-    my $collapse_chance = ($ratio ** 2) * 0.95;
+    my $collapse_chance = ($ratio ** 3) * 0.95;
     $collapse_chance    = 1.0  if $collapse_chance > 1.0;
     $collapse_chance    = 0.05 if $collapse_chance < 0.05;
 
@@ -213,9 +212,8 @@ sub push ($self, $char, %params) {
     $self->save;
     $char->save;
 
-    $self->app->transcript->log_event({
+    $self->_log_event($char, {
         type        => 'push',
-        char_id     => $char->getCol('id'),
         artifact_id => $artifact->{id},
         instability => $artifact->{instability},
         ratio       => $ratio,
@@ -265,9 +263,8 @@ sub stop ($self, $char, %params) {
     $char->setCol('pending_activity_id', undef);
     $char->save;
 
-    $self->app->transcript->log_event({
+    $self->_log_event($char, {
         type        => 'stop',
-        char_id     => $char->getCol('id'),
         artifact_id => $artifact->{id},
         value       => $artifact->{value},
         est_min     => $est_min,
@@ -276,12 +273,11 @@ sub stop ($self, $char, %params) {
             $char->getCol('name') // 'unknown',
             $artifact->{id}, $artifact->{value}, $est_min, $est_max),
     });
-    $self->app->transcript->log_event({
-        type        => 'shed_entry',
-        char_id     => $char->getCol('id'),
+    $self->_log_event($char, {
+        type         => 'shed_entry',
         shed_item_id => $item->getCol('id'),
-        artifact_id => $artifact->{id},
-        narrative   => sprintf("%s placed in shed (fresh).", $artifact->{id}),
+        artifact_id  => $artifact->{id},
+        narrative    => sprintf("%s placed in shed (fresh).", $artifact->{id}),
     });
 
     return {
@@ -313,9 +309,8 @@ sub _do_collapse ($self, $char, $artifact) {
     $char->setCol('pending_activity_id', undef);
     $char->save;
 
-    $self->app->transcript->log_event({
+    $self->_log_event($char, {
         type        => 'collapse',
-        char_id     => $char->getCol('id'),
         artifact_id => $artifact->{id},
         instability => $artifact->{instability},
         ratio       => $artifact->{instability} / $artifact->{max_instability},
@@ -353,9 +348,8 @@ sub _do_breakthrough ($self, $char, $artifact) {
     $char->setCol('pending_activity_id', undef);
     $char->save;
 
-    $self->app->transcript->log_event({
+    $self->_log_event($char, {
         type        => 'breakthrough',
-        char_id     => $char->getCol('id'),
         artifact_id => $artifact->{id},
         reward      => $new_value,
         narrative   => sprintf("Breakthrough! The %s yields %d scrap!",

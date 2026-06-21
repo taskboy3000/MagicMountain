@@ -35,6 +35,10 @@ sub run ($self, @args) {
     delete $app->{dataDir};  # Reset cached attribute so $app->dataDir re-evaluates
     local $ENV{MM_SKIP_SEASON_CHECK} = 1;
 
+    # Wipe any model instances already memoized by startup (they point at
+    # the production data dir). They'll be recreated below with the temp dir.
+    delete $app->{$_} for qw(accounts characters seasons shed session_store transcript prospecting market audit_log);
+
     # Initialize empty data files
     write_file("$data_dir/accounts.json",   '{}');
     write_file("$data_dir/characters.json", '{}');
@@ -98,12 +102,19 @@ sub run ($self, @args) {
 
     # Run the simulation day loop
     my $maint = $app->maintenance;
+    my @chars = @bot_chars;
     for my $day (1 .. $days) {
-        for my $char (@bot_chars) {
+        $app->seasons->load;
+        my $active = $app->seasons->find(sub { $_[0]->{status} eq 'active' });
+        my $sd = @$active ? $active->[0]->getCol('day') : '?';
+        my $ap0 = @chars && $chars[0] ? ($chars[0]->getCol('action_points') // '?') : 'none';
+        $app->log->info(sprintf("Sim loop day=%d/%d season_day=%s chars=%d ap0=%s",
+            $day, $days, $sd, scalar(@chars), $ap0));
+        for my $char (@chars) {
             $self->_run_bot_day($app, $char);
         }
-        # Advance day and refresh AP for next day
         $maint->on_maintenance->($maint) if $day < $days;
+        @chars = @{ $app->characters->find(sub { $_[0]->{season_id} eq $s->getCol('id') }) };
     }
 
     $transcript->log_event({
@@ -162,10 +173,18 @@ sub _run_bot_day ($self, $app, $char) {
         my $result = $activity->dispatch($char, 'begin');
         last unless $result->{view}{ok};
 
-        # Offer the first (oldest) shed item
-        my $item = $shed_items->[0];
-        $activity->dispatch($char, 'offer', shed_item_id => $item->getCol('id'));
-        # offer handler concludes the visit (sale or no_sale), activity is deleted
+        # Try each shed item until one sells, all fail, or customer storms off
+        for my $item (@$shed_items) {
+            my $r = $activity->dispatch($char, 'offer', shed_item_id => $item->getCol('id'));
+            my $view = $r->{view};
+            if ($view->{result} eq 'sold') {
+                last;
+            }
+            if ($view->{result} eq 'customer_left') {
+                last;
+            }
+            # 'no_match' — try the next item
+        }
     }
 }
 

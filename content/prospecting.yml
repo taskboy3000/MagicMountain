@@ -1,5 +1,5 @@
 - id: thermal_box_001
-  behaviors: [thermal]
+  behaviors: [thermal, power]
   weight: 10
   base_value: 5
   starting_instability: 0
@@ -10,7 +10,7 @@
   base_gain_max: 5
   can_evolve: true
   evolution_threshold: 0.25
-  evolution_chance: 0.03
+  evolution_chance: 0.04
   evolution_instability_spike: 2
   breakthrough_multiplier_min: 1.5
   breakthrough_multiplier_max: 2.0
@@ -35,6 +35,43 @@
     - The box splits open with a sharp hiss. Whatever was inside evaporates instantly.
     - It cracks down the middle and goes cold. A wisp of tarnished smoke rises.
 
+- id: void_core_001
+  behaviors: [instability, field]
+  weight: 8
+  base_value: 6
+  starting_instability: 0
+  max_instability: 16
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 3
+  base_gain_max: 6
+  can_evolve: true
+  evolution_threshold: 0.20
+  evolution_chance: 0.04
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.5
+  state_thresholds:
+    stable: 0.30
+    strained: 0.65
+  intro: A dark shard pulses with a low, rhythmic vibration, like a distant heartbeat.
+  signals:
+    stable:
+      - The shard hums quietly in your grip.
+      - A faint tremor travels up your arm with each pulse.
+      - The surface is cool, but the air around it shimmers.
+    strained:
+      - The pulsing quickens. The shard feels heavier than it should.
+      - Tiny fractures race across the surface, then heal.
+      - A smell of ozone and hot metal fills the air.
+    unstable:
+      - The shard screams silently, a pressure behind your eyes.
+      - Gravity warps around it — small stones rise from the ground.
+      - The rhythm is frantic now. You feel it in your teeth.
+  collapse:
+    - The shard detonates with a muted thump, leaving a crater of glassy sand.
+    - It folds in on itself, vanishing with a crack of displaced air.
+
 - id: crystal_chime_001
   behaviors: [signal, field]
   weight: 5
@@ -47,7 +84,7 @@
   base_gain_max: 8
   can_evolve: true
   evolution_threshold: 0.40
-  evolution_chance: 0.05
+  evolution_chance: 0.07
   evolution_instability_spike: 3
   breakthrough_multiplier_min: 2.0
   breakthrough_multiplier_max: 3.0

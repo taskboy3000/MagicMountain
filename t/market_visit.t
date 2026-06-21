@@ -198,8 +198,9 @@ subtest 'offer with mismatched behavior fails' => sub {
     $m->dispatch($char, 'begin');
     my $result = $m->dispatch($char, 'offer', shed_item_id => 'mismatch-item');
 
-    is($result->{view}{result}, 'no_sale', 'mismatch -> no_sale');
+    is($result->{view}{result}, 'no_match', 'first mismatch -> no_match, not no_sale');
     is($char->{scrap}, 0, 'no scrap awarded');
+    ok($m->getCol('phase') ne 'idle', 'activity not yet idle');
 };
 
 # ── send_away ─────────────────────────────────────────────────────────
