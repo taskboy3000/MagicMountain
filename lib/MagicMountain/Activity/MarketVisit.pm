@@ -27,6 +27,27 @@ sub _random_faction ($self) {
     return $factions->[ int(rand(scalar @$factions)) ];
 }
 
+sub _weighted_faction ($self, $char) {
+    my $factions = $self->_factions;
+    my $standing = $char->getCol('standing') // {};
+
+    my $total = 0;
+    my @weights;
+    for my $f (@$factions) {
+        my $w = 1.0 + (($standing->{$f->{id}} // 0) * 0.5);
+        push @weights, { faction => $f, weight => $w };
+        $total += $w;
+    }
+
+    my $roll = rand($total);
+    my $cumulative = 0;
+    for my $entry (@weights) {
+        $cumulative += $entry->{weight};
+        return $entry->{faction} if $roll < $cumulative;
+    }
+    return $factions->[0];
+}
+
 sub _pick_behaviors ($self, $faction) {
     my $interests = $faction->{interests} // [];
     my $count = 1 + int(rand(scalar @$interests > 1 ? 3 : 1));
@@ -55,12 +76,14 @@ sub begin ($self, $char, %params) {
     );
     die "no items in shed" unless @$shed_items;
 
-    my $faction = $self->_random_faction;
+    my $faction = $self->_weighted_faction($char);
+    my $standing = $char->getCol('standing') // {};
+    my $mult_bonus = ($standing->{$faction->{id}} // 0) * 0.05;
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
         desired_behaviors   => $self->_pick_behaviors($faction),
-        base_multiplier     => $faction->{base_multiplier} // 1.0,
+        base_multiplier     => ($faction->{base_multiplier} // 1.0) + $mult_bonus,
         offer_value         => undef,
         irritation          => 0,
         irritation_threshold => 5,
@@ -129,7 +152,7 @@ sub offer ($self, $char, %params) {
             narrative     => sprintf("%s offers %d scrap for the item. Match!",
                 $customer->{faction_name}, $offer_value),
         });
-        return $self->_do_sale($char, $item, $offer_value);
+        return $self->_do_sale($char, $item, $offer_value, 1);
     } else {
         $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * 0.5);
         $customer->{irritation}++;
@@ -212,9 +235,33 @@ sub send_away ($self, $char, %params) {
 # INTERNAL OUTCOMES
 # ═══════════════════════════════════════════════════════════════════════
 
-sub _do_sale ($self, $char, $item, $value) {
+sub _do_sale ($self, $char, $item, $value, $was_match) {
     $char->setCol('scrap', $char->getCol('scrap') + $value);
     $char->setCol('score', $char->getCol('score') + $value);
+
+    my $fid = $self->customer->{faction_id};
+    my $sales    = $char->getCol('faction_sales') // {};
+    my $standing = $char->getCol('standing') // {};
+
+    $sales->{$fid}++;
+    my $delta = $was_match ? 2 : 1;
+    $delta++ if $item->getCol('has_evolved');
+    $standing->{$fid} += $delta;
+
+    $char->setCol('faction_sales', $sales);
+    $char->setCol('standing', $standing);
+
+    my $season = $self->app->active_season;
+    if ($season) {
+        my $fs = $season->getCol('faction_state') // {};
+        $fs->{$fid}->{influence}          += $value;
+        $fs->{$fid}->{artifacts_received}++;
+        for my $t (@{ $item->getCol('behaviors') // [] }) {
+            $fs->{$fid}->{intake_by_trait}->{$t}++;
+        }
+        $season->setCol('faction_state', $fs);
+        $season->save;
+    }
 
     $self->app->shed->delete($item->getCol('id'));
     $self->delete;

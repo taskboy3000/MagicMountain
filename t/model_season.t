@@ -15,11 +15,11 @@ write_file($file, '{}');
 
 my $season = MagicMountain::Model::Season->new(file => $file);
 
-subtest 'columns extend defaults with length, day, end_of_day_hour, status' => sub {
+subtest 'columns extend defaults with length, day, end_of_day_hour, status, faction_state' => sub {
     is_deeply(
         $season->columns,
-        [qw{id updatedAt createdAt label length day end_of_day_hour status}],
-        'Season columns include label, length, day, end_of_day_hour, status'
+        [qw{id updatedAt createdAt label length day end_of_day_hour status faction_state}],
+        'Season columns include label, length, day, end_of_day_hour, status, faction_state'
     );
 };
 

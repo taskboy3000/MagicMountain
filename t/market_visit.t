@@ -41,6 +41,7 @@ use_ok('TestCharacter');
         $self->{_shed_items} = \@kept;
     }
     sub transcript { bless {}, 'FakeTranscript' }
+    sub active_season { undef }
     sub find {
         my ($self, $code) = @_;
         my @found;
@@ -182,6 +183,9 @@ subtest 'offer with matching behavior sells' => sub {
     ok($result->{view}{value} > 0, 'positive sale value');
     ok($char->{scrap} > 0, 'scrap awarded');
     ok($char->{score} > 0, 'score awarded');
+    is(ref $char->{faction_sales}, 'HASH', 'faction_sales is a hash');
+    is((values %{ $char->{faction_sales} })[0], 1, 'faction_sales incremented to 1');
+    is((values %{ $char->{standing} })[0], 2, 'standing +2 on match');
 };
 
 subtest 'offer with mismatched behavior fails' => sub {
