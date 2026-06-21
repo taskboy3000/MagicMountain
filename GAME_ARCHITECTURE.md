@@ -207,15 +207,14 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity (base)** | Persisted columns, ephemeral attributes (transitions, app, content), dispatch logic | Game math, artifact knowledge, YAML content interpretation |
 | **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
-| **Shed** (inventory manager) | ShedItem rows, decay logic, query/filter by traits | Market, Faction objects, Account model |
+| **Shed** (inventory manager) | ShedItem rows in `shed.json`, decay logic in `ShedManager.pm`, query/filter by traits | Market, Faction objects, Account model |
 | **Market** (customer generator) | Faction objects, content reference, customer generation | Character model, Account model, Shed |
 | **Model::Character** | File path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–3) | Market, Faction, Content, Shed, game math, artifact logic |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
-| **Model::Character** | File path, column definitions, JSON CRUD | Game logic, artifact math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
 | **Model::Season** | File path, column definitions, JSON CRUD | Per-player character data, game logic |
 | **Model::Session** | File path, column definitions, expiry logic | Game logic, character data |
-| **Model::Skill** | File path, column definitions, JSON CRUD | Game logic, character state |
+| **Skills** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
 | **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
 | **Content** (YAML loader) | Directory path, parsed YAML data | Model persistence, game rules |
 | **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
@@ -269,7 +268,9 @@ written.
 | Field | Type | Description |
 |-------|------|-------------|
 | player_id | UUID | Primary key |
-| display_name | string | Unique, user-chosen |
+| username | string | Unique, user-chosen display name. Used as login credential. |
+| password | string or null | Optional password hash. Currently null (name-only auth for alpha). |
+| disabled | boolean | If true, account is locked (login rejected). Used for moderation. |
 | created_at | timestamp | Account creation time |
 
 Survives across seasons. Contains no gameplay data.
@@ -295,7 +296,7 @@ Survives across seasons. Contains no gameplay data.
 |-------|------|-------------|
 | player_id | UUID | FK to PlayerAccount |
 | season_id | UUID | FK to Season |
-| display_name | string | Snapshot of name at season start |
+| name | string | Snapshot of name at season start |
 | score | integer | Cumulative leaderboard value from sales. NEVER decreases |
 | scrap | integer | Spendable currency. Decreases via skill purchases |
 | action_points | integer | Current AP remaining for the day |
@@ -347,7 +348,7 @@ player's shed pending sale or decay.
 | archetypes | arrayref | Thematic grouping copied from artifact spec |
 | estimated_value_min | integer | Lower bound shown to player |
 | estimated_value_max | integer | Upper bound shown to player |
-| created_at | timestamp | When the artifact entered the shed |
+| createdAt | timestamp | When the artifact entered the shed |
 | updatedAt | timestamp | Last save time |
 | decay_modifiers | map | Snapshot of artifact's decay_modifiers at stop time (fresh_multiplier, settling_multiplier, fading_multiplier, settling_day, fading_day) |
 
@@ -447,7 +448,8 @@ MarketVisit activity.
 | intake_by_trait | map | Map of trait → count received (e.g. `{thermal: 5, signal: 2}`) |
 | market_saturation | map | Map of trait → saturation level (affects future pricing) |
 
-Planned. Will drive faction dominance, Crier reports, buyer context, and
+Planned as a separate entity. Currently embedded in `season.faction_state`
+(§5.2). Will drive faction dominance, Crier reports, buyer context, and
 market dynamics.
 
 ### 5.7 ArtifactDisposition (per-sale record) — Planned
@@ -483,52 +485,55 @@ deletion.
 | story_highlights | JSON | Notable dispositions and narrative hooks |
 | created_at | timestamp | When finalized |
 
-Created during season finalization, before characters are deleted.
+Created during season finalization (`end-season` CLI), before characters
+are deleted. Served to players on first `/game` visit after the season
+ends as `season_recap` (visible once, cleared on subsequent visits).
 
-### 5.9 Skill Definition (content/skills.yml, loaded by Model::Skill)
+### 5.9 Skill Definition (content/skills.yml, loaded by `skills_data` helper)
 
 Skills are defined in YAML content, not hardcoded:
 
 ```yaml
-- id: prospecting
-  name: Prospecting
-  max_level: 3
-  levels:
-    - level: 1
-      cost: 10
-      description: "Better leads"
-    - level: 2
-      cost: 25
-      description: "Richer veins"
-    - level: 3
-      cost: 50
-      description: "Eye for the unusual"
-- id: upcycling
-  name: Upcycling
-  max_level: 3
-  levels:
-    - level: 1
-      cost: 10
-      description: "Firm touch"
-    - level: 2
-      cost: 25
-      description: "Steady hand"
-    - level: 3
-      cost: 50
-      description: "Master's feel"
-- id: selling
-  name: Selling
-  max_level: 3
-  levels:
-    - level: 1
-      cost: 10
-      description: "Better haggling"
-    - level: 2
-      cost: 25
-      description: "Customer reader"
-    - level: 3
-      cost: 50
-      description: "Dealmaker"
+skills:
+  - id: prospecting
+    name: Prospecting
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Better leads"
+      - level: 2
+        cost: 25
+        description: "Richer veins"
+      - level: 3
+        cost: 50
+        description: "Eye for the unusual"
+  - id: upcycling
+    name: Upcycling
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Firm touch"
+      - level: 2
+        cost: 25
+        description: "Steady hand"
+      - level: 3
+        cost: 50
+        description: "Master's feel"
+  - id: selling
+    name: Selling
+    max_level: 3
+    levels:
+      - level: 1
+        cost: 10
+        description: "Better haggling"
+      - level: 2
+        cost: 25
+        description: "Customer reader"
+      - level: 3
+        cost: 50
+        description: "Dealmaker"
 ```
 
 The `cost` field is in scrap. Exact mechanical effects per level are marked
@@ -698,20 +703,22 @@ When a player starts a Market Visit (costs 1 AP):
 
 2. **Player offer**: Player selects an artifact from their Shed and presents it
    to the customer. The negotiation logic:
-   - If artifact behaviors intersect desired_behaviors:
-     - **Match**: High offer at `floor(decayed_value × base_multiplier × match_bonus)`
-       where `match_bonus` is determined by the number/strength of matching traits.
-       Positive narrative response. Irritation unchanged (or decreases).
-   - If no intersection:
-     - **Mismatch**: Low offer at `floor(decayed_value × base_multiplier × 0.5)`.
-       Negative narrative response. Irritation increases by 1-2.
-   - On match OR mismatch, the player may:
-     - **Accept**: Sale occurs — `offer_value` added to scrap and score,
-       artifact removed from Shed, customer leaves satisfied.
-     - **Counter-offer** (future): Negotiate for a better price.
-     - **Show another artifact**: Repeat offer step with a different shed item.
-     - **Send away**: No sale. Artifact remains in shed. Customer leaves. Market
-       Visit AP is consumed.
+    - If artifact behaviors intersect desired_behaviors:
+      - **Match**: High offer at `floor(decayed_value × base_multiplier × match_mult)`.
+        `match_mult` is 1.2 normally, 1.4 with Selling skill 3.
+        Positive narrative response. Sale is automatic — no accept step.
+    - If no intersection:
+      - **Mismatch**: Low offer at `floor(decayed_value × base_multiplier × 0.5)`.
+        Negative narrative response. A random roll against `settle_chance` (default
+        0.15) may cause the customer to accept the lowball anyway (see step 3).
+        If the settle fails, irritation increases by exactly 1 (or 0 with
+        Selling skill 2+), and the activity persists — the player may show a
+        different artifact.
+    - After a match (auto-sold) or non-settle mismatch, the player may:
+      - **Show another artifact**: Repeat offer step with a different shed item
+        (only available after a non-settle mismatch — match ends the visit).
+      - **Send away**: No sale. Artifact remains in shed. Customer leaves. Market
+        Visit AP is consumed.
 
 3. **Customer leaves** if:
    - A sale is agreed (success)
@@ -729,10 +736,15 @@ When a player starts a Market Visit (costs 1 AP):
    - Activity row deleted, `pending_activity_id` cleared
 
 5. **On failed/abandoned negotiation**:
-   - Artifact returns to Shed unchanged
-   - No scrap or score
-   - Activity row deleted, `pending_activity_id` cleared
-   - AP is still consumed
+   - **Mismatch under irritation threshold**: Artifact returns to Shed unchanged.
+     Activity persists (phase stays `negotiating`), player may try another item.
+     No scrap or score. AP is still consumed.
+   - **Customer storms off (irritation exceeds threshold)**: Activity deleted,
+     `pending_activity_id` cleared. No scrap or score. AP consumed.
+   - **Player sends away**: Activity deleted, `pending_activity_id` cleared.
+     No scrap or score. AP consumed.
+   - **Settle on mismatch**: Same as successful sale (step 4), but `standing`
+     gains +1 instead of +2.
 
 **Invariants**:
 - Selling skill level affects negotiation outcomes (see 6.6)
@@ -772,8 +784,8 @@ eliminate instability.
 | Level | Effect |
 |-------|--------|
 | 1 | Estimate range narrowed from ±20% to ±15% at stop time |
-| 2 | Match multiplier increased from 1.2× to 1.4× `base_multiplier` |
-| 3 | Irritation gain on mismatches eliminated; one `desired_behaviors` revealed to player |
+| 2 | Irritation gain on mismatches eliminated (gain = 0 instead of 1) |
+| 3 | Match multiplier increased from 1.2× to 1.4× `base_multiplier`; one `desired_behaviors` revealed to player |
 
 Skill costs are defined in `content/skills.yml`. Cost scales per level (e.g.
 level 1 costs 10 scrap, level 2 costs 25, level 3 costs 50). Skill training
@@ -937,16 +949,17 @@ returns 503 for gated routes.
 - Controllers trust `action_points` as written by the maintenance callback
 - The `in_maintenance` flag blocks concurrent writes during the callback
 - Login and account creation are rejected during maintenance (503)
-
 ### 8.2 Season Start
 
-Admin-triggered. Creates a new Season record with status `active`, day 1.
-Season length is a game constant (e.g., 30 days). When a player joins
-mid-season, their character is created with full AP at the current season day.
+Admin-triggered via CLI (`create-season`) or auto-created by `Game::show`
+when a player visits `/game` after the previous season was archived. Creates
+a new Season record with status `active`, day 1. Season length is a game
+constant (e.g., 30 days). When a player joins mid-season, their character
+is created with full AP at the current season day.
 
 ### 8.3 Season End (Finalization)
 
-Admin-triggered. MUST execute in this exact order:
+Admin-triggered via `end-season` CLI. MUST execute in this exact order:
 
 1. Compute final leaderboard rank for each character
 2. For each SeasonalCharacter:
@@ -958,12 +971,12 @@ Admin-triggered. MUST execute in this exact order:
 3. Verify ALL SeasonRecords are stored successfully
 4. Discard all ShedItems for this season
 5. Delete ALL SeasonalCharacter rows for this season
-6. Clear SeasonFactionState
+6. Clear SeasonFactionState (via `nullCol`)
 7. Set Season.status = "archived"
 
-Hard-deletion of characters is ONLY permitted after this formal sequence.
-Pending activities are discarded at season end — unresolved artifacts are
-forfeit. Shed items are forfeit (not carried to next season).
+On the next visit to `/game`, the player sees a `season_recap` card
+with their final score, rank, scrap, standing, and highlights. A new
+active season is auto-created and a fresh character issued.
 
 ---
 
@@ -1061,7 +1074,7 @@ A subclass must:
 characters.json                    activities.json
 ┌────────────────────┐             ┌─────────────────────────┐
 │ id: "abc"          │             │ id: "xyz"               │
-│ display_name: "J"  │──────FK────→│ char_id: "abc"          │
+│ name: "J"  │──────FK────→│ char_id: "abc"          │
 │ score: 42          │             │ type: "prospecting"     │
 │ pending_activity_id│             │ phase: "processing"     │
 │ action_points: 15  │             │ artifact: {...}         │
@@ -1166,12 +1179,13 @@ sub create ($self, %params) {
 | Phase | Action | Effect | Persistence |
 |-------|--------|--------|-------------|
 | idle | begin | Deduct 1 AP. Generate customer. Set FK. Set phase to `negotiating` | `$self->save`, `$char->save` |
-| negotiating | offer | Receive `shed_item_id`. Match `desired_behaviors` vs item `behaviors`. Match → sale. Mismatch → no sale (customer leaves) | Match: `$self->delete`, `$char->save`. Mismatch: `$self->delete`, `$char->save` |
+| negotiating | offer | Receive `shed_item_id`. Match `desired_behaviors` vs item `behaviors`. Match → auto-sale. Mismatch → roll against `settle_chance`; on settle → sale at lowball, on fail → increment irritation. Under threshold → `no_match` (try another item). At threshold → `customer_left` (storm off). | Match/settle/customer_left/send_away: `$self->delete`, `$char->save`. No_match under threshold: `$self->save`, `$char->save` |
 | negotiating | send_away | Player ends negotiation. No sale. | `$self->delete`, `$char->save` |
 
 The `offer` action takes a `shed_item_id` parameter identifying which artifact
-from the player's shed is being offered. Irritation, counter-offers, settle
-rolls, and showing multiple items per visit are planned enhancements.
+from the player's shed is being offered. Counter-offers and multi-item visits
+(one customer shown multiple artifacts in a single offer action) are planned
+enhancements.
 
 ### 9.7 Bots
 
@@ -1230,7 +1244,7 @@ any model.
 | Root | index | Gateway redirect (/ → /login or /game) |
 | Sessions | login_form, create, destroy, logout | Authentication |
 | Player | show, destroy | Current player JSON; delete account |
-| Game | show | Game state page |
+ | Game | show | Game state page. Auto-creates character on first visit. After a season ends, first visit shows `season_recap` with final score/rank/highlights and auto-creates a new season + fresh character. |
 | Prospecting | begin, push, stop | Prospecting lifecycle |
 | Market | begin, offer, send_away | Market negotiation lifecycle |
 | Shed | index | List shed contents with condition and estimates |
@@ -1427,8 +1441,9 @@ file. `load_content` is called once at startup on the global instance. The
 parsed data is stored in `content_data` and automatically propagated to
 per-request activity instances via the overridden `get()`/`create()` methods.
 
-Skill definitions are loaded by `Model::Skill` from `content/skills.yml` and
-made available to the Skills controller and Model::Character.
+Skill definitions are loaded by the `skills_data` helper (registered in
+`MagicMountain.pm`) from `content/skills.yml` and made available to the
+Skills controller and game templates.
 
 Adding a new artifact requires editing `content/prospecting.yml` — no code
 changes, no manual registration.
@@ -1769,13 +1784,13 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Player info** | `Controller::Player` | `GET /player` JSON or 401 |
 | **Game page** | `Controller::Game`, `templates/game/show.html.ep`, `public/js/game.js` | `respond_to` JSON/HTML dispatch; JS-driven SPA fetches `/game` JSON on load; includes shed, skills, leaderboard panels |
 | **Session management** | `Model::Session`, `current_player` helper | Configurable inactivity timeout |
-| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::create_season`, `Command::simulate` | Account lifecycle, season management, bot simulation |
+| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::create_season`, `Command::advance_day`, `Command::simulate` | Account lifecycle, season management, day rollover, bot simulation |
 | **Layout** | `templates/layouts/default.html.ep` | Bootstrap 5.3 CDN wrapper |
 | **Day maintenance** | `Maintenance.pm` | IOLoop timer, route gating, `on_maintenance` callback for AP refresh, day increment, decay |
 | **Audit logging** | `Model::AuditLog` | JSONL login/logout/account events |
 | **Activity base class** | `Activity.pm` | State-machine dispatch, column accessors, content loading |
 | **Prospecting activity** | `Activity::Prospecting` | Push/collapse/breakthrough math, stop → shed entry, activity-owned persistence |
-| **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, empty shed guard, irritation |
+| **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, settle rolls, irritation tracking, empty shed guard, skill effects |
 | **ShedItem model** | `Model::ShedItem` | `shed.json` CRUD, per-character queries |
 | **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skills 0–3 |
 | **Character column expansion** | `Model::Character` | `action_points`, `action_points_max`, skill columns |
@@ -1788,27 +1803,32 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Bot simulation** | `Command::simulate`, `script/analyze` | Naive bot strategy, real game engine, reproducible, analysis script |
 | **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
 | **Season-aware character lookup** | `Controller.pm` base class, `MagicMountain.pm` | `_require_character` filters by active season; `active_season` method (non-memoized, fresh each call) on app class |
-| **JS SPA** | `public/js/game.js` | Extracted from template per unobtrusive JS principle; renders idle/prospecting/market cards, shed inventory, skills, leaderboard from JSON |
+| **JS SPA** | `public/js/game.js` | Extracted from template per unobtrusive JS principle; renders idle/prospecting/market cards, shed inventory, skills, faction standing, leaderboard, season recap from JSON |
+| **Faction standing panel** | `MagicMountain.pm` (`factions_data` helper), `Controller/Game.pm`, `public/js/game.js` (`renderFactions`) | Faction definitions served from YAML; per-faction star rating, sale count, global influence rendered client-side |
+| **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
+| **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
+| **Crier daily progress** | `Crier.pm`, `content/text/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
+| **Season finalization CLI** | `Command::end_season.pm` | 7-step archive: compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive |
+| **SeasonRecord model** | `Model::SeasonRecord.pm` | Post-season archive per character: score, scrap, rank, standing/skills snapshots, story highlights |
+| **Season recap + auto-renew** | `Controller/Game.pm`, `public/js/game.js` | On first `/game` visit after end-season, shows recap card, auto-creates new season + fresh character |
+| **`nullCol` helper** | `Model.pm` | `delete` a column from row (avoids JSON `null` artifacts from `setCol($col, undef)`) |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
 | Module | Change Required |
 |--------|-----------------|
-| Skill mechanical effects (§6.6) | Implement per-level effects for prospecting, upcycling, selling |
+| *(none currently identified)* | |
 
 ### 19.3 Planned (Not Yet Implemented)
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| MarketVisit negotiation math | Medium | Irritation, settle rolls, counter-offers, multiple items per visit |
+| Counter-offers / multi-item per visit | Medium | Player can negotiate for better price; show multiple items in single visit |
 | Bot policy framework | Medium | Pluggable push/sell policies, YAML bot profiles |
-| Faction system (FactionRegistry, YAML config) | Medium | Standing, influence, intake tracking |
-| SeasonFactionState tracking | Medium | Influence, intake tracking |
-| ArtifactDisposition records | Medium | Append-only immutable sale records |
 | Commission system | Low | Faction notices, active commissions |
-| Crier narrative system | Low | Faction/economic state driven reports |
-| Market dynamics (supply/demand) | Low | Price depression, faction appetites |
-| MariaDB migration | Future | Replace JSON file persistence |
+| Market dynamics (supply/demand) | Low | Price depression, faction appetites, daily caps |
+| CSRF protection | Medium | Mojolicious plugin |
+| Rate limiting | Medium | Brute-force prevention on login |
 
 ---
 
@@ -1917,4 +1937,4 @@ These questions remain unresolved and should be answered during implementation:
 5. **Score display**: Should the game state show running score, or only the
    leaderboard? Score is visible until season end.
 6. **Character-owned history name**: transcript, chronicle, ledger, or
-   something else? (Refinements §21, item 4)
+   something else?

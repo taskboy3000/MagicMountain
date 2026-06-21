@@ -14,6 +14,8 @@ use MagicMountain::Model::Season;
 use MagicMountain::Model::Session;
 use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::Transcript;
+use MagicMountain::Model::ArtifactDisposition;
+use MagicMountain::Model::SeasonRecord;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::ShedManager;
@@ -169,6 +171,20 @@ has audit_log => sub ($self) {
     );
 };
 
+has disposition => sub ($self) {
+    MagicMountain::Model::ArtifactDisposition->new(
+        file => $self->dataDir . '/dispositions.json',
+        log  => $self->log,
+    );
+};
+
+has season_records => sub ($self) {
+    MagicMountain::Model::SeasonRecord->new(
+        file => $self->dataDir . '/season_records.json',
+        log  => $self->log,
+    );
+};
+
 sub startup ($self) {
     $self->log->debug(sprintf("[%s] startup: mode=%s",
                         $self->moniker, $self->mode
@@ -192,7 +208,7 @@ sub startup ($self) {
     }
 
     if (!$self->ensureActiveSeason) {
-        die("halting.") unless $ENV{MM_SKIP_SEASON_CHECK};
+        $self->log->warn("No active season. Game controller will auto-create one on first visit.");
     };
 
     $self->renderer->cache->max_keys(0);
@@ -205,6 +221,11 @@ sub startup ($self) {
     $self->helper(skills_data => sub ($c) {
         state $data = YAML::XS::LoadFile($c->app->home . '/content/skills.yml');
         return $data->{skills};
+    });
+
+    $self->helper(factions_data => sub ($c) {
+        state $data = YAML::XS::LoadFile($c->app->home . '/content/factions.yml');
+        return $data->{factions};
     });
 
     $self->helper(current_player => sub ($c) {

@@ -11,15 +11,17 @@ my %PRIORITY = (
     milestone         => 3,
     faction_slump     => 2,
     season_opening    => 1,
+    daily_progress    => 0.5,
     generic           => 0,
 );
 
 sub _load_messages ($self) {
-    state $msgs = do {
-        my $data = LoadFile($self->content_file);
+    state $cache = {};
+    my $file = $self->content_file;
+    return $cache->{$file} //= do {
+        my $data = LoadFile($file);
         $data->{crier_messages} // {};
     };
-    return $msgs;
 }
 
 sub _pick ($self, $category, $params) {
@@ -112,7 +114,20 @@ sub generate ($self, $season) {
     }
 
     return $best_message if $best_message;
+    my $daily = $self->_pick_daily($day);
+    return $daily if $daily;
     return $self->_pick('generic', {});
+}
+
+sub _pick_daily ($self, $day) {
+    my $buckets = $self->_load_messages->{daily_progress} or return;
+    for my $b (@$buckets) {
+        next if exists $b->{day_max} && $day > $b->{day_max};
+        next if exists $b->{day_min} && $day < $b->{day_min};
+        my $msgs = $b->{messages} or next;
+        return $msgs->[ int(rand(scalar @$msgs)) ];
+    }
+    return;
 }
 
 sub _consider ($msg, $category, $best_prio_ref, $best_msg_ref) {

@@ -88,6 +88,7 @@ sub begin ($self, $char, %params) {
         offer_value         => undef,
         irritation          => 0,
         irritation_threshold => 5,
+        settle_chance       => $faction->{settle_chance} // 0.15,
     };
 
     my $revealed = [];
@@ -164,6 +165,23 @@ sub offer ($self, $char, %params) {
         return $self->_do_sale($char, $item, $offer_value, 1);
     } else {
         $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * 0.5);
+
+        my $settle_chance = $customer->{settle_chance} // 0.15;
+        if (rand() < $settle_chance) {
+            $self->_log_event($char, {
+                type          => 'offer',
+                shed_item_id  => $shed_item_id,
+                faction_id    => $customer->{faction_id},
+                match         => 0,
+                settle        => 1,
+                offered_value => $offer_value,
+                accepted      => 1,
+                narrative     => sprintf("%s shrugs and accepts %d scrap. Not what they wanted, but it'll do.",
+                    $customer->{faction_name}, $offer_value),
+            });
+            return $self->_do_sale($char, $item, $offer_value, 0);
+        }
+
         my $irritation_gain = 1;
         $irritation_gain = 0 if $sell >= 2;
         $customer->{irritation} += $irritation_gain;
@@ -280,6 +298,8 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
     $char->setCol('pending_activity_id', undef);
     $char->save;
 
+    $self->_record_disposition($char, $item, $value, $delta, $fid) if $season;
+
     $self->_log_event($char, {
         type         => 'sale',
         shed_item_id => $item->getCol('id'),
@@ -297,6 +317,33 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
             player  => $self->_player_snapshot($char),
         },
     };
+}
+
+sub _record_disposition ($self, $char, $item, $value, $delta, $fid) {
+    my $season = $self->app->active_season or return;
+    my $rec = $self->app->disposition->create(
+        season_id       => $season->getCol('id'),
+        player_id       => $char->getCol('account_id'),
+        faction_id      => $fid,
+        season_day      => $season->getCol('day'),
+        value_awarded   => $value,
+        artifact_snapshot => {
+            artifact_id    => $item->getCol('artifact_id'),
+            original_value => $item->getCol('original_value'),
+            decayed_value  => $item->getCol('decayed_value'),
+            condition      => $item->getCol('condition'),
+            days_in_shed   => $item->getCol('days_in_shed'),
+            instability    => $item->getCol('instability'),
+            stage          => $item->getCol('stage'),
+            push_count     => $item->getCol('push_count'),
+            has_evolved    => $item->getCol('has_evolved'),
+            behaviors      => $item->getCol('behaviors'),
+        },
+        standing_delta  => $delta,
+        influence_delta => $value,
+        narrative_hooks => {},
+    );
+    $rec->save;
 }
 
 sub _player_snapshot ($self, $char) {

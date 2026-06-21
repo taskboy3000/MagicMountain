@@ -81,6 +81,14 @@ subtest 'full lifecycle: begin → offer → sale' => sub {
       ->status_is(200);
     my $result = $t->tx->res->json->{result};
     ok($result, "offer returned result: $result");
+
+    if ($result eq 'sold') {
+        my $disc = $t->app->disposition;
+        my $all = $disc->find(sub { 1 });
+        is(scalar @$all, 1, 'disposition record created on sale');
+        is($all->[0]->getCol('value_awarded'), $t->tx->res->json->{value},
+            'disposition value matches sale value');
+    }
 };
 
 done_testing;

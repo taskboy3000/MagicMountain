@@ -56,6 +56,13 @@
       <div class="card-body" id="skills-body"></div>
     </div>
 
+    <div class="card mb-3" id="factions-card">
+      <div class="card-header">Factions &amp; Standing</div>
+      <div class="card-body" id="factions-body">
+        <p class="text-muted text-center mb-0">Loading...</p>
+      </div>
+    </div>
+
     <div class="card mb-3" id="leaderboard-card">
       <div class="card-header">Leaderboard</div>
       <div class="card-body" id="leaderboard-body">

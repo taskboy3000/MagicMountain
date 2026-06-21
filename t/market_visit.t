@@ -200,11 +200,52 @@ subtest 'offer with mismatched behavior fails' => sub {
     );
 
     $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 0.0;
+    srand(42);
     my $result = $m->dispatch($char, 'offer', shed_item_id => 'mismatch-item');
 
     is($result->{view}{result}, 'no_match', 'first mismatch -> no_match, not no_sale');
     is($char->{scrap}, 0, 'no scrap awarded');
     ok($m->getCol('phase') ne 'idle', 'activity not yet idle');
+};
+
+subtest 'mismatch settles when settle_chance forced' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'settle-item', char_id => 'char-1', artifact_id => 'unknown',
+        behaviors => ['force'], decayed_value => 30, original_value => 30,
+    );
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 1.0;
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'settle-item');
+
+    is($result->{view}{result}, 'sold', 'mismatch -> sold when settle hits');
+    ok($char->{scrap} > 0, 'scrap awarded on settle');
+    is((values %{ $char->{standing} })[0], 1, 'standing +1 on settle (was_match=0)');
+};
+
+subtest 'mismatch does not settle when settle_chance=0' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'no-settle-item', char_id => 'char-1', artifact_id => 'unknown',
+        behaviors => ['force'], decayed_value => 30, original_value => 30,
+    );
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 0.0;
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'no-settle-item');
+
+    is($result->{view}{result}, 'no_match', 'mismatch -> no_match when settle blocked');
+    is($char->{scrap}, 0, 'no scrap awarded');
 };
 
 # ── send_away ─────────────────────────────────────────────────────────

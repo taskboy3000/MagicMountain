@@ -63,6 +63,14 @@ sub setCol ($self, $columnName, $optionalValue=undef) {
     die ("assert: no such column '$columnName' declared on " . ref $self);
 }
 
+sub nullCol ($self, $columnName) {
+    if (grep {$_ eq $columnName} @{$self->columns}) {
+        delete $self->row->{$columnName};
+        return 1;
+    }
+    die ("assert: no such column '$columnName' declared on " . ref $self);
+}
+
 sub validate ($self, $columnName, $value) { 1 }  # no-op base
 
 sub hasCol ($self, $columnName) {
@@ -119,6 +127,8 @@ sub create ($self, %params) {
 # Persist this one $self->data record to $self->file
 sub save ($self) {
     $self->load; # important.  Get the whole table before altering
+    return $self->_saveTable unless keys %{ $self->row };
+
     if (!$self->row->{id}) {
         $self->row->{id} = create_uuid_as_string();
     }
@@ -354,6 +364,15 @@ column name is not declared in C<columns>.
 
 Sets the value of the named column on the current C<row>. Dies if the column
 name is not declared. Returns the new value.
+
+=head2 nullCol
+
+  $model->nullCol('faction_state');
+
+Removes the named column from the current C<row> entirely (C<delete> from the
+row hash). Unlike C<setCol($col, undef)>, this prevents the key from appearing
+as C<null> in the persisted JSON. Dies if the column name is not declared.
+Returns 1.
 
 =head2 hasCol
 

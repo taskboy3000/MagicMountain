@@ -30,10 +30,38 @@ function render() {
   document.getElementById('crier-text').textContent =
     msg || 'The crier surveys the Bazaar. All is quiet.';
 
+  renderRecap();
   renderActionCard();
   renderShed();
   renderSkills();
+  renderFactions();
   renderLeaderboard();
+}
+
+function renderRecap() {
+  const recap = G.season_recap;
+  if (!recap) return;
+  const card = document.getElementById('action-card');
+  const hl = recap.highlights || {};
+  const sk = recap.skills || {};
+  const st = recap.standing || {};
+  const factions = Object.keys(st).length;
+  card.innerHTML = `<div class="card mb-3 border-warning">
+    <div class="card-header bg-warning text-dark">${recap.label} — Final Results</div>
+    <div class="card-body">
+      <div class="row text-center mb-3">
+        <div class="col"><h5>Score</h5><span class="fs-3">${recap.final_score}</span></div>
+        <div class="col"><h5>Rank</h5><span class="fs-3">#${recap.rank}</span></div>
+        <div class="col"><h5>Scrap</h5><span class="fs-3">${recap.final_scrap}</span></div>
+      </div>
+      <p class="mb-1 text-muted">Artifacts sold: ${hl.total_sales ?? 0}</p>
+      <p class="mb-1 text-muted">Top sale: ${hl.top_sale_value ?? 0} scrap</p>
+      <p class="mb-1 text-muted">Factions traded with: ${factions}</p>
+      ${hl.evolved_artifacts_sold ? `<p class="mb-1 text-muted">Evolved artifacts sold: ${hl.evolved_artifacts_sold}</p>` : ''}
+      <hr>
+      <p class="text-muted mb-0"><em>A new season begins...</em></p>
+    </div>
+  </div>`;
 }
 
 function renderActionCard() {
@@ -214,6 +242,39 @@ function updateStats() {
   document.getElementById('stat-score').textContent = p.score ?? '—';
   document.getElementById('stat-scrap').textContent = p.scrap ?? '—';
   document.getElementById('stat-ap').textContent = p.action_points ?? '—';
+}
+
+function renderFactions() {
+  const container = document.getElementById('factions-body');
+  const factions = G.factions || [];
+  const standing = G.player?.standing || {};
+  const sales = G.player?.faction_sales || {};
+  const factionState = G.faction_state || {};
+
+  if (factions.length === 0) {
+    container.innerHTML = '<p class="text-muted text-center mb-0">No faction data available.</p>';
+    return;
+  }
+
+  container.innerHTML = factions.map(f => {
+    const fid = f.id;
+    const st = standing[fid] ?? 0;
+    const sl = sales[fid] ?? 0;
+    const state = factionState[fid] || {};
+    const stars = '\u2605'.repeat(Math.min(st, 5)) + '\u2606'.repeat(Math.max(0, 5 - Math.min(st, 5)));
+    const disp = f.disposition ? `<small class="text-muted d-block">${f.disposition}</small>` : '';
+    return `<div class="d-flex justify-content-between align-items-center border-bottom py-2">
+      <div>
+        <strong>${f.name}</strong>
+        <span class="faction-stars ms-2">${stars}</span>
+        ${disp}
+      </div>
+      <div class="text-end">
+        <span class="badge bg-info me-1">${sl} sold</span>
+        <span class="badge bg-secondary">${state.influence ?? 0} infl.</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderLeaderboard() {

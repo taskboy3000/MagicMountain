@@ -40,6 +40,11 @@ use MagicMountain::Activity::MarketVisit;
         $self->{_shed_items} = \@kept;
     }
     sub transcript { bless {}, 'FakeTranscript' }
+    sub disposition {
+        my $self = shift;
+        $self->{_dispositions} //= [];
+        return $self;
+    }
     sub seasons { shift->{_seasons} }
     sub active_season { shift->{_active_season} }
     sub find {

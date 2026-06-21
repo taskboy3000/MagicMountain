@@ -9,6 +9,54 @@ sub show ($self) {
 
     my $season = $self->app->active_season;
 
+    my $season_recap;
+
+    unless ($season) {
+        $self->app->season_records->load;
+        my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
+        if (@$archived) {
+            my @sorted = sort { ($b->getCol('day') // 0) <=> ($a->getCol('day') // 0) } @$archived;
+            my $last = $sorted[0];
+            my $recs = $self->app->season_records->find(sub { $_[0]->{player_id} eq $player_id && $_[0]->{season_id} eq $last->getCol('id') });
+            if (@$recs) {
+                $season_recap = {
+                    label         => $last->getCol('label'),
+                    final_score   => $recs->[0]->getCol('final_score'),
+                    final_scrap   => $recs->[0]->getCol('final_scrap'),
+                    rank          => $recs->[0]->getCol('rank'),
+                    standing      => $recs->[0]->getCol('faction_standing_snapshot'),
+                    skills        => $recs->[0]->getCol('skills_snapshot'),
+                    highlights    => $recs->[0]->getCol('story_highlights'),
+                };
+            }
+        }
+
+        # Auto-create new season
+        my $prefix = $self->app->config->{default_season_label_prefix} // 'Season';
+        my $max_num = 0;
+        my $all = $self->app->seasons->all;
+        my $re = qr/^\Q$prefix\E\s+(\d+)$/;
+        for my $id (keys %$all) {
+            my $row = $all->{$id};
+            if ($row->{label} =~ $re) {
+                my $n = $1;
+                $max_num = $n if $n > $max_num;
+            }
+        }
+        my $label = "$prefix " . ($max_num + 1);
+        my $length = $self->app->config->{default_season_length} // 30;
+        my $eod_hour = $self->app->config->{end_of_day_hour} // 0;
+
+        $season = $self->app->seasons->create(
+            label           => $label,
+            length          => $length,
+            day             => 1,
+            end_of_day_hour => $eod_hour,
+            status          => 'active',
+        );
+        $season->save;
+    }
+
     my ($char_model) = @{ $self->app->characters->find(
         sub { $_[0]->{account_id} eq $player_id && (!$season || $_[0]->{season_id} eq $season->getCol('id')) }
     ) };
@@ -110,6 +158,9 @@ sub show ($self) {
                     total_days => $season ? $season->getCol('length')  : 0,
                 },
                 world_message => $season ? $season->getCol('crier_message') : undef,
+                factions      => $self->factions_data,
+                faction_state => $season ? $season->getCol('faction_state') : undef,
+                ($season_recap ? (season_recap => $season_recap) : ()),
             });
         },
         html => sub {
