@@ -100,6 +100,9 @@ sub run ($self, @args) {
         narrative => sprintf("Simulation %s: %d bots, %d days.", $s->getCol('id'), $count, $days),
     });
 
+    # Enable decay transcript events for tuning analysis
+    $app->shed_manager->log_transcript(1);
+
     # Run the simulation day loop
     my $maint = $app->maintenance;
     my @chars = @bot_chars;

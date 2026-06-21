@@ -17,6 +17,12 @@
   state_thresholds:
     stable: 0.35
     strained: 0.70
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
   intro: The box is warm to the touch. A faint ticking comes from inside.
   signals:
     stable:
@@ -54,6 +60,12 @@
   state_thresholds:
     stable: 0.30
     strained: 0.65
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
   intro: A dark shard pulses with a low, rhythmic vibration, like a distant heartbeat.
   signals:
     stable:
@@ -91,6 +103,12 @@
   state_thresholds:
     stable: 0.30
     strained: 0.60
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
   intro: A slender crystal rod hums with an almost musical resonance.
   signals:
     stable:

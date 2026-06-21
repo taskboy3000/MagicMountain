@@ -16,6 +16,7 @@ use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::Transcript;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
+use MagicMountain::ShedManager;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -73,6 +74,10 @@ has shed => sub ($self) {
     );
 };
 
+has shed_manager => sub ($self) {
+    MagicMountain::ShedManager->new(app => $self);
+};
+
 has transcript => sub ($self) {
     MagicMountain::Model::Transcript->new(
         file => $self->dataDir . '/transcript.jsonl',
@@ -124,6 +129,8 @@ has maintenance => sub ($self) {
                 $char->setCol('action_points', $max);
                 $char->save;
             }
+
+            $maint->app->shed_manager->apply_decay;
 
             my $length = $season->getCol('length');
             if ($day > $length) {

@@ -9,6 +9,7 @@ has columns => sub ($self) {
         instability stage push_count has_evolved
         behaviors archetypes
         estimated_value_min estimated_value_max
+        decay_modifiers
     )];
 };
 

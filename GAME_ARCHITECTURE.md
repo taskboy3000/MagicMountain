@@ -580,7 +580,7 @@ Each push operation:
    - `ratio <= strained_threshold` → "strained"
    - `ratio > strained_threshold` → "unstable"
 
-4. **Collapse check**: `collapse_chance = (ratio²) × 0.95`
+4. **Collapse check**: `collapse_chance = (ratio³) × 0.95`
    - Clamped to minimum 5% and maximum 100%
    - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
     - Collapse is total loss: artifact destroyed, player gets nothing,
@@ -745,6 +745,21 @@ Future refinement beyond MVP:
 - Rival sales affect supply and price
 - Late-season market saturation prevents optimal last-day dumping
 - Some days favor or punish certain artifact types
+
+#### Catch-Up Through Faction Rivalry
+
+When a faction trails significantly in aggregate influence, random events
+can offer premium standing gains or bonus scrap for selling to them.
+Narrative: the underdog faction recruits players as counter-agents against
+the dominant faction. This provides soft rubber-banding without altering
+artifact physics or directly penalizing the leader.
+
+Implementation sketch: the daily maintenance timer checks faction influence
+ratios; if the gap exceeds a threshold, a "Desperate Recruiter" flag is set
+for the trailing faction. MarketVisit activity checks this flag and applies
+bonuses (extra standing, higher multiplier) when the player sells to that
+faction. The event is gated behind `faction_sales[faction_id] >= 1` so only
+players who have already engaged that faction can trigger it.
 
 These are not required for the initial implementation.
 

@@ -68,6 +68,23 @@ sub _pick_collapse ($self, $artifact) {
 
 # ── Defaults for artifact spec fields ────────────────────────────────
 
+sub _decay_modifiers ($self, $artifact) {
+    my $mods = $artifact->{decay_modifiers} // {};
+    my $defaults = {
+        fresh_multiplier    => 1.0,
+        settling_multiplier => 0.75,
+        fading_multiplier   => 0.40,
+        settling_day        => 2,
+        fading_day          => 5,
+    };
+    for my $key (keys %$defaults) {
+        $mods->{$key} //= $defaults->{$key};
+    }
+    die "invariant: fading_day ($mods->{fading_day}) must exceed settling_day ($mods->{settling_day})"
+        unless $mods->{fading_day} > $mods->{settling_day};
+    return $mods;
+}
+
 sub _apply_defaults ($self, $artifact) {
     $artifact->{instability}                  = $artifact->{starting_instability} // 0;
     $artifact->{push_count}                   = 0;
@@ -87,6 +104,7 @@ sub _apply_defaults ($self, $artifact) {
     $artifact->{stage}                       = 'stable';
     $artifact->{signal}                      = '';
     $artifact->{intro}                       = $artifact->{intro} // '';
+    $artifact->{decay_modifiers}             = $self->_decay_modifiers($artifact);
 }
 
 # ── Stage determination ──────────────────────────────────────────────
@@ -256,6 +274,7 @@ sub stop ($self, $char, %params) {
         archetypes          => $artifact->{archetypes},
         estimated_value_min => $est_min,
         estimated_value_max => $est_max,
+        decay_modifiers     => $artifact->{decay_modifiers},
     );
     $item->save;
 
