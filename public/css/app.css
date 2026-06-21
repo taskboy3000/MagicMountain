@@ -1,0 +1,127 @@
+body {
+  background: #1a1a2e;
+  background-image: radial-gradient(ellipse at 50% 0%, #16213e 0%, #1a1a2e 70%);
+  color: #e0dcd0;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5 {
+  color: #e8d5a3;
+  letter-spacing: 0.02em;
+}
+
+h1 {
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  font-weight: 300;
+}
+
+.card {
+  background: #1e1e36;
+  border: 1px solid #2a2a4a;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+
+.card-header {
+  background: #252545;
+  border-bottom: 1px solid #3a3a5a;
+  color: #c4b998;
+  font-weight: 500;
+}
+
+.card-body {
+  color: #d4d0c4;
+}
+
+.text-muted {
+  color: #8a867a !important;
+}
+
+.btn-success {
+  background: #4a7c59;
+  border-color: #3a6c49;
+}
+.btn-success:hover {
+  background: #5a8c69;
+  border-color: #4a7c59;
+}
+
+.btn-primary {
+  background: #5a6a8a;
+  border-color: #4a5a7a;
+}
+.btn-primary:hover {
+  background: #6a7a9a;
+  border-color: #5a6a8a;
+}
+
+.btn-warning {
+  background: #c49a4a;
+  border-color: #b48a3a;
+  color: #1a1a2e;
+}
+.btn-warning:hover {
+  background: #d4aa5a;
+  border-color: #c49a4a;
+  color: #1a1a2e;
+}
+
+.btn-info {
+  background: #4a7a8a;
+  border-color: #3a6a7a;
+  color: #e0dcd0;
+}
+.btn-info:hover {
+  background: #5a8a9a;
+  border-color: #4a7a8a;
+  color: #e0dcd0;
+}
+
+.btn-outline-secondary {
+  color: #8a867a;
+  border-color: #4a4a5a;
+}
+.btn-outline-secondary:hover {
+  background: #2a2a4a;
+  color: #e8d5a3;
+  border-color: #6a6a7a;
+}
+
+.btn-outline-danger {
+  color: #a05050;
+  border-color: #5a3030;
+}
+.btn-outline-danger:hover {
+  background: #5a3030;
+  color: #e0dcd0;
+}
+
+.alert-secondary {
+  background: #252545;
+  border-color: #3a3a5a;
+  color: #c4b998;
+}
+
+.badge.bg-success {
+  background: #4a7c59 !important;
+}
+.badge.bg-warning {
+  background: #c49a4a !important;
+  color: #1a1a2e !important;
+}
+.badge.bg-danger {
+  background: #8a3a3a !important;
+}
+.badge.bg-info {
+  background: #4a6a7a !important;
+  color: #e0dcd0 !important;
+}
+.badge.bg-secondary {
+  background: #3a3a5a !important;
+}
+
+a {
+  color: #8aaece;
+}
+a:hover {
+  color: #aaceee;
+}

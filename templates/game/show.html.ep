@@ -37,8 +37,8 @@
       </div>
     </div>
 
-    <div class="alert alert-secondary text-center py-2 mb-3" id="crier-message" role="alert" style="display:none">
-      <em id="crier-text"></em>
+    <div class="alert alert-secondary text-center py-2 mb-3" id="crier-message" role="alert">
+      <em id="crier-text">The crier has not yet spoken today.</em>
     </div>
 
     <div id="action-card"></div>
