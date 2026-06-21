@@ -139,6 +139,15 @@ has maintenance => sub ($self) {
             my $msg = $maint->app->crier->generate($season);
             $season->setCol('crier_message', $msg);
             $season->setCol('crier_snapshot', $season->getCol('faction_state'));
+
+            $maint->app->transcript->log_event({
+                type     => 'faction_snapshot',
+                day      => $day,
+                factions => $season->getCol('faction_state') // {},
+                narrative => sprintf("Day %d faction snapshot: %s",
+                    $day, $msg // 'no message'),
+            }) if $maint->app->can('transcript') && $maint->app->transcript;
+
             $season->save;
 
             my $length = $season->getCol('length');

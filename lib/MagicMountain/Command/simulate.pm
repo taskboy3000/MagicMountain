@@ -9,22 +9,25 @@ use MagicMountain::Model::Transcript;
 
 has description => 'Run a bot simulation season.';
 has usage => "usage: $0 simulate [OPTIONS]\n"
-           . "  --count N     Number of bots (default 5)\n"
-           . "  --days N      Season length in days (default 30)\n"
-           . "  --seed N      RNG seed\n"
-           . "  --output FILE Transcript output path\n";
+           . "  --count N         Number of bots (default 5)\n"
+           . "  --days N          Season length in days (default 30)\n"
+           . "  --seed N          RNG seed\n"
+           . "  --output FILE     Transcript output path\n"
+           . "  --skill-profile S Skill levels for all bots, e.g. 'prospecting=2,upcycling=1'\n";
 
 sub run ($self, @args) {
     my $count   = 5;
     my $days    = 30;
     my $seed    = undef;
     my $output  = undef;
+    my $skill_profile = undef;
 
     GetOptionsFromArray(\@args,
         'count=i'  => \$count,
         'days=i'   => \$days,
         'seed=i'   => \$seed,
         'output=s' => \$output,
+        'skill-profile=s' => \$skill_profile,
     );
 
     srand($seed) if defined $seed;
@@ -63,6 +66,16 @@ sub run ($self, @args) {
     $s->save;
     $app->log->info(sprintf("Created season %s (%d days)", $s->getCol('id'), $days));
 
+    # Parse skill profile
+    my %skill_defaults = (prospecting => 0, upcycling => 0, selling => 0);
+    if ($skill_profile) {
+        for my $part (split /,/, $skill_profile) {
+            $part =~ s/\s+//g;
+            my ($key, $val) = split /=/, $part;
+            $skill_defaults{$key} = int($val // 0) if exists $skill_defaults{$key};
+        }
+    }
+
     # Create bot accounts and characters
     my @bot_names;
     my @bot_chars;
@@ -81,6 +94,9 @@ sub run ($self, @args) {
             scrap             => 0,
             action_points     => 15,
             action_points_max => 15,
+            skill_prospecting => $skill_defaults{prospecting},
+            skill_upcycling   => $skill_defaults{upcycling},
+            skill_selling     => $skill_defaults{selling},
         );
         $c->save;
         push @bot_chars, $c;

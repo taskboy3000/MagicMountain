@@ -1,17 +1,17 @@
 crier_messages:
   faction_surge:
-    - "The {faction} is on a tear — {influence_gain} value in artifacts acquired overnight."
+    - "{faction} is on a tear — {influence_gain} value in artifacts acquired overnight."
     - "Word from the Bazaar: {faction} buyers led the day with {count} new acquisitions."
     - "Rumors swirl around {faction} activity. Their takings totaled {influence_gain} scrap."
   faction_slump:
-    - "The {faction} caravan was quiet today. Only {count} artifacts changed hands."
+    - "A {faction} caravan was quiet today. Only {count} artifacts changed hands."
     - "A {faction} factor was seen leaving early. Slow trading for them."
     - "The {faction} stall at the Bazaar saw little action — {count} deals all day."
   faction_dominance:
-    - "The {faction} now commands the Bazaar with {influence} total value. Their emblem hangs above the square."
-    - "Word spreads: the {faction} have eclipsed all rivals. {influence} in collected value."
+    - "{faction} now commands the Bazaar with {influence} total value. Their emblem hangs above the square."
+    - "Word spreads: {faction} have eclipsed all rivals. {influence} in collected value."
   milestone:
-    - "The {faction} just received their {count}th artifact of the season. The Crier marks the occasion."
+    - "{faction} just received their {count}th artifact of the season. The Crier marks the occasion."
     - "A runner brings news: {faction} has taken in {count} artifacts this season. A notable tally."
   season_opening:
     - "A new season dawns. The mountain stirs. Five factions circle."
