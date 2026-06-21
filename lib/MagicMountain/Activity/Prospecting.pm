@@ -212,7 +212,7 @@ sub push ($self, $char, %params) {
                + int(rand($artifact->{instability_growth_max}
                         - $artifact->{instability_growth_min} + 1));
     $growth -= $upcyc;
-    $growth = 0 if $growth < 0;
+    $growth = 1 if $growth < 1;
     $artifact->{instability} += $growth;
 
     $self->_update_stage($artifact);

@@ -282,9 +282,12 @@ Survives across seasons. Contains no gameplay data.
 | label | string | Human-readable (e.g., "Season 1") |
 | status | enum | upcoming / active / archived |
 | day | integer | Current season day (starts at 1) |
+| length | integer | Total days in this season |
 | started_at | timestamp | When season went active |
 | ended_at | timestamp | When season was finalized |
-| faction_state | map | Per-faction influence and artifacts_received counts |
+| faction_state | map | Per-faction influence, artifacts_received, intake_by_trait, and name |
+| crier_message | string or null | Most recent Town Crier narrative text, generated during maintenance |
+| crier_snapshot | map or null | Copy of faction_state from previous day, used for crier diffing |
 
 ### 5.3 Model::Character (one per player per season)
 
@@ -346,6 +349,7 @@ player's shed pending sale or decay.
 | estimated_value_max | integer | Upper bound shown to player |
 | created_at | timestamp | When the artifact entered the shed |
 | updatedAt | timestamp | Last save time |
+| decay_modifiers | map | Snapshot of artifact's decay_modifiers at stop time (fresh_multiplier, settling_multiplier, fading_multiplier, settling_day, fading_day) |
 
 The `behaviors` array is the key field for faction interest matching during
 market negotiation. Copied from the artifact spec at stop time so that the
@@ -627,28 +631,53 @@ No buyer offers are generated at stop time. Selling is a separate activity.
 
 ### 6.4 Artifact Decay
 
-Decay is applied during daily maintenance. For each ShedItem:
+Decay is applied during daily maintenance. Managed by `MagicMountain::ShedManager`
+which iterates all shed items and applies smooth daily value degradation.
 
-1. Increment `days_in_shed` by 1
-2. Determine condition based on `days_in_shed`:
-   - 0–1 days: `fresh`
-   - 2–4 days: `settling`
-   - 5+ days: `fading`
-3. Recalculate `decayed_value`:
-   - `fresh`: 100% of `original_value`
-   - `settling`: 75% of `original_value`
-   - `fading`: 40% of `original_value`
-   - These multipliers may be adjusted by artifact traits (e.g., thermal
-     artifacts decay faster, signal artifacts decay slower)
-4. Update `estimated_value_min` and `estimated_value_max` proportionally
+**Per-artifact decay_modifiers**: Each artifact spec in `prospecting.yml`
+optionally defines a `decay_modifiers` block:
 
-**Trait-specific decay** (future refinement):
-- `thermal`, `food_processing`: decay faster (fresh → settling after 1 day,
-  settling → fading after 2 days)
-- `signal`, `revelation`, `field`: decay slower (fresh → settling after 2 days,
-  settling → fading after 4 days)
-- `unstable`: becomes more hazardous (may increase value for Purifiers,
-  decrease for others)
+```yaml
+decay_modifiers:
+  fresh_multiplier:     1.0
+  settling_multiplier:  0.75
+  fading_multiplier:    0.40
+  settling_day:         2
+  fading_day:           5
+```
+
+These modifiers are copied to the ShedItem at stop time (snapshotted, like
+behaviors). If omitted, global defaults apply.
+
+**Decay formula** (computed on each maintenance tick per item):
+
+```
+d = days_in_shed (incremented by 1 each tick)
+mods = shed_item.decay_modifiers
+
+if d < mods.settling_day:
+    condition = 'fresh'
+    mult      = mods.fresh_multiplier
+elif d < mods.fading_day:
+    condition = 'settling'
+    progress  = (d - settling_day) / (fading_day - settling_day)
+    mult      = fresh_multiplier + progress × (settling_multiplier - fresh_multiplier)
+else:
+    condition = 'fading'
+    slope     = (settling_multiplier - fresh_multiplier) / (fading_day - settling_day)
+    mult      = settling_multiplier + (d - fading_day) × slope
+    mult      = max(mult, fading_multiplier)
+```
+
+`decayed_value = floor(original_value × mult)`
+
+Estimated values are recalculated:
+```
+estimated_value_min = floor(decayed_value × 0.8)
+estimated_value_max = floor(decayed_value × 1.2)
+```
+
+**Constraint**: `fading_day` must be strictly greater than `settling_day`.
 
 **Decay does not destroy artifacts.** Even `fading` artifacts can be sold,
 typically at reduced value. Certain factions (Purifiers, Revelationists) may
@@ -712,26 +741,39 @@ When a player starts a Market Visit (costs 1 AP):
 - Customers do not remember previous offers or visits
 - At most ONE customer per Market Visit
 
-### 6.6 Skills (Mechanical Effects — TODO)
+### 6.6 Skills (Mechanical Effects)
 
-Detailed skill effects are implementation-defined. This section outlines the
-intent for each skill category. Exact parameters will be tuned during
-development.
+Skills are purchasable per season via the Skills controller (`POST /skills/purchase`).
+Each has 3 levels, costs defined in `content/skills.yml`. Effects are applied
+at the point of use (draw, push, stop, offer) by reading the character's
+skill columns.
 
-**Prospecting (levels 1–3)**:
-- Intended effect: Bias artifact draw toward higher-value or more desirable
-  artifacts; may increase base_value range or weight selection.
-- Does NOT affect push/collapse math directly.
+**Prospecting (levels 1–3)** — affects artifact drawing and base value:
 
-**Upcycling (levels 1–3)**:
-- Intended effect: Improve value gain per push, reduce instability growth per
-  push, or increase evolution chance. Makes pushing more efficient without
-  removing collapse risk.
+| Level | Effect |
+|-------|--------|
+| 1 | `base_value` of drawn artifact increased by +2 |
+| 2 | `base_value` increased by +4 total; weight doubled for artifacts with `base_value >= 8` (higher chance of rich finds) |
+| 3 | `base_gain_min` and `base_gain_max` each increased by +1 per push |
 
-**Selling (levels 1–3)**:
-- Intended effect: Improve estimated value accuracy, reduce customer irritation
-  gain, increase settle_chance, improve offer multiplier on matching artifacts.
-  May reveal one desired behavior to the player.
+**Upcycling (levels 1–3)** — reduces instability growth during pushes:
+
+| Level | Effect |
+|-------|--------|
+| 1 | Instability growth reduced by 1 per push (min 1) |
+| 2 | Growth reduced by 2; value gain per push increased by +1 |
+| 3 | Growth reduced by 3; value gain increased by +2; `evolution_chance` increased by +0.02 |
+
+Instability growth floors at 1 — even max upcycling cannot fully
+eliminate instability.
+
+**Selling (levels 1–3)** — improves market outcomes:
+
+| Level | Effect |
+|-------|--------|
+| 1 | Estimate range narrowed from ±20% to ±15% at stop time |
+| 2 | Match multiplier increased from 1.2× to 1.4× `base_multiplier` |
+| 3 | Irritation gain on mismatches eliminated; one `desired_behaviors` revealed to player |
 
 Skill costs are defined in `content/skills.yml`. Cost scales per level (e.g.
 level 1 costs 10 scrap, level 2 costs 25, level 3 costs 50). Skill training
@@ -787,18 +829,19 @@ artifact premium).
 
 ### 7.2 Three-Layer Faction Model
 
-Factions have three connected layers:
+Factions have three connected layers — all three are implemented:
 
 **Personal Standing** ("What do they think of me?"):
 - Per-character integer per faction
-- Increased by selling to them (especially high-value or matching artifacts)
-- Affects: customer frequency, prices, commissions, special text, faction access
+- Increased by selling to them: +2 on match, +1 on mismatch, +1 bonus for evolved artifacts
+- Affects: customer frequency (standing-weighted random selection), prices (+0.05 multiplier per standing point), commissions, special text, faction access
 - Stored in `character.standing` map
 
 **Faction Influence** ("How powerful is this faction this season?"):
 - Aggregate of all sales to this faction across all players
+- Updated atomically in `_do_sale` — adds sale value to influence, increments artifacts_received, tracks intake_by_trait
 - Affects: Crier reports, customer mix, Bazaar conditions, rival behavior
-- Stored in `season.faction_state` (influence value)
+- Stored in `season.faction_state` (influence value, artifacts_received, intake_by_trait, name)
 
 **Artifact Intake** ("What kinds of artifacts did this faction receive?"):
 - Tracks artifact traits received by faction
@@ -868,9 +911,13 @@ receives the Maintenance object (`$self`). Implementation:
 1. Increment `season.day` by 1
 2. For every SeasonalCharacter: reset `action_points` to `action_points_max`
 3. Apply artifact decay to every ShedItem (see 6.4)
-4. Preserve activity rows — in-progress prospecting survives rollover
-5. Update leaderboard snapshots
-6. If `season.day > season_length`, emit a warning (season end is manual)
+4. Generate Town Crier message: diff current `faction_state` against
+   `crier_snapshot`, select highest-priority message template, fill with
+   faction name and values. Store in `crier_message`.
+5. Update `crier_snapshot` to current `faction_state`.
+6. Log `faction_snapshot` transcript event with full faction_state.
+7. Preserve activity rows — in-progress prospecting survives rollover
+8. If `season.day > season_length`, emit a warning (season end is manual)
 
 **Route gating during maintenance**:
 
