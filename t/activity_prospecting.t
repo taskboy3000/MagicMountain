@@ -28,6 +28,11 @@ use_ok('TestCharacter');
         push @{ $self->{_shed_items} }, $item;
         return $item;
     }
+    sub transcript { bless {}, 'FakeTranscript' }
+}
+{
+    package FakeTranscript;
+    sub log_event { 1 }
 }
 {
     package FakeShedItem;

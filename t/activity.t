@@ -13,6 +13,11 @@ use_ok('MagicMountain::Activity');
     package FakeApp;
     sub new { bless {}, shift }
     sub log { bless {}, 'FakeLogger' }
+    sub transcript { bless {}, 'FakeTranscript' }
+}
+{
+    package FakeTranscript;
+    sub log_event { 1 }
 }
 {
     package FakeLogger;

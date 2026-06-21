@@ -1082,7 +1082,7 @@ has market => sub ($self) {
     MagicMountain::Activity::MarketVisit->new(
         file             => $self->dataDir . '/activities.json',
         app              => $self,
-        content_filename => $self->home . '/content/market.yml',   # future: customer templates
+        content_filename => $self->home . '/content/factions.yml',
         log              => $self->log,
     )->load_content;
 };
@@ -1101,14 +1101,15 @@ sub create ($self, %params) {
 
 **MarketVisit flow**:
 
-| Phase | Action | Effect |
-|-------|--------|--------|
-| idle | begin | Deduct 1 AP. Generate customer. Set phase to `negotiating` |
-| negotiating | offer | Player offers shed item (by id). Run negotiation logic. If accepted: sale (scrap+score, delete shed item). If rejected: irritation increases. If threshold exceeded: customer leaves, phase→idle |
-| negotiating | send_away | Player declines further negotiation. Customer leaves. Phase → idle |
+| Phase | Action | Effect | Persistence |
+|-------|--------|--------|-------------|
+| idle | begin | Deduct 1 AP. Generate customer. Set FK. Set phase to `negotiating` | `$self->save`, `$char->save` |
+| negotiating | offer | Receive `shed_item_id`. Match `desired_behaviors` vs item `behaviors`. Match → sale. Mismatch → no sale (customer leaves) | Match: `$self->delete`, `$char->save`. Mismatch: `$self->delete`, `$char->save` |
+| negotiating | send_away | Player ends negotiation. No sale. | `$self->delete`, `$char->save` |
 
 The `offer` action takes a `shed_item_id` parameter identifying which artifact
-from the player's shed is being offered.
+from the player's shed is being offered. Irritation, counter-offers, settle
+rolls, and showing multiple items per visit are planned enhancements.
 
 ### 9.7 Bots
 
@@ -1536,11 +1537,11 @@ Bot profiles are defined in YAML content (future: `content/bots.yml`).
 ## 15. Transcript
 
 JSONL (JSON Lines) file for recording game events. Each event is one JSON
-object per line. Used for simulation analysis, balance evaluation, and
-diagnostics. Events include: `artifact_start`, `push`, `collapse`,
-`breakthrough`, `stop`, `shed_entry`, `market_visit`, `customer_offer`,
-`sale`, `negotiation_fail`, `skill_purchase`, and future `commission_triggered`,
-`commission_fulfilled`, `commission_expired`.
+object per line with a `narrative` field for human/LLM readability. Used for
+simulation analysis, balance evaluation, and diagnostics. Events include:
+`artifact_start`, `push`, `collapse`, `breakthrough`, `stop`, `shed_entry`,
+`market_visit`, `offer`, `sale`, `sim_start`, `sim_end`, and future
+`commission_triggered`, `commission_fulfilled`, `commission_expired`.
 
 **Transcript lifecycle**: The app class opens a transcript context on each
 request, capturing session, player, endpoint, and timestamp. Activities
@@ -1706,36 +1707,42 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Player info** | `Controller::Player` | `GET /player` JSON or 401 |
 | **Game page** | `Controller::Game`, `templates/game/show.html.ep` | Authenticated home with season info |
 | **Session management** | `Model::Session`, `current_player` helper | Configurable inactivity timeout |
-| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account` | Account lifecycle |
+| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::simulate` | Account lifecycle, bot simulation |
 | **Layout** | `templates/layouts/default.html.ep` | Bootstrap 5.3 CDN wrapper |
-| **Day maintenance** | `Maintenance.pm` | IOLoop timer, `in_maintenance` flag, route gating, `on_maintenance` extension point. Rollover logic not wired yet. |
+| **Day maintenance** | `Maintenance.pm` | IOLoop timer, route gating, `on_maintenance` callback for AP refresh, day increment, decay |
 | **Audit logging** | `Model::AuditLog` | JSONL login/logout/account events |
+| **Activity base class** | `Activity.pm` | State-machine dispatch, column accessors, content loading |
+| **Prospecting activity** | `Activity::Prospecting` | Push/collapse/breakthrough math, stop → shed entry, activity-owned persistence |
+| **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, empty shed guard |
+| **ShedItem model** | `Model::ShedItem` | `shed.json` CRUD, per-character queries |
+| **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skills 0–3 |
+| **Character column expansion** | `Model::Character` | `action_points`, `action_points_max`, skill columns |
+| **Prospecting/Market controllers** | `Controller::Prospecting`, `Controller::Market` | Thin dispatch+render, no persistence |
+| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml` | Artifact definitions, skills, factions |
+| **Transcript system** | `Model::Transcript` | JSONL event log with narrative, integrated into all activity handlers |
+| **Bot simulation** | `Command::simulate`, `script/analyze` | Naive bot strategy, real game engine, reproducible, analysis script |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
 | Module | Change Required |
 |--------|-----------------|
 | `Controller/Game.pm` | Update game state response to include shed, skills, new AP fields |
-| `Model/Character.pm` | Rename `turns_remaining` to `action_points`, add `action_points_max`, add skill columns |
-| `templates/game/show.html.ep` | Update UI for new game state shape |
-| Existing test data | Update character fixtures to use `action_points` instead of `turns_remaining` |
+| Skill mechanical effects (§6.6) | Implement per-level effects for prospecting, upcycling, selling |
 
 ### 19.3 Planned (Not Yet Implemented)
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Activity base class | High | State-machine transition enforcement, `dispatch()` |
-| Activity::Prospecting | High | Push/collapse/breakthrough math, stop → shed entry |
-| Activity::MarketVisit | High | Customer generation, negotiation logic |
-| Shed model (Model::ShedItem) | High | `shed.json` CRUD, per-character queries |
+| Shed/Skills/Leaderboard controllers | High | HTTP endpoints for inventory, skill purchase, rankings |
 | Artifact decay (in maintenance) | High | Condition states, value recalculation |
-| Skill system | High | YAML-driven skill definitions, purchase flow |
-| MarketVisit negotiation math | High | Match detection, irritation, settle rolls |
-| Content YAML files (prospecting, skills) | High | Artifact definitions, skill definitions |
-| Model::Character invariants | High | Add enforcement of AP bounds, scrap≥0, score never decreases, skills 0–3 |
-| Model::Character column expansion | High | Add action_points, action_points_max, skill columns |
-| Prospecting/Market/Shed/Skills controllers | High | HTTP endpoints for all game actions |
-| Bot simulation (updated) | Medium | Update bot policies for new activity split |
+| Skill system purchase flow | High | YAML-driven skill definitions, purchase endpoint |
+| MarketVisit negotiation math | Medium | Irritation, settle rolls, counter-offers, multiple items per visit |
+| Bot policy framework | Medium | Pluggable push/sell policies, YAML bot profiles |
+| Faction system (FactionRegistry, YAML config) | Medium | Standing, influence, intake tracking |
+| Commission system | Low | Faction notices, active commissions |
+| Crier narrative system | Low | Faction/economic state driven reports |
+| Market dynamics (supply/demand) | Low | Price depression, faction appetites |
+| MariaDB migration | Future | Replace JSON file persistence |
 | Faction system (FactionRegistry, YAML config) | Medium | Customer generation |
 | SeasonFactionState tracking | Medium | Influence, intake tracking |
 | ArtifactDisposition records | Medium | Append-only immutable sale records |

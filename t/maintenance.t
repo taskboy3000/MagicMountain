@@ -17,6 +17,12 @@ use MagicMountain::Maintenance;
     package FakeApp;
     sub new { bless { log => FakeLogger->new }, shift }
     sub log { shift->{log} }
+    sub transcript { bless {}, 'FakeTranscript' }
+}
+
+{
+    package FakeTranscript;
+    sub log_event { 1 }
 }
 
 my $app = FakeApp->new;

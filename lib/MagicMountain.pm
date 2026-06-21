@@ -13,6 +13,7 @@ use MagicMountain::Model::Character;
 use MagicMountain::Model::Season;
 use MagicMountain::Model::Session;
 use MagicMountain::Model::ShedItem;
+use MagicMountain::Model::Transcript;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 
@@ -72,6 +73,12 @@ has shed => sub ($self) {
     );
 };
 
+has transcript => sub ($self) {
+    MagicMountain::Model::Transcript->new(
+        file => $self->dataDir . '/transcript.jsonl',
+    );
+};
+
 has prospecting => sub ($self) {
     my $p = MagicMountain::Activity::Prospecting->new(
         file             => $self->dataDir . '/activities.json',
@@ -81,6 +88,17 @@ has prospecting => sub ($self) {
     );
     $p->load_content;
     return $p;
+};
+
+use MagicMountain::Activity::MarketVisit;
+
+has market => sub ($self) {
+    MagicMountain::Activity::MarketVisit->new(
+        file             => $self->dataDir . '/activities.json',
+        app              => $self,
+        content_filename => $self->home . '/content/factions.yml',
+        log              => $self->log,
+    )->load_content;
 };
 
 has maintenance => sub ($self) {
@@ -217,6 +235,9 @@ sub buildRoutes ($self) {
     $auth->post('/prospecting/begin')->to('prospecting#begin');
     $auth->post('/prospecting/push')->to('prospecting#push');
     $auth->post('/prospecting/stop')->to('prospecting#stop');
+    $auth->post('/market/begin')->to('market#begin');
+    $auth->post('/market/offer')->to('market#offer');
+    $auth->post('/market/send_away')->to('market#send_away');
     # $auth->get('/leaderboard')->to('leaderboard#index');
 }
 

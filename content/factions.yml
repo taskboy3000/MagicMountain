@@ -1,0 +1,21 @@
+factions:
+  - id: syndicate
+    name: "The Syndicate"
+    interests: [thermal, storage, food_processing, power]
+    base_multiplier: 1.1
+  - id: libremount
+    name: "LibreMount"
+    interests: [thermal, water, sanitation, medical_response, power]
+    base_multiplier: 0.9
+  - id: faculty
+    name: "The Faculty"
+    interests: [signal, revelation, field, medical_response]
+    base_multiplier: 1.0
+  - id: purifiers
+    name: "The Purifiers"
+    interests: [force, instability, medical_response]
+    base_multiplier: 1.2
+  - id: revelationists
+    name: "The Revelationists"
+    interests: [revelation, signal, field, transformation]
+    base_multiplier: 0.8

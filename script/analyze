@@ -1,0 +1,143 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Mojo::JSON qw(decode_json);
+
+my $file = shift or die "Usage: $0 <transcript.jsonl>\n";
+open my $fh, '<', $file or die "Cannot open $file: $!";
+
+my %stats;
+my %bot_score;
+my $run_id;
+
+while (my $line = <$fh>) {
+    chomp $line;
+    my $ev = decode_json($line);
+
+    $run_id //= $ev->{run_id};
+
+    $stats{total_events}++;
+
+    if ($ev->{type} eq 'artifact_start') {
+        $stats{artifacts}++;
+        $stats{artifacts_per_bot}{$ev->{char_id}}++;
+    }
+    elsif ($ev->{type} eq 'push') {
+        $stats{pushes}++;
+        $stats{stage}{$ev->{stage}}++;
+    }
+    elsif ($ev->{type} eq 'collapse') {
+        $stats{collapses}++;
+    }
+    elsif ($ev->{type} eq 'breakthrough') {
+        $stats{breakthroughs}++;
+    }
+    elsif ($ev->{type} eq 'stop') {
+        $stats{stops}++;
+    }
+    elsif ($ev->{type} eq 'sale') {
+        $stats{sales}++;
+        $stats{total_sale_value} += $ev->{value};
+        $bot_score{$ev->{char_id}} += $ev->{value};
+    }
+    elsif ($ev->{type} eq 'sim_start') {
+        $stats{bot_count} = $ev->{bot_count};
+        $stats{sim_days}  = $ev->{day};
+    }
+}
+
+close $fh;
+
+my $total = ($stats{collapses} // 0) + ($stats{stops} // 0) + ($stats{breakthroughs} // 0);
+$total ||= 1;
+
+printf "=== Simulation Analysis ===\n";
+printf "Run:        %s\n", $run_id // 'unknown';
+printf "Bots:       %d\n", $stats{bot_count} // 0;
+printf "Days:       %d\n", $stats{sim_days} // 0;
+printf "Artifacts:  %d\n", $stats{artifacts} // 0;
+printf "Pushes:     %d\n", $stats{pushes} // 0;
+printf "Collapses:  %d (%.1f%%)\n", $stats{collapses} // 0, 100 * ($stats{collapses} // 0) / $total;
+printf "Breakthroughs: %d (%.1f%%)\n", $stats{breakthroughs} // 0, 100 * ($stats{breakthroughs} // 0) / $total;
+printf "Stops:      %d (%.1f%%)\n", $stats{stops} // 0, 100 * ($stats{stops} // 0) / $total;
+printf "Sales:      %d\n", $stats{sales} // 0;
+printf "Avg sale:   %.1f\n", $stats{sales} ? ($stats{total_sale_value} // 0) / $stats{sales} : 0;
+printf "Avg pushes per artifact: %.1f\n", $stats{artifacts} ? ($stats{pushes} // 0) / $stats{artifacts} : 0;
+
+if (keys %bot_score) {
+    my @scores = sort { $a <=> $b } values %bot_score;
+    printf "Score range: %d - %d\n", $scores[0], $scores[-1];
+    printf "Avg score:   %.1f\n", (sum(values %bot_score)) / scalar(keys %bot_score);
+}
+
+sub sum {
+    my $t = 0;
+    $t += $_ for @_;
+    return $t;
+}
+
+__END__
+
+=head1 SYNOPSIS
+
+  perl script/analyze results.jsonl
+
+=head1 DESCRIPTION
+
+Reads a simulation transcript JSONL file and prints summary statistics to
+stdout. Use after a C<simulate> run to evaluate game balance.
+
+=head1 TUNING LOOP
+
+  1. Run simulation:
+     perl -Ilib script/mountain simulate --count 8 --days 30 --seed 42 \
+       --output results.jsonl
+
+  2. Analyze:
+     perl script/analyze results.jsonl
+
+  3. Adjust artifact parameters in C<content/prospecting.yml>:
+       max_instability         - Higher = harder to collapse
+       base_gain_min/max       - Higher = more value per push
+       evolution_chance        - Higher = more breakthroughs
+       evolution_threshold     - Lower = breakthroughs happen earlier
+       weight                  - Higher = more common in draw pool
+
+  4. Re-run with same seed for direct comparison:
+     perl -Ilib script/mountain simulate --count 8 --days 30 --seed 42 \
+       --output results.jsonl
+
+  5. Compare metrics.
+
+=head1 KEY METRICS
+
+=over
+
+=item B<Collapse rate>
+
+Target: 40-60%. Above 70% means artifacts are too dangerous; below 30% means
+too safe. Adjusted via C<max_instability> and C<instability_growth_max> in
+C<content/prospecting.yml>.
+
+=item B<Breakthrough rate>
+
+Target: 3-8%. Rare enough to be exciting, common enough to be a credible
+alternative to stopping. Adjusted via C<evolution_chance> and
+C<evolution_threshold>.
+
+=item B<Avg pushes per artifact>
+
+Target: 2-4. Below 2 means players stop too early or collapse too fast. Above
+4 means artifacts are too durable. Adjusted via instability growth rates.
+
+=item B<Sales per bot per season>
+
+Target: 3-8 across a 30-day season. Being able to sell roughly half of stopped
+artifacts feels rewarding. If sales are very low, check the market visit
+frequency (AP allocation) and customer match rates.
+
+=back
+
+=head1 SEE ALSO
+
+L<MagicMountain::Command::simulate>, L<content/prospecting.yml>

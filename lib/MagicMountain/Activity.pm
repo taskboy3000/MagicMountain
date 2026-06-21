@@ -39,6 +39,7 @@ sub load_content ($self) {
     return unless $self->content_filename;
     $self->content_data(LoadFile($self->content_filename));
     $self->log->debug(sprintf("Loaded content from %s", $self->content_filename));
+    return $self;
 }
 
 # ── Column accessors ───────────────────────────────────────────────
