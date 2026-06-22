@@ -160,7 +160,7 @@ See `FUTURES.md` for detailed categorization. Summary:
 | Bot simulation | **Done** (single hardcoded strategy) |
 | Commission system (§7.3) | Not implemented |
 | Market dynamics (§6.7) | Not implemented |
-| MariaDB migration | Deferred |
+| MariaDB migration | Deferred — JSON persistence writes entire table on every `save()`. This caps simulations at ~500 total bot-days for reasonable runtime. See FUTURES.md for details. |
 | CSRF / rate limiting / password auth | Deferred for alpha |
 
 ---

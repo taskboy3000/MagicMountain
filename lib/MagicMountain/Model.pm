@@ -8,6 +8,9 @@ use Mojo::Base '-base', '-signatures';
 use Mojo::JSON ('encode_json', 'decode_json');
 use UUID::Tiny (':std');
 
+my %_seq_for;
+my $_save_seq = 0;
+
 has 'file' => sub ($self) {
     die("Add a path to the state file");
 }; # A required file path to persist too
@@ -21,8 +24,6 @@ has 'log' => sub ($self) {
 
 # This is the entire table:
 #. { id => {fullRecord} }
-has _last_mtime => sub ($self) { 0 };
-
 has table => sub ($self) {
     return {}
 };
@@ -79,8 +80,8 @@ sub hasCol ($self, $columnName) {
 
 # Load all data from $self->file
 sub load ($self) {
-    my $mtime = (stat($self->file))[9] // 0;
-    return 1 if $mtime && $mtime == $self->_last_mtime;
+    my $key = 0+$self->table;
+    return 1 if defined $_seq_for{$key} && $_seq_for{$key} == $_save_seq;
 
     if (-e $self->file) {
         my $content = read_file($self->file);
@@ -92,9 +93,9 @@ sub load ($self) {
             die("JSON DECODE FAILURE: $@");
         };
         %{ $self->table } = %{ $data };
-        $self->_last_mtime($mtime);
     }
 
+    $_seq_for{$key} = $_save_seq;
     return 1;
 }
 
@@ -104,7 +105,7 @@ sub _saveTable ($self) {
     my $tmpFile = $self->file . "$$.tmp";
     write_file($tmpFile, $json);
     rename $tmpFile, $self->file;
-    $self->_last_mtime((stat($self->file))[9] // 0);
+    $_seq_for{0+$self->table} = ++$_save_seq;
     return 1;
 }
 
@@ -126,7 +127,8 @@ sub create ($self, %params) {
 
 # Persist this one $self->data record to $self->file
 sub save ($self) {
-    $self->load; # important.  Get the whole table before altering
+    my $key = 0+$self->table;
+    $self->load unless defined $_seq_for{$key} && $_seq_for{$key} == $_save_seq;
     return $self->_saveTable unless keys %{ $self->row };
 
     if (!$self->row->{id}) {
