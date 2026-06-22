@@ -204,6 +204,7 @@ Each module has strict constraints on what it may and must never hold.
 | Module | May Hold | Must NEVER Hold |
 |--------|----------|-----------------|
 | **Controller::*** | App reference, model accessors (accounts, characters, seasons, shed, skills) | Game logic, phase validation, artifact math, persistence orchestration |
+| **Controller::Season** | App reference, calls Season::finalize | Game logic, persistence |
 | **Activity (base)** | Persisted columns, ephemeral attributes (transitions, app, content), dispatch logic | Game math, artifact knowledge, YAML content interpretation |
 | **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
@@ -212,7 +213,8 @@ Each module has strict constraints on what it may and must never hold.
 | **Model::Character** | File path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–3) | Market, Faction, Content, Shed, game math, artifact logic |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
-| **Model::Season** | File path, column definitions, JSON CRUD | Per-player character data, game logic |
+| **Model::Season** | File path, column definitions, JSON CRUD, finalize class method | Per-player character data, game logic |
+| **Model::FactionSnapshot** | File path, column definitions, JSON CRUD | Game logic, character data |
 | **Model::Session** | File path, column definitions, expiry logic | Game logic, character data |
 | **Skills** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
 | **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
@@ -437,7 +439,26 @@ MarketVisit activity.
 }
 ```
 
-### 5.6 SeasonFactionState (per-season global faction tracking)
+### 5.6 FactionSnapshot (daily faction history)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | UUID | Primary key |
+| season_id | UUID | FK to Season |
+| day | integer | Season day of this snapshot |
+| faction_id | string | FK to faction definition |
+| influence | integer | Accumulated value from all sales to this faction |
+| artifacts_received | integer | Count of artifacts sold to this faction |
+| intake_by_trait | map | Map of trait → count received |
+
+One row per faction per day, written during daily maintenance (after Crier
+message generation, before transcript logging) and on season finalization.
+Append-only — never deleted. The last snapshot per faction (highest day) is
+the authoritative final influence at season end.
+
+---
+
+### 5.7 SeasonFactionState (per-season live faction tracking)
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -445,14 +466,13 @@ MarketVisit activity.
 | season_id | UUID | FK to Season |
 | influence | integer | Accumulated value from all sales to this faction |
 | artifacts_received | integer | Count of artifacts sold to this faction |
-| intake_by_trait | map | Map of trait → count received (e.g. `{thermal: 5, signal: 2}`) |
-| market_saturation | map | Map of trait → saturation level (affects future pricing) |
+| intake_by_trait | map | Map of trait → count received |
 
-Planned as a separate entity. Currently embedded in `season.faction_state`
-(§5.2). Will drive faction dominance, Crier reports, buyer context, and
-market dynamics.
+Currently embedded in `season.faction_state` (§5.2). Updated atomically
+on every sale. Could be extracted to a separate model when market dynamics
+require it.
 
-### 5.7 ArtifactDisposition (per-sale record) — Planned
+### 5.8 ArtifactDisposition (per-sale record)
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -467,10 +487,10 @@ market dynamics.
 | influence_delta | integer | Influence added to faction |
 | narrative_hooks | JSON | Keys for future Crier/narrative generation |
 
-Not yet implemented. Append-only. Immutable after creation. Survives character
-deletion.
+Append-only. Immutable after creation. Survives character deletion. Created
+during every successful sale (`_do_sale` in MarketVisit).
 
-### 5.8 SeasonRecord (post-season archive)
+### 5.9 SeasonRecord (post-season archive)
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -482,14 +502,14 @@ deletion.
 | rank | integer | Final leaderboard position |
 | faction_standing_snapshot | JSON | Standing at season end |
 | skills_snapshot | JSON | Skill levels at season end |
-| story_highlights | JSON | Notable dispositions and narrative hooks |
+| story_highlights | JSON | Notable dispositions, narrative hooks, and faction dominance summary (`top_faction`, `top_faction_influence`, `factions_competing`) |
 | created_at | timestamp | When finalized |
 
-Created during season finalization (`end-season` CLI), before characters
-are deleted. Served to players on first `/game` visit after the season
-ends as `season_recap` (visible once, cleared on subsequent visits).
+Created during season finalization, before characters are deleted. Served to
+players on first `/game` visit after the season ends as `season_recap`
+(visible once, cleared on subsequent visits).
 
-### 5.9 Skill Definition (content/skills.yml, loaded by `skills_data` helper)
+### 5.10 Skill Definition (content/skills.yml, loaded by `skills_data` helper)
 
 Skills are defined in YAML content, not hardcoded:
 
@@ -539,7 +559,7 @@ skills:
 The `cost` field is in scrap. Exact mechanical effects per level are marked
 as implementation detail — see section 6.6.
 
-### 5.10 Entity Lifecycle
+### 5.11 Entity Lifecycle
 
 ```
 PlayerAccount ─── persists forever ──────────────────────►
@@ -927,9 +947,12 @@ receives the Maintenance object (`$self`). Implementation:
    `crier_snapshot`, select highest-priority message template, fill with
    faction name and values. Store in `crier_message`.
 5. Update `crier_snapshot` to current `faction_state`.
-6. Log `faction_snapshot` transcript event with full faction_state.
-7. Preserve activity rows — in-progress prospecting survives rollover
-8. If `season.day > season_length`, emit a warning (season end is manual)
+6. Write FactionSnapshot rows: for each faction in `faction_state`, create
+   a snapshot row with season_id, day, faction_id, influence,
+   artifacts_received, intake_by_trait.
+7. Log transcript event with full faction_state.
+8. Preserve activity rows — in-progress prospecting survives rollover
+9. If `season.day > season_length`, emit a warning (season end is manual)
 
 **Route gating during maintenance**:
 
@@ -959,7 +982,8 @@ is created with full AP at the current season day.
 
 ### 8.3 Season End (Finalization)
 
-Admin-triggered via `end-season` CLI. MUST execute in this exact order:
+Admin-triggered via `end-season` CLI or `POST /season/end` web button
+(both call `Model::Season::finalize`). MUST execute in this exact order:
 
 1. Compute final leaderboard rank for each character
 2. For each SeasonalCharacter:
@@ -1249,7 +1273,8 @@ any model.
 | Market | begin, offer, send_away | Market negotiation lifecycle |
 | Shed | index | List shed contents with condition and estimates |
 | Skills | index, purchase | View available skills, purchase upgrade |
-| Leaderboard | index | Player rankings |
+| Leaderboard | index, factions | Player rankings; faction influence time series |
+| Season | end | Finalize active season (web UI) |
 
 The old `Artifact` controller is renamed to `Prospecting`. The old `Sale`
 controller is removed (replaced by `Market`). New `Shed` and `Skills`
@@ -1474,6 +1499,8 @@ changes, no manual registration.
 | GET | `/skills` | `Skills#index` | List available skills and current levels |
 | POST | `/skills/purchase` | `Skills#purchase` | Buy skill upgrade (costs scrap) |
 | GET | `/leaderboard` | `Leaderboard#index` | Player rankings |
+| GET | `/leaderboard/factions` | `Leaderboard#factions` | Faction influence time series |
+| POST | `/season/end` | `Season#end` | Finalize active season (web UI) |
 
 ### 13.2 Controller Action Contracts
 
@@ -1553,8 +1580,9 @@ character.
       "days_in_shed": 0
     }
   ],
-  "season": { "day": 5, "total_days": 30 },
+  "season": { "day": 5, "total_days": 30, "label": "Season 1" },
   "world_message": "The air tastes faintly of ozone...",
+  "csrf_token": "aB3x...",
   "season_opening": null
 }
 ```
@@ -1808,9 +1836,11 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
 | **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
 | **Crier daily progress** | `Crier.pm`, `content/text/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
-| **Season finalization CLI** | `Command::end_season.pm` | 7-step archive: compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive |
+| **Season finalization CLI + web UI** | `Command::end_season.pm`, `Controller::Season.pm`, `Model::Season.pm` (finalize) | 7-step archive: compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive. Web button calls same `Season::finalize` method. |
 | **SeasonRecord model** | `Model::SeasonRecord.pm` | Post-season archive per character: score, scrap, rank, standing/skills snapshots, story highlights |
 | **Season recap + auto-renew** | `Controller/Game.pm`, `public/js/game.js` | On first `/game` visit after end-season, shows recap card, auto-creates new season + fresh character |
+| **CSRF protection** | `MagicMountain.pm` (csrf_token helper, auth_write bridge), `Controller/Sessions.pm`, `Game.pm`, `public/js/game.js` | Session-based token returned on login, sent as `X-CSRF-Token` header on all authenticated write requests |
+| **Faction snapshot history** | `Model::FactionSnapshot.pm`, `Maintenance.pm`, `Season.pm` (finalize), `Controller/Leaderboard.pm` (factions) | Daily faction influence persisted during maintenance and season end; `GET /leaderboard/factions` returns per-faction time series |
 | **`nullCol` helper** | `Model.pm` | `delete` a column from row (avoids JSON `null` artifacts from `setCol($col, undef)`) |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
@@ -1827,7 +1857,6 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | Bot policy framework | Medium | Pluggable push/sell policies, YAML bot profiles |
 | Commission system | Low | Faction notices, active commissions |
 | Market dynamics (supply/demand) | Low | Price depression, faction appetites, daily caps |
-| CSRF protection | Medium | Mojolicious plugin |
 | Rate limiting | Medium | Brute-force prevention on login |
 
 ---
