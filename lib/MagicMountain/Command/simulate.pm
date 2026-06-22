@@ -95,8 +95,8 @@ sub run ($self, @args) {
             $weights{$key} = int($weight // 1);
         }
         for my $p (@profiles) {
-            my $w = $weights{$p->{id}} // 1;
-            push @profile_pool, $p for 1 .. $w;
+            next unless exists $weights{$p->{id}};
+            push @profile_pool, $p for 1 .. $weights{$p->{id}};
         }
     }
 

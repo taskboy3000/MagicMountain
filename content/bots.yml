@@ -19,7 +19,7 @@
 - id: fixed_highest
   display_name: "Conservative"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
-  sell_policy: { name: "highest_offer", params: { min_value: 15 } }
+  sell_policy: { name: "highest_offer", params: { min_value: 18 } }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
 
 - id: instability_loyalist
