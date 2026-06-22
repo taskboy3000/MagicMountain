@@ -250,6 +250,134 @@ subtest 'mismatch does not settle when settle_chance=0' => sub {
 
 # ── send_away ─────────────────────────────────────────────────────────
 
+# ── Selling Skill 2: irritation immunity ────────────────────────────
+
+subtest 'selling skill 2 eliminates irritation on mismatch' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0,
+        skill_selling => 2,
+    );
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'mismatch-item-1', char_id => 'char-1', artifact_id => 'unknown',
+        behaviors => ['force'], decayed_value => 30, original_value => 30,
+    );
+    $shed->create(
+        id => 'mismatch-item-2', char_id => 'char-1', artifact_id => 'unknown',
+        behaviors => ['force'], decayed_value => 30, original_value => 30,
+    );
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 0.0;
+    $m->customer->{irritation_threshold} = 5;
+
+    # First mismatch — irritation should stay 0
+    srand(42);
+    my $r1 = $m->dispatch($char, 'offer', shed_item_id => 'mismatch-item-1');
+    is($r1->{view}{result}, 'no_match', 'first mismatch -> no_match');
+    is($m->customer->{irritation}, 0, 'irritation stays 0 with sell 2');
+
+    # Second mismatch — still 0
+    my $r2 = $m->dispatch($char, 'offer', shed_item_id => 'mismatch-item-2');
+    is($r2->{view}{result}, 'no_match', 'second mismatch -> no_match');
+    is($m->customer->{irritation}, 0, 'irritation still 0 after second mismatch');
+};
+
+# ── Selling Skill 3: reveal + 1.4x match multiplier ─────────────────
+
+subtest 'selling skill 3 reveals behavior and uses 1.4x multiplier' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0,
+        skill_selling => 3,
+    );
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'match-item-s3', char_id => 'char-1', artifact_id => 'thermal_box_001',
+        behaviors => ['thermal'], decayed_value => 20, original_value => 20,
+    );
+
+    my $begin_result = $m->dispatch($char, 'begin');
+    ok(exists $begin_result->{view}{customer}{revealed_behavior},
+        'revealed_behavior is present with sell 3');
+
+    # Force customer to want 'thermal' so match is deterministic
+    $m->customer->{desired_behaviors} = ['thermal'];
+
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'match-item-s3');
+    is($result->{view}{result}, 'sold', 'match -> sold');
+    # decayed=20, base_mult=1.1, match_mult=1.4 (sell 3) => int(20 * 1.1 * 1.4) = 28 (floating point)
+    ok($result->{view}{value} > 22, '1.4x match multiplier applied (value > default 1.1*1.2=26.4)');
+};
+
+# ── Customer storms off ─────────────────────────────────────────────
+
+subtest 'customer storms off when irritation exceeds threshold' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0,
+    );
+
+    my $shed = $m->app->shed;
+    for my $i (1 .. 6) {
+        $shed->create(
+            id => "storm-item-$i", char_id => 'char-1', artifact_id => 'unknown',
+            behaviors => ['force'], decayed_value => 10, original_value => 10,
+        );
+    }
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 0.0;
+    $m->customer->{irritation_threshold} = 5;
+
+    my $stormed = 0;
+    for my $i (1 .. 6) {
+        srand(42);
+        my $r = $m->dispatch($char, 'offer', shed_item_id => "storm-item-$i");
+        if ($r->{view}{result} eq 'customer_left') {
+            $stormed = 1;
+            is($r->{view}{message}, 'The Syndicate storms off in frustration.',
+                'correct storm-off message');
+            last;
+        }
+    }
+    ok($stormed, 'customer eventually storms off');
+};
+
+# ── Evolved item standing bonus ─────────────────────────────────────
+
+subtest 'evolved item gives +1 standing bonus on sale' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0,
+    );
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'evolved-item', char_id => 'char-1', artifact_id => 'thermal_box_001',
+        behaviors => ['thermal'], decayed_value => 20, original_value => 20,
+        has_evolved => 1,
+    );
+
+    $m->dispatch($char, 'begin');
+
+    # Force customer to want 'thermal' so match is deterministic
+    $m->customer->{desired_behaviors} = ['thermal'];
+
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'evolved-item');
+
+    is($result->{view}{result}, 'sold', 'evolved match -> sold');
+    # match = +2, evolved = +1 => total +3
+    is((values %{ $char->{standing} })[0], 3, 'standing +3 on evolved match (2 + 1)');
+};
+
 subtest 'send_away returns to idle' => sub {
     my $content_file = _make_content_file();
     my $m            = _make_singleton($content_file);

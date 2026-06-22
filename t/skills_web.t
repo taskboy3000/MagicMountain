@@ -1,0 +1,142 @@
+use Modern::Perl;
+use Test::More;
+use Test::Mojo;
+use File::Temp qw(tempdir);
+use File::Slurp qw(write_file);
+use FindBin;
+use lib ("$FindBin::Bin/../lib");
+
+use MagicMountain::Model::Account;
+use MagicMountain::Model::Character;
+use MagicMountain::Model::Season;
+
+sub setup {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'player');
+    $a->save;
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'player', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 100, action_points => 15, action_points_max => 15,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
+    return $t;
+}
+
+subtest 'unauthenticated redirects' => sub {
+    my $t = setup;
+    $t->delete_ok('/sessions')->status_is(200);
+    $t->get_ok('/skills')
+      ->status_is(302)
+      ->header_like(Location => qr{/login});
+    $t->post_ok('/skills/purchase')
+      ->status_is(302)
+      ->header_like(Location => qr{/login});
+};
+
+subtest 'index — lists skills with current levels' => sub {
+    my $t = setup;
+    $t->get_ok('/skills')
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_has('/skills')
+      ->json_is('/skills/0/id' => 'prospecting')
+      ->json_is('/skills/0/current_level' => 0)
+      ->json_is('/skills/1/id' => 'upcycling')
+      ->json_is('/skills/1/current_level' => 0)
+      ->json_is('/skills/2/id' => 'selling')
+      ->json_is('/skills/2/current_level' => 0);
+};
+
+subtest 'purchase — missing skill_id dies' => sub {
+    my $t = setup;
+    $t->post_ok('/skills/purchase', json => {})
+      ->status_is(500);
+};
+
+subtest 'purchase — unknown skill_id dies' => sub {
+    my $t = setup;
+    $t->post_ok('/skills/purchase', json => { skill_id => 'nonexistent' })
+      ->status_is(500);
+};
+
+subtest 'purchase — insufficient scrap dies' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'player');
+    $a->save;
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'player', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
+    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+      ->status_is(500);
+};
+
+subtest 'purchase — already at max dies' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'player');
+    $a->save;
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'player', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 999, action_points => 15, action_points_max => 15,
+        skill_prospecting => 3,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
+    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+      ->status_is(500);
+};
+
+subtest 'purchase — success deducts scrap and increases level' => sub {
+    my $t = setup;
+    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_is('/player/scrap' => 90)
+      ->json_is('/player/score' => 0);
+
+    $t->get_ok('/skills')
+      ->status_is(200)
+      ->json_is('/skills/0/id' => 'prospecting')
+      ->json_is('/skills/0/current_level' => 1);
+
+    # Buy level 2 (cost 25)
+    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_is('/player/scrap' => 65);
+
+    $t->get_ok('/skills')
+      ->json_is('/skills/0/current_level' => 2);
+
+    # Buy level 3 (cost 50)
+    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+      ->status_is(200);
+    $t->get_ok('/skills')
+      ->json_is('/skills/0/current_level' => 3);
+};
+
+done_testing;

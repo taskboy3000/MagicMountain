@@ -8,15 +8,13 @@ use lib ("$FindBin::Bin/../lib");
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
+use MagicMountain::Model::Season;
 
 sub setup {
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
-    write_file("$dataDir/accounts.json",    '{}');
-    write_file("$dataDir/characters.json",  '{}');
-    write_file("$dataDir/sessions.json",    '{}');
-    write_file("$dataDir/activities.json",  '{}');
-    write_file("$dataDir/seasons.json",     '{"s1": {"id":"s1","label":"Test","status":"active","day":1,"length":30}}');
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
 
     my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
     my $a = $accts->create(username => 'player');
@@ -67,11 +65,9 @@ subtest 'push — advances artifact' => sub {
 subtest 'begin picks active-season character over orphaned character' => sub {
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
-    write_file("$dataDir/accounts.json",   '{}');
-    write_file("$dataDir/characters.json", '{}');
-    write_file("$dataDir/sessions.json",   '{}');
-    write_file("$dataDir/activities.json", '{}');
-    write_file("$dataDir/seasons.json",    '{"s0":{"id":"s0","label":"Old","status":"archived","day":30},"s1":{"id":"s1","label":"Current","status":"active","day":1,"length":30}}');
+    my $seasons = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
+    $seasons->create(id => 's0', label => 'Old', status => 'archived', day => 30, length => 30)->save;
+    $seasons->create(id => 's1', label => 'Current', status => 'active', day => 1, length => 30)->save;
 
     my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
     my $a = $accts->create(username => 'player');

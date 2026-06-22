@@ -1,20 +1,32 @@
 use Modern::Perl;
 use Test::More;
 use File::Temp qw(tempdir);
-use File::Slurp qw(write_file);
 use FindBin;
 use lib ("$FindBin::Bin/../lib");
+
+use MagicMountain::Model::Season;
+
+subtest 'season with zero characters' => sub {
+    my $data_dir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $data_dir;
+    $ENV{MM_SKIP_SEASON_CHECK} = 1;
+    MagicMountain::Model::Season->new(file => "$data_dir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 15, length => 30)->save;
+
+    use MagicMountain;
+    my $app = MagicMountain->new;
+    $app->startup;
+    $app->commands->run('end_season');
+    $app->seasons->load;
+    is($app->seasons->get('s1')->getCol('status'), 'archived', 'empty season archived');
+};
 
 my $data_dir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $data_dir;
 $ENV{MM_SKIP_SEASON_CHECK} = 1;
 
-write_file("$data_dir/accounts.json",   '{}');
-write_file("$data_dir/characters.json", '{}');
-write_file("$data_dir/sessions.json",   '{}');
-write_file("$data_dir/activities.json", '{}');
-write_file("$data_dir/shed.json",       '{}');
-write_file("$data_dir/seasons.json",    '{"s1":{"id":"s1","label":"Test","status":"active","day":15,"length":30}}');
+MagicMountain::Model::Season->new(file => "$data_dir/seasons.json")
+    ->create(id => 's1', label => 'Test', status => 'active', day => 15, length => 30)->save;
 
 use MagicMountain::Model::Character;
 use MagicMountain::Model::ShedItem;

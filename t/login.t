@@ -36,7 +36,6 @@ sub audit_has {
 
 my $dataDir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $dataDir;
-write_file("$dataDir/accounts.json", '{}');
 
 my $account = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
 my $alice = $account->create(username => 'alice');
@@ -82,6 +81,17 @@ subtest 'POST /sessions with unknown name auto-creates account' => sub {
       'audit log has login event for auto-created account';
 };
 
+subtest 'disabled account rejected' => sub {
+    my $data_dir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $data_dir;
+    my $accts = MagicMountain::Model::Account->new(file => "$data_dir/accounts.json");
+    $accts->create(id => 'a1', username => 'locked', disabled => 1)->save;
+    my $t2 = Test::Mojo->new('MagicMountain');
+    $t2->post_ok('/sessions', json => { displayName => 'locked' })
+      ->status_is(403)
+      ->json_is('/error' => 'Account is disabled');
+};
+
 subtest 'POST /sessions without displayName' => sub {
     $t->post_ok('/sessions', json => {})
       ->status_is(400)
@@ -93,6 +103,23 @@ subtest 'DELETE /sessions logs out' => sub {
     $t->delete_ok('/sessions')
       ->status_is(200)
       ->json_is('/ok' => 1);
+};
+
+subtest 'existing session touched on re-login' => sub {
+    my $t2 = Test::Mojo->new('MagicMountain');
+    $t2->post_ok('/sessions', json => { displayName => 'alice' })
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+};
+
+subtest 'logout redirects to login form' => sub {
+    my $dataDir2 = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir2;
+    my $t2 = Test::Mojo->new('MagicMountain');
+    $t2->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
+    $t2->get_ok('/logout')
+      ->status_is(302)
+      ->header_like(Location => qr{/login});
 };
 
 done_testing;

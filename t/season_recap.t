@@ -8,20 +8,15 @@ use lib ("$FindBin::Bin/../lib");
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
+use MagicMountain::Model::Season;
 use MagicMountain::Model::SeasonRecord;
 
 my $data_dir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $data_dir;
 
 # Pre-seed: archived season + season record for player
-write_file("$data_dir/accounts.json",   '{}');
-write_file("$data_dir/characters.json", '{}');
-write_file("$data_dir/sessions.json",   '{}');
-write_file("$data_dir/activities.json", '{}');
-write_file("$data_dir/shed.json",       '{}');
-write_file("$data_dir/season_records.json", '{}');
-write_file("$data_dir/dispositions.json", '{}');
-write_file("$data_dir/seasons.json", '{"s1":{"id":"s1","label":"Season 1","status":"archived","day":30,"length":30}}');
+MagicMountain::Model::Season->new(file => "$data_dir/seasons.json")
+    ->create(id => 's1', label => 'Season 1', status => 'archived', day => 30, length => 30)->save;
 
 # Create a player account
 my $accts = MagicMountain::Model::Account->new(file => "$data_dir/accounts.json");

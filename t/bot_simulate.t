@@ -13,12 +13,6 @@ my $data_dir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $data_dir;
 $ENV{MM_SKIP_SEASON_CHECK} = 1;
 
-write_file("$data_dir/accounts.json",   '{}');
-write_file("$data_dir/characters.json", '{}');
-write_file("$data_dir/sessions.json",   '{}');
-write_file("$data_dir/activities.json", '{}');
-write_file("$data_dir/shed.json",       '{}');
-write_file("$data_dir/seasons.json",    '{}');
 write_file("$data_dir/transcript.jsonl", '');
 
 # Use the Mojo test app to simulate

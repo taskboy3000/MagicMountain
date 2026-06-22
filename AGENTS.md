@@ -11,8 +11,8 @@ extract strange artifacts from a mysterious mountain, destabilize ("push") them
 for greater value (risking catastrophic collapse), and sell to competing
 factions. Each ~30 day season is a tournament: highest cumulative score wins.
 
-**Core loop**: Prospect → Push (repeat) → Stop → Choose buyer → Repeat until
-out of turns → Day rollover → Season ends.
+**Core loop**: Prospect → Push (repeat) → Stop → Sell at Bazaar → Repeat until
+out of AP → Day rollover → Season ends.
 
 This is a ground-up reimplementation following the architecture spec in
 `GAME_ARCHITECTURE.md`.
@@ -25,47 +25,94 @@ This is a ground-up reimplementation following the architecture spec in
 magic_mountain/
 ├── AGENTS.md                      # This file — project guide for AI agents
 ├── GAME_ARCHITECTURE.md           # Target architecture spec (authoritative)
+├── FUTURES.md                     # Planned work beyond current implementation
 ├── Makefile                       # test, cover, indent targets
 ├── cpanfile                       # Perl dependencies (Mojolicious, YAML::XS, etc.)
 ├── magic_mountain.yml             # App config (secrets, session_timeout_minutes, end_of_day_hour)
 │
-├── lib/                           # NEW CODEBASE (under construction)
-│   ├── MagicMountain.pm           # Mojolicious app: routes, helpers, attributes
+├── lib/
+│   ├── MagicMountain.pm              # Mojolicious app: routes, helpers, attributes
 │   └── MagicMountain/
-│       ├── Controller.pm            # Base controller (empty, inherits Mojolicious::Controller)
-│       ├── Controller/Root.pm       # Gateway redirect (GET / → /login or /game)
-│       ├── Controller/Sessions.pm   # Login form, login, logout, session management
-│       ├── Controller/Player.pm     # Current player info (GET /player)
-│       ├── Controller/Game.pm       # Game state page (GET /game)
-│       ├── Model.pm                 # Base persistence class (JSON file CRUD, UUID, find)
-│   ├── Model/Account.pm         # Player accounts (username, password)
-│   ├── Model/AuditLog.pm        # JSONL event log (login, logout, account creation)
-│   ├── Model/Character.pm       # Per-season character (name, score, account_id)
-│   ├── Model/Season.pm          # Season config (length, day, end_of_day_hour)
-│   ├── Model/HallOfFame.pm      # Hall of Fame entries
-│   ├── Model/Session.pm         # Server-side session tracking (player_id, last_active)
-│   └── Command/
-│       ├── create_account.pm    # CLI: create-account --name <username>
-│       ├── delete_account.pm    # CLI: delete-account --name <username>
-│       ├── disable_account.pm   # CLI: disable-account --name <username>
-│       └── list_accounts.pm     # CLI: list-accounts (with online/offline status)
+│       ├── Controller.pm                # Base controller
+│       ├── Controller/Root.pm           # Gateway redirect (GET / → /login or /game)
+│       ├── Controller/Sessions.pm       # Login/logout, session management
+│       ├── Controller/Player.pm         # Current player info (GET /player)
+│       ├── Controller/Game.pm           # Game state page (GET /game)
+│       ├── Controller/Prospecting.pm    # Prospecting actions (begin, push, stop)
+│       ├── Controller/Market.pm         # MarketVisit actions (begin, offer, send_away)
+│       ├── Controller/Shed.pm           # Shed inventory listing
+│       ├── Controller/Skills.pm         # Skill purchase endpoint
+│       ├── Controller/Leaderboard.pm    # Season leaderboard
+│       ├── Model.pm                     # Base persistence class (JSON file CRUD, UUID, find)
+│       ├── Model/Account.pm             # Player accounts (username, password)
+│       ├── Model/AuditLog.pm            # JSONL event log
+│       ├── Model/Character.pm           # Per-season character (name, score, AP, skills)
+│       ├── Model/Season.pm              # Season config and state
+│       ├── Model/Session.pm             # Server-side session tracking
+│       ├── Model/HallOfFame.pm          # Hall of Fame entries
+│       ├── Model/ShedItem.pm            # Shed artifact inventory row
+│       ├── Model/ArtifactDisposition.pm # Per-sale permanent record
+│       ├── Model/Transcript.pm          # Game event log
+│       ├── Model/SeasonRecord.pm        # Post-season archive
+│       ├── Activity.pm                  # Base class for state-machine activities
+│       ├── Activity/Prospecting.pm      # Artifact draw, push/collapse/breakthrough, stop
+│       ├── Activity/MarketVisit.pm      # Customer generation, negotiation, sale
+│       ├── Maintenance.pm               # In-process daily maintenance timer
+│       ├── ShedManager.pm               # Artifact decay logic
+│       ├── Crier.pm                     # Town Crier narrative generation
+│       └── Command/
+│           ├── create_account.pm        # CLI: create-account
+│           ├── delete_account.pm        # CLI: delete-account
+│           ├── disable_account.pm       # CLI: disable-account
+│           ├── list_accounts.pm         # CLI: list-accounts
+│           ├── advance_day.pm           # CLI: advance-day (manual maintenance trigger)
+│           ├── create_season.pm         # CLI: create-season
+│           ├── end_season.pm            # CLI: end-season (finalization)
+│           └── simulate.pm              # CLI: run bot simulation
 │
 ├── templates/
 │   ├── layouts/default.html.ep    # Bootstrap 5 layout wrapper
-│   ├── sessions/new.html.ep       # Login form with vanilla JS fetch
-│   └── game/show.html.ep          # Authenticated home page with season info
+│   ├── sessions/new.html.ep       # Login form
+│   └── game/show.html.ep          # Authenticated home page with game state
 │
-├── public/css/                    # Frontend assets (currently empty)
-├── public/js/
+├── public/css/                    # Frontend assets (placeholder)
+├── public/js/                     # Frontend assets (placeholder)
 │
-├── t/                             # Test suite
+├── content/                       # YAML content definitions
+│   ├── prospecting.yml            # Artifact specs and weights
+│   ├── factions.yml               # Faction definitions and interests
+│   └── skills.yml                 # Skill tree and costs
+│
+├── t/                             # Test suite (29 files, 253 tests)
 │   ├── model.t                    # Base Model class tests
 │   ├── model_account.t            # Account model tests
 │   ├── model_character.t          # Character model tests
+│   ├── model_character_invariants.t
 │   ├── model_season.t             # Season model tests
+│   ├── model_shed_item.t
+│   ├── model_artifact_disposition.t
 │   ├── model_hall_of_fame.t       # Hall of Fame model tests
+│   ├── model_delete.t
+│   ├── model_validate.t
+│   ├── model_save_table_edit.t
+│   ├── session.t                  # Session lifecycle tests
 │   ├── login.t                    # Login flow integration tests
-│   └── session.t                  # Session lifecycle tests (create, touch, expire, logout)
+│   ├── activity.t                 # Activity base class tests
+│   ├── activity_prospecting.t     # Prospecting unit tests
+│   ├── market_visit.t             # MarketVisit unit tests
+│   ├── prospecting_web.t          # Prospecting web integration tests
+│   ├── market_visit_web.t         # MarketVisit web integration tests
+│   ├── shed.t                     # ShedManager tests
+│   ├── decay.t                    # Artifact decay tests
+│   ├── crier.t                    # Crier narrative tests
+│   ├── maintenance.t              # Daily maintenance tests
+│   ├── transcript.t               # Transcript tests
+│   ├── faction_state.t            # Faction state tests
+│   ├── leaderboard.t              # Leaderboard tests
+│   ├── end_season.t               # Season finalization tests
+│   ├── season_recap.t             # Season recap display tests
+│   ├── bot_simulate.t             # Bot simulation tests
+│   └── command_advance_day.t      # advance-day CLI tests
 │
 ├── design_docs/                   # Obsidian design vault
 │   ├── Core Design.md             # Game vision, premise, philosophy
@@ -80,34 +127,41 @@ magic_mountain/
 
 ---
 
-## Current Status: Early Rebuild
+## Current Status: Complete Core Implementation
 
-The new codebase has the persistence layer, authentication, session management,
-and character creation. Game logic (Engine, Prospecting, Market, Factions, Bot)
-has not been ported yet — implementation pending.
+The entire core game loop is implemented and tested:
 
 | Layer | Status | Files |
 |-------|--------|-------|
 | App shell | Done | `MagicMountain.pm`, `Controller.pm`, `Controller/Root.pm` |
-| Persistence | Done | `Model.pm` + Account, AuditLog, Character, Season, HallOfFame, Session |
+| Persistence | Done | `Model.pm` + all Model::* subclasses |
 | Auth/Sessions | Done | `Controller/Sessions.pm`, `Controller/Player.pm`, `Model/Session.pm` |
-| CLI commands | Done | `create_account.pm`, `delete_account.pm`, `disable_account.pm`, `list_accounts.pm` |
-| Web UI | Done | Login form, game page with season info, player JSON endpoint |
-| Game engine | TODO | |
-| Activities | TODO | |
-| Market/Factions | TODO | |
+| CLI commands | Done | 8 commands (account management, season lifecycle, simulation) |
+| Web UI | Done | Login, game state, prospecting, market, shed, skills, leaderboard |
+| Prospecting | Done | `Activity/Prospecting.pm`, `Controller/Prospecting.pm` |
+| MarketVisit | Done | `Activity/MarketVisit.pm`, `Controller/Market.pm` |
+| Shed / Decay | Done | `ShedManager.pm`, `Model/ShedItem.pm`, `Controller/Shed.pm` |
+| Daily Maintenance | Done | `Maintenance.pm` (in-process timer, AP refresh, decay, Crier) |
+| Faction System | Done | YAML-driven factions, standing, influence, Crier |
+| Skills | Done | `Controller/Skills.pm`, `content/skills.yml` |
+| Season Lifecycle | Done | CLI create/end, auto-creation, recap, Hall of Fame |
+| Bot Simulation | Done | `Command/simulate.pm`, `t/bot_simulate.t` |
 
-### Infrastructure Backlog
+### Known Gaps
 
-Deferred until later in development:
+See `FUTURES.md` for detailed categorization. Summary:
 
-| Concern | Priority | Notes |
-|---------|----------|-------|
-| Password/email auth | Medium | Current name-only auth is fine for alpha. Email verification flow planned post-MVP. |
-| CSRF protection | Medium | Mojo has `csrf_protect` plugin. Needed before accepting writes from real users. |
-| Rate limiting | Medium | Brute-force prevention on login. Mojo `under` hooks can count attempts. |
-| HTTPS enforcement | Low | Required for production. Handled at reverse proxy (nginx) or via Mojo config. |
-| Filesystem persistence | Low | JSON files work for single-server dev. MariaDB migration planned (GAME_ARCHITECTURE.md §18.2). |
+| Item | Status |
+|------|--------|
+| Game activities (Prospecting, Market) | **Done** |
+| Daily maintenance | **Done** |
+| Factions + Crier | **Done** |
+| Season finalization | **Done** (CLI only, no web UI) |
+| Bot simulation | **Done** (single hardcoded strategy) |
+| Commission system (§7.3) | Not implemented |
+| Market dynamics (§6.7) | Not implemented |
+| MariaDB migration | Deferred |
+| CSRF / rate limiting / password auth | Deferred for alpha |
 
 ---
 
@@ -120,6 +174,8 @@ perl -Ilib script/mountain daemon
 # CLI commands
 perl -Ilib script/mountain create-account --name alice
 perl -Ilib script/mountain list-accounts
+perl -Ilib script/mountain simulate --players 10 --days 5
+perl -Ilib script/mountain end-season
 ```
 
 ## Testing
@@ -129,7 +185,7 @@ perl -Ilib script/mountain list-accounts
 prove -l t/
 
 # Run specific test
-prove -lv t/session.t
+prove -lv t/prospecting_web.t
 ```
 
 ---
@@ -140,7 +196,7 @@ prove -lv t/session.t
 |-------|-----------|
 | Web framework | Mojolicious 9.40+ (Perl) |
 | Persistence | JSON files with atomic write-via-temp-file + flock |
-| Config | YAML (`magic_mountain.yml`) |
+| Config | YAML (`magic_mountain.yml`, `content/*.yml`) |
 | Frontend | Bootstrap 5.3 CDN, vanilla JS |
 | Testing | Test::More, Test::Mojo |
 | Perl | 5.28+ with signatures (`-signatures`) |
@@ -152,48 +208,28 @@ prove -lv t/session.t
 - **Models**: Subclass `MagicMountain::Model`. Declare `columns`, use
   `getCol`/`setCol` accessors. Persist with `save()`, load with `load()`,
   query with `find()`.
-- **Controllers**: Subclass `MagicMountain::Controller`. Return JSON for API
-  endpoints. Use `$self->session(playerId => ...)` for auth.
+- **Activities**: Subclass `MagicMountain::Activity`. Declare `transitions`,
+  implement one handler per action. Dispatch via `$activity->dispatch($char, $action)`.
+  Handlers own all persistence (saves, deletes, FK management).
+- **Controllers**: Return JSON. Use `$self->session(playerId => ...)` for auth.
+  Dumb pipes — call `dispatch`, pipe `view` to template.
 - **Commands**: Subclass `Mojolicious::Command`. Register namespace in
   `MagicMountain.pm`.
 - **Config**: Add defaults in `MagicMountain.pm` → `defaultConfig`. Override
   in `magic_mountain.yml`. `end_of_day_hour` is 0–23 (midnight default).
 - **Tests**: Use `Test::Mojo` for integration. Use `tempdir(CLEANUP => 1)`
-  with `$ENV{MM_DATA_DIR}` for isolated state. Pre-populate JSON files as needed.
-
----
-
-## Local LLM Delegation
-
-The cloud model delegates mechanical work to local Ollama subagents running on
-`10.0.0.121:11434`. This reduces cost without sacrificing quality by applying
-strict gates to all local output.
-
-### When to delegate
-
-| Delegate to local | Keep on cloud |
-|---|---|
-| Single-file mechanical edits | Multi-file architectural changes |
-| Boilerplate (new Model, Controller, Command) | Boundary rule interactions (`.opencode/rules/`) |
-| Test scaffolding and data generation | Complex debugging |
-| POD/documentation drafting | Design critique |
-| HTML/CSS markup changes | Implementation planning |
-| Summarizing existing modules | Feature design |
-
-### Local subagents
-
-| Agent | Model | Writes? | Purpose |
-|-------|-------|---------|---------|
-| `plan` | ollama/qwen3:8b | No | Implementation planning |
-| `local-coder` | ollama/qwen3.6:27b | Yes | Mechanical edits, boilerplate, test scaffolding |
-| `local-review` | ollama/qwen3:8b | No | Test planning, naming review, syntax/POD checks |
-
-### Quality gates for local output
-
-1. **Syntax**: Run `perl -c` on every local-generated `.pm`/`.pl`/`.t` file before acceptance
-2. **Tests**: Run `prove -l t/` after any local-generated change
-3. **Escalation**: If a local task fails 2+ attempts, escalate to the cloud model
-4. **Code review**: The cloud model sanity-checks local subagent results before committing
+  with `$ENV{MM_DATA_DIR}` for isolated state.
+- **Test data seeding**: Never write JSON files directly (`write_file` to
+  `*.json`). Always use Model objects (`->create`, `->save`) to set up
+  test state. This ensures tests work across persistence backends and
+  exercises the Model API.
+- **Formatting**: Run `make indent && make clean` before every commit to ensure
+  consistent perltidy formatting.
+- **Fix bad patterns on sight**: LLMs reproduce the patterns they see in the
+  current codebase. When you encounter a suboptimal pattern (e.g., raw JSON
+  writes, copy-pasted boilerplate, inconsistent naming, missing tests), fix it
+  immediately rather than replicating it or leaving a TODO. Every bad pattern
+  left in place compounds — it becomes the template for the next change.
 
 ---
 

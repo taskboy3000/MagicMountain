@@ -99,4 +99,119 @@ YAML
     like($msg, qr/SURGE/, 'faction surge overrides daily_progress');
 };
 
+# ── Milestone threshold ────────────────────────────────────────────
+
+subtest 'milestone on artifact receipt threshold crossing' => sub {
+    my $c = _make_crier(<<'YAML');
+crier_messages:
+  milestone:
+    - "{faction} received {count} artifacts!"
+  generic:
+    - "generic"
+YAML
+    my $season = _make_season(
+        day => 10,
+        faction_state => {
+            syndicate => { name => 'Syndicate', influence => 50, artifacts_received => 10 },
+        },
+        crier_snapshot => {
+            syndicate => { name => 'Syndicate', influence => 30, artifacts_received => 9 },
+        },
+    );
+    my $msg = $c->generate($season);
+    like($msg, qr/received/, 'milestone fires at 10 threshold');
+};
+
+subtest 'milestone at 25 threshold' => sub {
+    my $c = _make_crier(<<'YAML');
+crier_messages:
+  milestone:
+    - "{faction} milestone!"
+  generic:
+    - "generic"
+YAML
+    my $season = _make_season(
+        day => 10,
+        faction_state => {
+            syndicate => { name => 'Syndicate', influence => 100, artifacts_received => 25 },
+        },
+        crier_snapshot => {
+            syndicate => { name => 'Syndicate', influence => 80, artifacts_received => 24 },
+        },
+    );
+    my $msg = $c->generate($season);
+    like($msg, qr/milestone/, 'milestone at 25 threshold');
+};
+
+# ── Slump ──────────────────────────────────────────────────────────
+
+subtest 'slump detected when influence unchanged but had prior activity' => sub {
+    my $c = _make_crier(<<'YAML');
+crier_messages:
+  faction_slump:
+    - "SLUMP: {faction}"
+  generic:
+    - "generic"
+YAML
+    my $season = _make_season(
+        day => 10,
+        faction_state => {
+            syndicate => { name => 'Syndicate', influence => 50, artifacts_received => 5 },
+        },
+        crier_snapshot => {
+            syndicate => { name => 'Syndicate', influence => 50, artifacts_received => 5 },
+        },
+    );
+    my $msg = $c->generate($season);
+    like($msg, qr/SLUMP/, 'slump detected when influence unchanged and prev_recv > 0');
+};
+
+# ── Leadership change ──────────────────────────────────────────────
+
+subtest 'faction dominance on leadership change' => sub {
+    my $c = _make_crier(<<'YAML');
+crier_messages:
+  faction_dominance:
+    - "{faction} takes the lead!"
+  generic:
+    - "generic"
+YAML
+    my $season = _make_season(
+        day => 10,
+        faction_state => {
+            syndicate => { name => 'Syndicate', influence => 100, artifacts_received => 10 },
+            faculty   => { name => 'Faculty',   influence => 80,  artifacts_received => 5 },
+        },
+        crier_snapshot => {
+            syndicate => { name => 'Syndicate', influence => 40, artifacts_received => 5 },
+            faculty   => { name => 'Faculty',   influence => 80,  artifacts_received => 5 },
+        },
+    );
+    my $msg = $c->generate($season);
+    like($msg, qr/lead/, 'dominance on leadership change');
+};
+
+# ── Interpolation fallback ─────────────────────────────────────────
+
+subtest 'unknown param preserved literally' => sub {
+    my $c = _make_crier(<<'YAML');
+crier_messages:
+  faction_surge:
+    - "{faction} gained {unknown_param}!"
+  generic:
+    - "generic"
+YAML
+    my $season = _make_season(
+        day => 10,
+        faction_state => {
+            syndicate => { name => 'Syndicate', influence => 50, artifacts_received => 5 },
+        },
+        crier_snapshot => {
+            syndicate => { name => 'Syndicate', influence => 30, artifacts_received => 3 },
+        },
+    );
+    my $msg = $c->generate($season);
+    like($msg, qr/{unknown_param}/, 'unknown param preserved as literal');
+};
+
 done_testing;

@@ -8,14 +8,13 @@ use lib ("$FindBin::Bin/../lib");
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
+use MagicMountain::Model::Season;
 
 my $dataDir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $dataDir;
 
-write_file("$dataDir/accounts.json",   '{}');
-write_file("$dataDir/characters.json", '{}');
-write_file("$dataDir/sessions.json",   '{}');
-write_file("$dataDir/seasons.json",    '{"s1":{"id":"s1","label":"Test","status":"active","day":1,"length":30}}');
+MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+    ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
 
 my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
 my $a = $accts->create(username => 'player');

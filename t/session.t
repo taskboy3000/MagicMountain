@@ -37,7 +37,6 @@ sub audit_has {
 
 my $dataDir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $dataDir;
-write_file("$dataDir/accounts.json", '{}');
 
 my $account = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
 my $alice = $account->create(username => 'alice');

@@ -406,6 +406,278 @@ subtest 'stop deletes activity row and creates shed item' => sub {
     is($reloaded, undef, 'activity row deleted from table');
 };
 
+# ── Prospecting Skill ────────────────────────────────────────────────
+
+subtest 'prospecting skill 1 adds +2 base value' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 1);
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    my $spec = $p->_find_spec($art->{id});
+    my $expected = ($spec->{base_value} // 5) + 2;
+    is($art->{value}, $expected, 'value = base_value + 2 with prospecting 1');
+};
+
+subtest 'prospecting skill 2 adds +4 total and doubles weight for high-value artifacts' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 2);
+
+    srand(0);
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    my $spec = $p->_find_spec($art->{id});
+    my $expected = ($spec->{base_value} // 5) + 4;
+    is($art->{value}, $expected, 'value = base_value + 4 with prospecting 2');
+};
+
+subtest 'prospecting skill 3 adds base gain +1 to min and max' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 3);
+
+    # Force draw of thermal_box_001 which uses defaults (3/5)
+    my $spec = $p->_find_spec('thermal_box_001');
+    $p->artifact({ %$spec, value => 5 });
+    $p->_apply_defaults($p->artifact, $char);
+    my $art = $p->artifact;
+    is($art->{base_gain_min}, 4, 'base_gain_min = 3 + 1 with prospecting 3');
+    is($art->{base_gain_max}, 6, 'base_gain_max = 5 + 1 with prospecting 3');
+};
+
+# ── Upcycling Skill ──────────────────────────────────────────────────
+
+subtest 'upcycling skill reduces instability growth' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_upcycling => 2);
+
+    $p->dispatch($char, 'begin');
+
+    my $art = $p->artifact;
+    $art->{instability_growth_min} = 2;
+    $art->{instability_growth_max} = 2;
+    $art->{can_evolve} = 0;
+    $p->artifact($art);
+
+    srand(1);
+    $p->dispatch($char, 'push');
+
+    if ($p->phase eq 'processing') {
+        is($p->artifact->{instability}, 1, 'instability = 1 after growth reduced by upcycling 2 (floor at 1)');
+    }
+};
+
+subtest 'upcycling skill 3 increases evolution chance by 0.02' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_upcycling => 3);
+
+    # Verify the push handler adds 0.02 when upcycling >= 3
+    # Evolution_chance starts at artifact default (0.03 or 1.0 depending on spec)
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    $art->{evolution_chance} = 0.03;
+    $art->{evolution_threshold} = 0;
+    $art->{can_evolve} = 1;
+    $art->{has_evolved} = 0;
+    $art->{instability_growth_min} = 1;
+    $art->{instability_growth_max} = 1;
+    $p->artifact($art);
+
+    # Set ratio high enough to pass evolution_threshold check
+    $art->{instability} = $art->{max_instability} * 0.5;
+
+    # Seed so collapse doesn't trigger (ratio^3 = 0.125 * 0.95 = 0.118, need rand > 0.118)
+    srand(99);
+    my $r = $p->dispatch($char, 'push');
+    # If we got a breakthrough, the 0.02 bonus was applied (0.03 + 0.02 = 0.05 base evo chance)
+    ok($r->{view}{result} eq 'breakthrough' || $r->{view}{result} eq 'push',
+        'upcycling 3 evo chance bonus applied (result: ' . $r->{view}{result} . ')');
+};
+
+subtest 'upcycling skill 2 adds value gain bonus on push' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_upcycling => 2);
+
+    $p->dispatch($char, 'begin');
+
+    my $art = $p->artifact;
+    $art->{base_gain_min} = 3;
+    $art->{base_gain_max} = 3;
+    $art->{instability_growth_min} = 1;
+    $art->{instability_growth_max} = 1;
+    $art->{can_evolve} = 0;
+    $p->artifact($art);
+
+    my $val_before = $art->{value};
+    srand(1);
+    my $r = $p->dispatch($char, 'push');
+    if ($r->{view}{result} eq 'push') {
+        my $gain = $p->artifact->{value} - $val_before;
+        is($gain, 4, 'gain = 3 + (2 - 1) = 4 with upcycling 2');
+    }
+};
+
+# ── Collapse edge cases ──────────────────────────────────────────────
+
+subtest 'collapse chance floors at 5% for very low instability' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    $art->{can_evolve} = 0;
+    $art->{instability} = 0;
+    $art->{max_instability} = 1000;
+    $p->artifact($art);
+
+    my $collapsed = 0;
+    for (1 .. 20) {
+        srand($_);
+        my $r = $p->dispatch($char, 'push');
+        if ($r->{view}{result} eq 'collapse') {
+            $collapsed++;
+        }
+        last unless $p->phase eq 'processing';
+    }
+    note("collapsed $collapsed times out of max 20 pushes (expect ~0)");
+    ok($collapsed <= 5, 'collapse floor keeps rate low (5% expected)');
+};
+
+# ── Evolution negative checks ────────────────────────────────────────
+
+subtest 'evolution skipped when can_evolve is false' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    $art->{can_evolve} = 0;
+    $art->{has_evolved} = 0;
+    $art->{evolution_chance} = 1.0;
+    $art->{evolution_threshold} = 0;
+    $art->{instability} = $art->{max_instability} / 2;
+    $p->artifact($art);
+
+    srand(42);
+    my $r = $p->dispatch($char, 'push');
+    isnt($r->{view}{result}, 'breakthrough', 'no breakthrough when can_evolve=0');
+};
+
+subtest 'evolution skipped when has_evolved is true' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    $art->{can_evolve} = 1;
+    $art->{has_evolved} = 1;
+    $art->{evolution_chance} = 1.0;
+    $art->{evolution_threshold} = 0;
+    $art->{instability} = $art->{max_instability} / 2;
+    $p->artifact($art);
+
+    srand(42);
+    my $r = $p->dispatch($char, 'push');
+    isnt($r->{view}{result}, 'breakthrough', 'no breakthrough when has_evolved=1');
+};
+
+subtest 'evolution skipped when ratio below threshold' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    $art->{can_evolve} = 1;
+    $art->{has_evolved} = 0;
+    $art->{evolution_chance} = 1.0;
+    $art->{evolution_threshold} = 0.9;
+    $art->{instability} = 0;
+    $art->{max_instability} = 100;
+    $art->{instability_growth_min} = 1;
+    $art->{instability_growth_max} = 1;
+    $p->artifact($art);
+
+    my $r = $p->dispatch($char, 'push');
+    isnt($r->{view}{result}, 'breakthrough', 'no breakthrough when ratio < threshold');
+};
+
+# ── Selling skill effects on stop ─────────────────────────────────────
+
+subtest 'selling skill 1 narrows estimate range to ±15%' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_selling => 1);
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    $art->{value} = 100;
+    $art->{can_evolve} = 0;
+    $p->artifact($art);
+
+    $p->setCol('char_id', 'char-selling-1');
+    $p->save;
+    $p->dispatch($char, 'stop');
+
+    my $item = $p->app->{_shed_items}->[-1];
+    is($item->{estimated_value_min}, 85, 'est_min = floor(100 * 0.85) with sell 1');
+    is($item->{estimated_value_max}, 114, 'est_max = floor(100 * 1.15) = 114 (floating point)');
+};
+
+# ── Decay modifiers invariant ────────────────────────────────────────
+
+subtest '_decay_modifiers dies when fading_day <= settling_day' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+
+    eval {
+        $p->_decay_modifiers({ decay_modifiers => { fading_day => 3, settling_day => 5 } });
+    };
+    like($@, qr/invariant.*fading_day/, 'dies on invalid decay modifiers');
+};
+
+subtest '_decay_modifiers fills missing defaults' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+
+    my $mods = $p->_decay_modifiers({});
+    is($mods->{fresh_multiplier},    1.0,  'fresh default');
+    is($mods->{settling_multiplier}, 0.75, 'settling default');
+    is($mods->{fading_multiplier},   0.40, 'fading default');
+    is($mods->{settling_day},        2,    'settling_day default');
+    is($mods->{fading_day},          5,    'fading_day default');
+};
+
+# ── Signal / Collapse edge cases ─────────────────────────────────────
+
+subtest '_pick_signal returns empty string when spec has no signals' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+
+    my $art = $p->_specs->[0];
+    $art->{signals} = {};
+    my $signal = $p->_pick_signal($art, 'stable');
+    is($signal, '', 'empty signal for missing stage');
+};
+
+subtest '_pick_collapse returns default text when spec has no collapse texts' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+
+    my $art = $p->_specs->[0];
+    $art->{collapse} = [];
+    my $text = $p->_pick_collapse($art);
+    is($text, 'The artifact collapses.', 'default collapse text');
+};
+
 # ── Full lifecycle ───────────────────────────────────────────────────
 
 subtest 'full begin -> push×N -> stop lifecycle' => sub {

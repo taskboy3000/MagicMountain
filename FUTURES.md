@@ -4,6 +4,46 @@ Unfinished business and planned work beyond the current MVP.
 
 ---
 
+## MVP Categorization
+
+Based on `GAME_ARCHITECTURE.md` and current codebase state (core activities
+not yet implemented). See `AGENTS.md` for implementation status.
+
+| Category | Items |
+|----------|-------|
+| **Must-Have for MVP** | None. The real MVP blocker is building Prospecting, MarketVisit, Shed, and Maintenance. Everything in this doc is secondary. |
+| **Nice-to-Have Before Real Users** | CSRF protection, Season Finalization UI, Crier Narrative Expansion |
+| **Defer Past MVP** | MariaDB Migration, Market Dynamics (§6.7), Commission System (§7.3), Bot Policy Framework, MarketVisit Enhancements, Rate limiting / HTTPS / Password auth |
+
+### Nice-to-Have Before Real Users
+
+| Item | Effort | Why |
+|------|--------|-----|
+| CSRF protection | Low | Needed before accepting writes from real browsers |
+| Season Finalization UI | Low | CLI exists; a web button is cheap and closes the loop |
+| Crier Narrative Expansion | Low | Content-only, built on existing faction_state diffing |
+
+### Defer Past MVP
+
+| Item | Effort | Why |
+|------|--------|-----|
+| MariaDB Migration | High | JSON works for single-server; arch doc says post-MVP (§18.2) |
+| Market Dynamics (§6.7) | High | Explicitly "not required for initial implementation" |
+| Commission System (§7.3) | Medium | Requires data model + MarketVisit changes; post-MVP feature |
+| Bot Policy Framework (§14.1–14.2) | Medium | Current hardcoded strategy is sufficient for testing |
+| MarketVisit Enhancements (§6.5) | Low-Med | Basic one-shot flow works; multi-item/counter-offer is polish |
+| Rate limiting / HTTPS / Password auth | Low | Fine for alpha; deferred per AGENTS.md |
+
+---
+
+## Eliminate Direct JSON I/O in Tests — DONE
+
+All 12 test files have been fixed. Zero `write_file(*.json)` calls remain
+in the test suite. Tests now seed state exclusively through Model objects
+(`->create`, `->save`), keeping them portable across persistence backends.
+
+---
+
 ## MariaDB Migration
 
 JSON file persistence is the primary bottleneck for large-scale simulation
