@@ -1,6 +1,7 @@
 package MagicMountain::Activity::MarketVisit;
 use Modern::Perl;
 use Mojo::Base 'MagicMountain::Activity', '-signatures';
+use YAML::XS qw(LoadFile);
 
 # ── Transition table ────────────────────────────────────────────────
 
@@ -60,6 +61,25 @@ sub _pick_behaviors ($self, $faction) {
         push @picked, splice(@pool, $idx, 1);
     }
     return \@picked;
+}
+
+# ── Narrative reactions ───────────────────────────────────────────────
+
+has reactions_filename => sub ($self) {
+    $self->app->home . '/content/text/negotiation_reactions.yml';
+};
+
+sub _reactions ($self) {
+    state $data = LoadFile($self->reactions_filename);
+    return $data->{negotiation_reactions} // {};
+}
+
+sub _pick_reaction ($self, $faction_id, $outcome, %params) {
+    my $reactions = $self->_reactions;
+    my $msgs = $reactions->{$faction_id}{$outcome} or return;
+    my $text = $msgs->[ int(rand(scalar @$msgs)) ] or return;
+    $text =~ s!\{(\w+)\}!$params{$1} // "{$1}"!ge;
+    return $text;
 }
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -152,6 +172,9 @@ sub offer ($self, $char, %params) {
     if ($intersect) {
         my $match_mult = $sell >= 3 ? 1.4 : 1.2;
         $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * $match_mult);
+        my $narrative = $self->_pick_reaction($customer->{faction_id}, 'match',
+            item_id => $item->getCol('artifact_id'), value => $offer_value,
+        ) // sprintf("%s offers %d scrap for the item. Match!", $customer->{faction_name}, $offer_value);
         $self->_log_event($char, {
             type          => 'offer',
             shed_item_id  => $shed_item_id,
@@ -159,8 +182,7 @@ sub offer ($self, $char, %params) {
             match         => 1,
             offered_value => $offer_value,
             accepted      => 1,
-            narrative     => sprintf("%s offers %d scrap for the item. Match!",
-                $customer->{faction_name}, $offer_value),
+            narrative     => $narrative,
         });
         return $self->_do_sale($char, $item, $offer_value, 1);
     } else {
@@ -168,6 +190,9 @@ sub offer ($self, $char, %params) {
 
         my $settle_chance = $customer->{settle_chance} // 0.15;
         if (rand() < $settle_chance) {
+            my $narrative = $self->_pick_reaction($customer->{faction_id}, 'settle',
+                item_id => $item->getCol('artifact_id'), value => $offer_value,
+            ) // sprintf("%s shrugs and accepts %d scrap.", $customer->{faction_name}, $offer_value);
             $self->_log_event($char, {
                 type          => 'offer',
                 shed_item_id  => $shed_item_id,
@@ -176,8 +201,7 @@ sub offer ($self, $char, %params) {
                 settle        => 1,
                 offered_value => $offer_value,
                 accepted      => 1,
-                narrative     => sprintf("%s shrugs and accepts %d scrap. Not what they wanted, but it'll do.",
-                    $customer->{faction_name}, $offer_value),
+                narrative     => $narrative,
             });
             return $self->_do_sale($char, $item, $offer_value, 0);
         }
@@ -187,6 +211,9 @@ sub offer ($self, $char, %params) {
         $customer->{irritation} += $irritation_gain;
 
         if ($customer->{irritation} >= $customer->{irritation_threshold}) {
+            my $narrative = $self->_pick_reaction($customer->{faction_id}, 'storm_off',
+                item_id => $item->getCol('artifact_id'), value => $offer_value,
+            ) // sprintf("%s storms off in frustration.", $customer->{faction_name});
             $self->_log_event($char, {
                 type          => 'offer',
                 shed_item_id  => $shed_item_id,
@@ -195,8 +222,7 @@ sub offer ($self, $char, %params) {
                 offered_value => $offer_value,
                 accepted      => 0,
                 irritation    => $customer->{irritation},
-                narrative     => sprintf("%s has had enough. They storm off.",
-                    $customer->{faction_name}),
+                narrative     => $narrative,
             });
             $self->phase('idle');
             $self->customer(undef);
@@ -207,12 +233,15 @@ sub offer ($self, $char, %params) {
                 view => {
                     ok      => 1,
                     result  => 'customer_left',
-                    message => sprintf("%s storms off in frustration.", $customer->{faction_name}),
+                    message => $narrative,
                     player  => $self->_player_snapshot($char),
                 },
             };
         }
 
+        my $narrative = $self->_pick_reaction($customer->{faction_id}, 'mismatch',
+            item_id => $item->getCol('artifact_id'), value => $offer_value,
+        ) // sprintf("%s frowns but gestures for you to try another item.", $customer->{faction_name});
         $self->_log_event($char, {
             type          => 'offer',
             shed_item_id  => $shed_item_id,
@@ -221,9 +250,7 @@ sub offer ($self, $char, %params) {
             offered_value => $offer_value,
             accepted      => 0,
             irritation    => $customer->{irritation},
-            narrative     => sprintf("%s offers only %d scrap. No match (irritation %d/%d).",
-                $customer->{faction_name}, $offer_value,
-                $customer->{irritation}, $customer->{irritation_threshold}),
+            narrative     => $narrative,
         });
         $self->customer($customer);
         $self->save;
@@ -233,8 +260,7 @@ sub offer ($self, $char, %params) {
                 result    => 'no_match',
                 irritation => $customer->{irritation},
                 max_irritation => $customer->{irritation_threshold},
-                message   => sprintf("%s frowns but gestures for you to try another item.",
-                    $customer->{faction_name}),
+                message   => $narrative,
                 player    => $self->_player_snapshot($char),
             },
         };

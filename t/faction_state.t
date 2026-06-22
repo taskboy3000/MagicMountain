@@ -12,6 +12,7 @@ use MagicMountain::Activity::MarketVisit;
 {
     package FakeApp;
     sub new { bless {}, shift }
+    sub home { $FindBin::Bin . '/..' }
     sub log { bless {}, 'FakeLogger' }
     sub shed {
         my $self = shift;

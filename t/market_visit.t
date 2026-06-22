@@ -13,6 +13,7 @@ use_ok('TestCharacter');
 {
     package FakeApp;
     sub new { bless {}, shift }
+    sub home { $FindBin::Bin . '/..' }
     sub log { bless {}, 'FakeLogger' }
     sub shed {
         my $self = shift;
@@ -342,8 +343,8 @@ subtest 'customer storms off when irritation exceeds threshold' => sub {
         my $r = $m->dispatch($char, 'offer', shed_item_id => "storm-item-$i");
         if ($r->{view}{result} eq 'customer_left') {
             $stormed = 1;
-            is($r->{view}{message}, 'The Syndicate storms off in frustration.',
-                'correct storm-off message');
+            like($r->{view}{message}, qr/Syndicate/, 'storm-off message mentions faction');
+            ok(length($r->{view}{message}) > 0, 'storm-off message is non-empty');
             last;
         }
     }
@@ -376,6 +377,24 @@ subtest 'evolved item gives +1 standing bonus on sale' => sub {
     is($result->{view}{result}, 'sold', 'evolved match -> sold');
     # match = +2, evolved = +1 => total +3
     is((values %{ $char->{standing} })[0], 3, 'standing +3 on evolved match (2 + 1)');
+};
+
+subtest '_pick_reaction picks from yaml or returns undef' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+
+    # Known faction with reactions in the real yaml file
+    my $text = $m->_pick_reaction('syndicate', 'match', value => 30, item_id => 'test');
+    ok(defined $text, 'syndicate match reaction picked');
+    like($text, qr/scrap|value/i, 'reaction mentions value');
+
+    # Unknown faction should return undef (fallback to generic)
+    my $undef = $m->_pick_reaction('nonexistent', 'match', value => 10);
+    is($undef, undef, 'unknown faction returns undef');
+
+    # Unknown outcome should return undef
+    my $undef2 = $m->_pick_reaction('syndicate', 'unknown_outcome', value => 10);
+    is($undef2, undef, 'unknown outcome returns undef');
 };
 
 subtest 'send_away returns to idle' => sub {

@@ -1,0 +1,67 @@
+negotiation_reactions:
+  syndicate:
+    match:
+      - "The Syndicate buyer counts out {value} scrap without ceremony. 'It'll do.'"
+      - "'Acceptable,' says the Syndicate factor, sliding {value} across the counter."
+      - "A quick appraisal, a curt nod. {value} scrap changes hands."
+    settle:
+      - "'Fine. Not what we wanted, but it moves product.' {value} scrap."
+      - "The Syndicate factor sighs. 'I suppose we can move this. {value}.'"
+    mismatch:
+      - "'This isn't what we're looking for.' The factor's interest evaporates."
+      - "A dismissive glance. 'Not our inventory.'"
+    storm_off:
+      - "'We're done here.' The Syndicate buyer sweeps their ledgers off the counter."
+      - "'You're wasting my time.' The factor turns and walks away."
+  faculty:
+    match:
+      - "'Remarkable.' The scholar examines the {item_id} with undisguised fascination. '{value} scrap.'"
+      - "'This will make a fine addition to the archives.' {value} scrap changes hands."
+    settle:
+      - "'I suppose there's some marginal utility. {value}.'"
+      - "'Not ideal, but the collection can absorb it. {value} scrap.'"
+    mismatch:
+      - "'This... doesn't fit my research parameters at all.'"
+      - "The scholar frowns. 'This falls outside my area of study.'"
+    storm_off:
+      - "'You're wasting the university's time.' The academic packs their notes and leaves."
+      - "'I expected more from a Mountain prospector.' They gather their things."
+  purifiers:
+    match:
+      - "'This will serve the work.' The Purifier's eyes gleam. {value} scrap."
+      - "A heavy purse lands on the counter. '{value}. We have use for this.'"
+    settle:
+      - "'Destruction is destruction, I suppose. {value}.'"
+      - "'It will burn eventually. {value} scrap.'"
+    mismatch:
+      - "'This is useless. Bring me something that matters.'"
+      - "The Purifier scoffs. 'You call that an artifact?'"
+    storm_off:
+      - "'Incompetence!' The Purifier storms out, knocking over a stool."
+      - "'I've had enough of this farce.' They leave in disgust."
+  revelationists:
+    match:
+      - "'The pattern accepts this offering.' {value} scrap, counted out as if in a trance."
+      - "Wordlessly, the Revelationist places {value} scrap on the table and takes the {item_id}."
+    settle:
+      - "'Even imperfect vessels serve the pattern. {value}.'"
+      - "'It is... accepted. {value} scrap.'"
+    mismatch:
+      - "'This does not resonate.' The Revelationist's gaze drifts away."
+      - "'The pattern has no place for this.'"
+    storm_off:
+      - "'The pattern closes to you.' They vanish into the crowd."
+      - "Without a word, the Revelationist turns and melts into the Bazaar."
+  libremount:
+    match:
+      - "'This helps. Thank you.' {value} scrap, counted precisely."
+      - "A warm smile. 'This will serve the settlement well. {value} scrap.'"
+    settle:
+      - "'Every bit helps, even if it's not what we hoped for. {value}.'"
+      - "'We'll find a use for it. {value} scrap.'"
+    mismatch:
+      - "'Ah, not quite what we need. But thank you for showing me.'"
+      - "'Sorry, that doesn't match our current needs.'"
+    storm_off:
+      - "'I'm afraid I can't continue this negotiation.' They gather their things quietly."
+      - "'We'll have to try another time.' The representative leaves."

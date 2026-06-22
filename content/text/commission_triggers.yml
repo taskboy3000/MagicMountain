@@ -1,0 +1,21 @@
+commission_triggers:
+  syndicate:
+    - "A runner from the Syndicate finds you at camp. 'Our buyers want more {behavior} goods. Bring us {behavior} — we'll pay premium rates.'"
+    - "The Syndicate factor leaves a sealed note at your tent. '{behavior} artifacts. Top market rates guaranteed.'"
+    - "Word reaches you: Syndicate buyers are actively sourcing {behavior} artifacts. They're paying well above market."
+  faculty:
+    - "A research assistant arrives with a formal request: 'The Faculty seeks {behavior} specimens for ongoing study. Funding is available.'"
+    - "A scholar corners you at the Bazaar. 'If you encounter any {behavior} artifacts, the university has standing funding.'"
+    - "A notice appears on the board: 'Faculty research grant — {behavior} artifacts wanted for classification and study.'"
+  purifiers:
+    - "A scarred woman approaches. 'We need {behavior} materials for purification work. You'll be compensated accordingly.'"
+    - "The Purifiers have posted a notice: '{behavior} artifacts wanted for processing. Hazard pay included in rate.'"
+    - "A Purifier handler finds you. '{behavior} stock is low. We're paying premium for usable material.'"
+  revelationists:
+    - "A hooded figure presses a scroll into your hand. '{behavior}. The pattern requires it. You will be compensated.'"
+    - "Word reaches you through circuitous channels: the Revelationists are collecting {behavior} artifacts. They pay without question."
+    - "A whisper at the Bazaar: the Revelationists seek {behavior}. Their agents are offering generous terms."
+  libremount:
+    - "A LibreMount coordinator waves you over. 'We've had requests for {behavior} supplies. Can you help? We'll pay fair.'"
+    - "A public notice: 'LibreMount is accepting {behavior} artifacts for community distribution. Competitive rates.'"
+    - "A settlement representative approaches. '{behavior} goods are needed for the winter stores. We're offering a premium.'"
