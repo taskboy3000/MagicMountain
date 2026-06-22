@@ -6,21 +6,12 @@ Unfinished business and planned work beyond the current MVP.
 
 ## MVP Categorization
 
-Based on `GAME_ARCHITECTURE.md` and current codebase state (core activities
-not yet implemented). See `AGENTS.md` for implementation status.
+See `AGENTS.md` for current implementation status.
 
 | Category | Items |
 |----------|-------|
-| **Must-Have for MVP** | None. The real MVP blocker is building Prospecting, MarketVisit, Shed, and Maintenance. Everything in this doc is secondary. |
-| **Nice-to-Have Before Real Users** | Season Finalization UI, Crier Narrative Expansion |
+| **Before Real Users** | Crier Narrative Expansion (richer faction text) |
 | **Defer Past MVP** | MariaDB Migration, Market Dynamics (§6.7), Commission System (§7.3), Bot Policy Framework, MarketVisit Enhancements, Rate limiting / HTTPS / Password auth |
-
-### Nice-to-Have Before Real Users
-
-| Item | Effort | Why |
-|------|--------|-----|
-| Season Finalization UI | Low | CLI exists; a web button is cheap and closes the loop |
-| Crier Narrative Expansion | Low | Content-only, built on existing faction_state diffing |
 
 ### Defer Past MVP
 
@@ -64,11 +55,21 @@ The model, activity, and controller code should require minimal changes.
 
 ---
 
-## Season Finalization (§8.3)
+## Season Finalization UI — DONE
 
-An admin command exists (`end-season`) and ArtifactDisposition records
-are created on each sale. SeasonRecords are created during finalization.
-The remaining gap is a web UI for the admin to trigger the command.
+Web button on the game page (`POST /season/end`) calls the same
+`Season::finalize` method as the CLI command. Season labeling now shows
+in the UI (e.g. "Season 1 — Day 5 of 30").
+
+---
+
+## Faction Snapshot History — DONE
+
+Daily faction influence snapshots persisted in a new `FactionSnapshot` model,
+written during daily maintenance (after Crier, before transcript) and at
+season finalization. Season recap highlights now include `top_faction`,
+`top_faction_influence`, and `factions_competing`. Leaderboard exposes a
+`GET /leaderboard/factions` endpoint returning per-faction time series.
 
 ---
 
@@ -104,7 +105,7 @@ implementation is one-shot: match → sale, mismatch → settle or irritation
 ## Crier Narrative Expansion
 
 The crier generates daily messages from faction_state diffs and
-season day progression (implemented). Future work includes:
+proportional day buckets (implemented). Future work includes:
 - `content/text/commission_triggers.yml` and
   `content/text/negotiation_reactions.yml` for richer faction text
 - Per-faction disposition flavor in market visits
