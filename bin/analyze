@@ -80,7 +80,7 @@ __END__
 
 =head1 SYNOPSIS
 
-  perl script/analyze results.jsonl
+      perl bin/analyze results.jsonl
 
 =head1 DESCRIPTION
 
@@ -94,7 +94,7 @@ stdout. Use after a C<simulate> run to evaluate game balance.
        --output results.jsonl
 
   2. Analyze:
-     perl script/analyze results.jsonl
+  perl bin/analyze results.jsonl
 
   3. Adjust artifact parameters in C<content/prospecting.yml>:
        max_instability         - Higher = harder to collapse

@@ -1,0 +1,175 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+use YAML::XS qw(DumpFile LoadFile);
+use File::Temp qw(tempfile);
+use File::Slurp qw(read_file);
+use Mojo::JSON qw(decode_json);
+use List::Util qw(sum);
+use Cpanel::JSON::XS ();
+
+my $count     = 5;
+my $days      = 7;
+my $seed      = 42;
+my $push      = 'greed';
+my $threshold = 1.0;
+my $help;
+
+GetOptions(
+    'count=i'     => \$count,
+    'days=i'      => \$days,
+    'seed=i'      => \$seed,
+    'push=s'      => \$push,
+    'threshold=f' => \$threshold,
+    'help|h'      => \$help,
+) or die "Usage: $0 [options] [prospecting.yml] [factions.yml]\n";
+
+if ($help) {
+    print <<"USAGE";
+Usage: $0 [OPTIONS] [prospecting.yml] [factions.yml]
+
+Validate faction loyalist viability via simulation.
+
+Options:
+  --count N        Bots per faction (default 5)
+  --days N         Days per sim (default 7)
+  --seed N         RNG seed (default 42)
+  --push NAME      Push policy to use (default greed)
+  --threshold F    Z-score flag threshold (default 1.0)
+  --help, -h       Show this help
+
+Defaults run ~15s total. Increase --count/--days for more stable results.
+USAGE
+    exit 0;
+}
+
+my $prospecting_file = shift // 'content/prospecting.yml';
+my $factions_file    = shift // 'content/factions.yml';
+
+my $factions_h = LoadFile($factions_file) or die "Cannot load $factions_file: $!";
+my $factions   = $factions_h->{factions}  or die "No 'factions' key in $factions_file";
+
+my $tmpdir = $ENV{TMPDIR} // '/tmp';
+
+# Build push policy hash
+my %push_policies = (
+    greed      => { name => 'greed',      params => { prob => 0.8 } },
+    stage_guard => { name => 'stage_guard', params => { stop_at => 'unstable' } },
+    fixed      => { name => 'fixed_pushes', params => { max => 2 } },
+    value      => { name => 'value_target', params => { min => 30 } },
+    instability => { name => 'instability_cap', params => { max => 3 } },
+);
+my $push_policy = $push_policies{$push}
+    or die "Unknown push policy '$push'. Valid: " . join(', ', sort keys %push_policies) . "\n";
+
+my %results;
+
+for my $f (@$factions) {
+    my $fid = $f->{id};
+    print STDERR "  Simulating $fid... ";
+
+    my $profile = [{
+        id           => "${push}_loyalist_$fid",
+        push_policy  => $push_policy,
+        sell_policy  => { name => "faction_loyalist", params => { faction => $fid } },
+        skill_profile => { prospecting => 0, upcycling => 0, selling => 0 },
+    }];
+    my ($pfh, $pfile) = tempfile("prof_XXXXXX", SUFFIX => '.yml', DIR => $tmpdir, UNLINK => 1);
+    DumpFile($pfile, $profile);
+    close $pfh;
+
+    my ($ofh, $ofile) = tempfile("trans_XXXXXX", SUFFIX => '.jsonl', DIR => $tmpdir, UNLINK => 1);
+    close $ofh;
+
+    my $seed_arg = defined $seed ? "--seed $seed" : '';
+    my $cmd = "TMPDIR=$tmpdir perl -Ilib script/mountain simulate"
+        . " --count $count --days $days $seed_arg"
+        . " --profile $pfile --profile-weights \"${push}_loyalist_${fid}=$count\""
+        . " --output $ofile 2>/dev/null";
+
+    my $ok = system($cmd);
+    unless ($ok == 0) {
+        print STDERR "FAILED (exit $ok)\n";
+        $results{$fid} = { error => "simulation failed with exit $ok" };
+        next;
+    }
+
+    my @lines = read_file($ofile);
+    my %bot_data;
+
+    for my $line (@lines) {
+        chomp $line;
+        my $ev = decode_json($line);
+        next unless $ev->{char_id};
+        my $cid = $ev->{char_id};
+        $bot_data{$cid}{score}   += $ev->{value} if $ev->{type} eq 'sale';
+        $bot_data{$cid}{sales}++                   if $ev->{type} eq 'sale';
+        $bot_data{$cid}{offers}++                  if $ev->{type} eq 'offer';
+        $bot_data{$cid}{matches}++                 if $ev->{type} eq 'offer' && $ev->{match};
+    }
+
+    my @scores = map { $_->{score} // 0 } values %bot_data;
+    my @sales  = map { $_->{sales} // 0 } values %bot_data;
+    my @match_pct = map {
+        my $o = $_->{offers} || 1;
+        int(($_->{matches} // 0) / $o * 100);
+    } values %bot_data;
+
+    my $avg_score = @scores ? int(sum(@scores) / @scores) : 0;
+    my $avg_sales = @sales  ? int(sum(@sales) / @sales * 10) / 10 : 0;
+    my $avg_match = @match_pct ? int(sum(@match_pct) / @match_pct) : 0;
+
+    $results{$fid} = {
+        avg_score => $avg_score,
+        avg_sales => $avg_sales,
+        avg_match => $avg_match,
+    };
+
+    my $display_name = $f->{name} // $fid;
+    printf STDERR "%s score=%d sales=%.1f match=%d%%\n",
+        $display_name, $avg_score, $avg_sales, $avg_match;
+}
+
+print "\n=== Faction Loyalist Balance Check ===\n";
+printf "Config: %d bots, %d days, push=%s, seed=%s, threshold=%.1fσ\n\n",
+    $count, $days, $push, defined $seed ? $seed : 'random', $threshold;
+
+printf "%-20s | %-9s | %-7s | %-6s | %s\n", "Faction", "Avg Score", "Sales", "Match%", "vs Mean";
+print "-" x 70 . "\n";
+
+my @valid_factions = grep { !$results{$_}->{error} } keys %results;
+my @scores = map { $results{$_}->{avg_score} } @valid_factions;
+my $mean = @scores ? int(sum(@scores) / @scores) : 0;
+my $stddev = @scores > 1
+    ? int(sqrt(sum(map { ($_ - $mean)**2 } @scores) / (@scores - 1)))
+    : 0;
+
+my @sorted = sort { $results{$b}->{avg_score} <=> $results{$a}->{avg_score} } @valid_factions;
+for my $fid (@sorted) {
+    my $r = $results{$fid};
+    my $z = $stddev ? ($r->{avg_score} - $mean) / $stddev : 0;
+    my $z_str = sprintf("%+.2fσ", $z);
+    my $flag  = $z < -$threshold ? ' ⚠' : '';
+    printf "%-20s | %4d     | %5.1f  | %3d%%   | %s%s\n",
+        $fid, $r->{avg_score}, $r->{avg_sales}, $r->{avg_match}, $z_str, $flag;
+}
+
+print "\nCross-faction mean: $mean  σ: $stddev\n";
+
+for my $fid (@sorted) {
+    my $r = $results{$fid};
+    next unless $stddev && ($r->{avg_score} - $mean) / $stddev < -$threshold;
+    my $f = (grep { $_->{id} eq $fid } @$factions)[0];
+    my $interests = join(', ', @{$f->{interests}});
+    printf "  ⚠ %s (%d) — underperforms %.1fσ below mean.\n", $fid, $r->{avg_score}, $threshold;
+    printf "    Interest tags: %s\n", $interests;
+}
+
+my @errors = grep { $results{$_}->{error} } keys %results;
+if (@errors) {
+    print "\n=== Errors ===\n";
+    printf "  %s: %s\n", $_, $results{$_}->{error} for @errors;
+}
+
+exit scalar @errors;

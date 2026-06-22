@@ -21,6 +21,7 @@ use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::ShedManager;
 use MagicMountain::Crier;
+use MagicMountain::RateLimiter;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -36,6 +37,12 @@ has defaultConfig => sub ($self) {
         default_season_label_prefix => 'Season',
         default_daily_turns       => 10,
         default_action_points     => 15,
+        rate_limit_max_attempts          => 5,
+        rate_limit_max_attempts_per_name => 5,
+        rate_limit_window_minutes        => 15,
+        rate_limit_block_minutes         => 15,
+        rate_limit_cleanup_interval      => 300,
+        rate_limit_trusted_proxies       => 0,
     }
 };
 
@@ -205,6 +212,15 @@ has faction_snapshots => sub ($self) {
     );
 };
 
+has rate_limiter => sub ($self) {
+    MagicMountain::RateLimiter->new(
+        max_attempts          => $self->config->{rate_limit_max_attempts},
+        max_attempts_per_name => $self->config->{rate_limit_max_attempts_per_name},
+        window_minutes        => $self->config->{rate_limit_window_minutes},
+        block_minutes         => $self->config->{rate_limit_block_minutes},
+    );
+};
+
 sub startup ($self) {
     $self->log->debug(sprintf("[%s] startup: mode=%s",
                         $self->moniker, $self->mode
@@ -277,6 +293,11 @@ sub startup ($self) {
         $self->maintenance->dailyMaintenance;
     });
 
+    my $cleanup_interval = $self->config->{rate_limit_cleanup_interval};
+    Mojo::IOLoop->recurring($cleanup_interval => sub {
+        $self->rate_limiter->cleanup;
+    }) if $cleanup_interval;
+
     $self->buildRoutes;
 }
 
@@ -297,7 +318,31 @@ sub buildRoutes ($self) {
         }
         return 1;
     });
-    $no_maintenance->post('/sessions')->to('sessions#create')->name('login');
+    my $rate_limited = $no_maintenance->under('/' => sub ($c) {
+        my $ip = $c->tx->remote_address;
+        $ip = ($c->req->headers->header('X-Forwarded-For') // '') =~ /([^,\s]+)/
+            ? $1 : $ip
+            if $c->app->config->{rate_limit_trusted_proxies};
+
+        my $rl = $c->app->rate_limiter;
+
+        unless ($rl->check($ip)) {
+            my $retry_after = $rl->get_reset_time($ip);
+            $c->res->headers->header('Retry-After' => $retry_after);
+            $c->render(json => {
+                ok => 0, error => 'Too many attempts',
+                retry_after => $retry_after,
+            }, status => 429);
+            return undef;
+        }
+
+        $c->res->headers->header('X-RateLimit-Limit'     => $rl->max_attempts);
+        $c->res->headers->header('X-RateLimit-Remaining'  => $rl->get_remaining($ip));
+        $c->res->headers->header('X-RateLimit-Reset'      => $rl->get_reset_time($ip));
+
+        return 1;
+    });
+    $rate_limited->post('/sessions')->to('sessions#create')->name('login');
 
     # Authenticated routes (also blocked during maintenance)
     my $auth = $no_maintenance->under('/' => sub ($c) {
@@ -370,6 +415,105 @@ sub ensureActiveSeason ($self) {
     }
     return 1;
 }
+
+=head1 CONFIGURATION
+
+All configuration is optional — every key has a sensible default defined in
+C<defaultConfig>. Override any key by creating a F<magic_mountain.yml> in the
+application root directory. Set C<$ENV{MM_CFG_FILE}> to use a different path.
+
+=head2 Server & Sessions
+
+=over
+
+=item C<secrets>
+
+Arrayref of strings used by Mojolicious for signed cookies. Default:
+C<['override-me']>. B<Must be changed before production.>
+
+=item C<session_timeout_minutes>
+
+Minutes of inactivity before a session expires. Default: C<60>.
+
+=back
+
+=head2 Game Rules
+
+=over
+
+=item C<end_of_day_hour>
+
+Hour (0–23) at which daily maintenance runs. Default: C<0> (midnight).
+
+=item C<default_season_length>
+
+Days per season when auto-created. Default: C<30>.
+
+=item C<default_season_label_prefix>
+
+Label prefix for auto-created seasons. Default: C<Season> (produces
+"Season 1", "Season 2", etc.).
+
+=item C<default_daily_turns>
+
+Number of action points restored each day. Default: C<10>. This is stored
+per-season at creation time; changing it mid-season has no effect on
+existing seasons.
+
+=item C<default_action_points>
+
+Maximum action points a character can hold. Default: C<15>.
+
+=back
+
+=head2 Rate Limiting
+
+=over
+
+=item C<rate_limit_max_attempts>
+
+Failed login attempts from a single IP before a block is triggered.
+Default: C<5>.
+
+=item C<rate_limit_max_attempts_per_name>
+
+Failed login attempts for a single account name (from any IP) before a
+block is triggered. Names are case-insensitive. Default: C<5>.
+
+=item C<rate_limit_window_minutes>
+
+Sliding window in minutes for counting failed attempts. If an IP or name
+makes no attempts within this window, the counter resets. Default: C<15>.
+
+=item C<rate_limit_block_minutes>
+
+Duration in minutes an IP or name is blocked after exceeding the attempt
+limit. Default: C<15>.
+
+=item C<rate_limit_cleanup_interval>
+
+Seconds between sweeps that remove stale rate-limit entries from memory.
+Default: C<300> (5 minutes).
+
+=item C<rate_limit_trusted_proxies>
+
+If set to a truthy value, the rate limiter reads the original client IP
+from the C<X-Forwarded-For> header instead of the direct connection
+address. B<Only enable behind a trusted reverse proxy.> Default: C<0>.
+
+=back
+
+=head2 Planned (reserved, not yet read at runtime)
+
+=over
+
+=item C<maintenance_window_minutes>
+
+Reserved for future maintenance route-guard feature. Default: C<5>.
+
+=back
+
+=cut
 
 
 1;

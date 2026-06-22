@@ -178,6 +178,22 @@ perl -Ilib script/mountain simulate --players 10 --days 5
 perl -Ilib script/mountain end-season
 ```
 
+### RAM Disk for Simulation Speed
+
+The JSON persistence layer writes the entire table on every `save()`, so
+simulation I/O is a bottleneck — especially on a VM. Use a tmpfs RAM disk:
+
+```bash
+# One-time setup (after reboot):
+sudo bin/setup_ramdisk
+
+# Run simulations with TMPDIR pointing at the ramdisk:
+TMPDIR=/mnt/ramdisk perl -Ilib script/mountain simulate --count 10 --days 14
+```
+
+This redirects File::Temp's tempdir (where sim data lives) to RAM instead of
+disk, which significantly speeds up simulation runs.
+
 ## Testing
 
 ```bash
@@ -232,6 +248,11 @@ prove -lv t/prospecting_web.t
   left in place compounds — it becomes the template for the next change.
 - **No automatic commits**: Never commit without being asked. Only commit when
   the user explicitly instructs it. This prevents surprise history changes.
+- **Balance checks**: Run `make check-coverage` for fast static validation
+  that all faction interest tags have adequate artifact coverage. Run
+  `make check-loyalist` (~15s) to verify each faction can support a viable
+  loyalist strategy via simulation. Run these when modifying
+  `content/prospecting.yml` or `content/factions.yml`.
 
 ---
 

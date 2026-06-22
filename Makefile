@@ -1,5 +1,11 @@
 test: test-perl test-js test-boundaries
 
+check-coverage:
+	perl -Ilib bin/check_coverage
+
+check-loyalist:
+	perl -Ilib bin/check_loyalist_balance
+
 test-perl:
 	prove t
 

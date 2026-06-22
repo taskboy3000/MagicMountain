@@ -1,0 +1,20 @@
+#!/bin/bash
+#
+# Create a 100 MB tmpfs RAM disk for simulation I/O speedup.
+# Run once after each reboot.
+#
+set -euo pipefail
+
+MOUNT_POINT="/mnt/ramdisk"
+SIZE="100M"
+
+if mountpoint -q "$MOUNT_POINT"; then
+    echo "RAM disk already mounted at $MOUNT_POINT"
+    df -h "$MOUNT_POINT"
+    exit 0
+fi
+
+sudo mkdir -p "$MOUNT_POINT"
+sudo mount -t tmpfs -o size="$SIZE" tmpfs "$MOUNT_POINT"
+echo "RAM disk mounted at $MOUNT_POINT ($SIZE)"
+df -h "$MOUNT_POINT"

@@ -1,0 +1,99 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use YAML::XS qw(LoadFile);
+use List::Util qw(max);
+
+my $prospecting_file = shift // 'content/prospecting.yml';
+my $factions_file    = shift // 'content/factions.yml';
+my $min_weight       = 10;
+
+my $artifacts   = LoadFile($prospecting_file) or die "Cannot load $prospecting_file: $!";
+my $factions_h  = LoadFile($factions_file)    or die "Cannot load $factions_file: $!";
+my $factions     = $factions_h->{factions}     or die "No 'factions' key in $factions_file";
+
+# Build tag → [artifact_id, ...] map
+my %tag_artifacts;
+my %tag_weight;
+for my $art (@$artifacts) {
+    for my $tag (@{$art->{behaviors}}) {
+        push @{$tag_artifacts{$tag}}, $art->{id};
+        $tag_weight{$tag} += $art->{weight};
+    }
+}
+
+# Collect all tags for matrix column order
+my @all_tags = sort keys %tag_artifacts;
+
+# Print coverage matrix
+printf "%-20s", "";
+printf " %-18s", $_ for @all_tags;
+print "\n";
+print "-" x (20 + 19 * scalar @all_tags) . "\n";
+
+for my $f (@$factions) {
+    printf "%-20s", $f->{id};
+    for my $tag (@all_tags) {
+        my $count = 0;
+        for my $itag (@{$f->{interests}}) {
+            if ($tag eq $itag) {
+                $count = scalar @{$tag_artifacts{$tag} // []};
+                last;
+            }
+        }
+        printf " %-18s", $count || '-';
+    }
+    print "\n";
+}
+
+# Multi-artifact tags (healthy)
+print "\n=== Multi-Artifact Tags (healthy, >=2 artifacts) ===\n";
+for my $tag (@all_tags) {
+    my @ids = @{$tag_artifacts{$tag}};
+    next if @ids < 2;
+    printf "  %-18s (%d): %s\n", $tag, scalar @ids, join(', ', @ids);
+}
+
+# Single-artifact tags (fragile)
+print "\n=== Single-Artifact Tags (fragile — WARNING) ===\n";
+my $found_single = 0;
+for my $tag (@all_tags) {
+    my @ids = @{$tag_artifacts{$tag}};
+    next unless @ids == 1;
+    $found_single = 1;
+    printf "  %-18s: %s (weight=%d)\n", $tag, $ids[0], $tag_weight{$tag};
+}
+print "  (none)\n" unless $found_single;
+
+# Zero-artifact tags
+print "\n=== Tags with 0 artifacts (ERROR) ===\n";
+my %covered;
+for my $art (@$artifacts) {
+    for my $tag (@{$art->{behaviors}}) {
+        $covered{$tag} = 1;
+    }
+}
+my $found_zero = 0;
+for my $f (@$factions) {
+    for my $tag (@{$f->{interests}}) {
+        next if $covered{$tag};
+        $found_zero = 1;
+        printf "  %s (faction: %s)\n", $tag, $f->{id};
+    }
+}
+print "  (none)\n" unless $found_zero;
+
+# Also show low-weight single-artifact tags
+print "\n=== Low Weight Tags (< $min_weight total weight — WARNING) ===\n";
+my $found_low = 0;
+for my $tag (@all_tags) {
+    next if $tag_weight{$tag} >= $min_weight || $found_single && (scalar @{$tag_artifacts{$tag} // []} > 1);
+    $found_low = 1;
+    printf "  %-18s (weight=%d)\n", $tag, $tag_weight{$tag};
+}
+print "  (none)\n" unless $found_low;
+
+# Exit code
+exit 1 if $found_zero;
+exit 2 if $found_single || $found_low;
+exit 0;

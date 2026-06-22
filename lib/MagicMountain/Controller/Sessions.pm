@@ -6,8 +6,20 @@ sub login_form ($self) {
 }
 
 sub create ($self) {
+    my $ip   = $self->tx->remote_address;
     my $body = $self->req->json;
     my $name = $body->{displayName};
+    my $rl   = $self->app->rate_limiter;
+
+    # Account-name rate limit check
+    if ($name && !$rl->check_name(lc $name)) {
+        my $retry_after = $rl->get_name_reset_time(lc $name);
+        $self->res->headers->header('Retry-After' => $retry_after);
+        return $self->render(json => {
+            ok => 0, error => 'Too many attempts for this account',
+            retry_after => $retry_after,
+        }, status => 429);
+    }
 
     return $self->render(json => { ok => 0, error => 'displayName is required' }, status => 400)
         unless $name;
@@ -15,6 +27,8 @@ sub create ($self) {
     my $account = $self->app->accounts->find_by_username($name);
 
     if ($account && $account->getCol('disabled')) {
+        $rl->record_failure($ip);
+        $rl->record_name_failure(lc $name);
         return $self->render(json => { ok => 0, error => 'Account is disabled' }, status => 403);
     }
 
@@ -39,6 +53,9 @@ sub create ($self) {
     }
 
     $self->session(playerId => $player_id);
+
+    $rl->record_success($ip);
+    $rl->record_name_success(lc $name);
 
     $self->app->audit_log->log('login',
         player_id   => $player_id,

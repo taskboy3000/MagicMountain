@@ -17,7 +17,7 @@
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
 
 - id: fixed_highest
-  display_name: "Conservative"
+  display_name: "Measured"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
   sell_policy: { name: "highest_offer", params: { min_value: 18 } }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
@@ -25,5 +25,29 @@
 - id: instability_loyalist
   display_name: "Loyalist"
   push_policy: { name: "instability_cap", params: { max: 3 } }
+  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: fixed_loyalist
+  display_name: "Fixed Loyalist"
+  push_policy: { name: "fixed_pushes", params: { max: 2 } }
+  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: stage_loyalist
+  display_name: "Stage Loyalist"
+  push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
+  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: greed_loyalist
+  display_name: "Greedy Loyalist"
+  push_policy: { name: "greed", params: { prob: 0.8 } }
+  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: value_loyalist
+  display_name: "Value Loyalist"
+  push_policy: { name: "value_target", params: { min: 30 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
