@@ -35,6 +35,7 @@ sub generate ($self, $season) {
     my $current  = $season->getCol('faction_state') // {};
     my $snapshot = $season->getCol('crier_snapshot') // {};
     my $day      = $season->getCol('day') // 1;
+    my $length   = $season->getCol('length') // 30;
 
     if ($day <= 1 || !keys %$current) {
         return $self->_pick('season_opening', {})
@@ -114,16 +115,19 @@ sub generate ($self, $season) {
     }
 
     return $best_message if $best_message;
-    my $daily = $self->_pick_daily($day);
+    my $daily = $self->_pick_daily($day, $length);
     return $daily if $daily;
     return $self->_pick('generic', {});
 }
 
-sub _pick_daily ($self, $day) {
+sub _pick_daily ($self, $day, $length) {
     my $buckets = $self->_load_messages->{daily_progress} or return;
+    my $ratio   = $length > 0 ? $day / $length : 0;
     for my $b (@$buckets) {
-        next if exists $b->{day_max} && $day > $b->{day_max};
-        next if exists $b->{day_min} && $day < $b->{day_min};
+        next if exists $b->{day_max_pct} && $ratio > $b->{day_max_pct};
+        next if exists $b->{day_min_pct} && $ratio < $b->{day_min_pct};
+        next if exists $b->{day_max}      && $day    > $b->{day_max};
+        next if exists $b->{day_min}      && $day    < $b->{day_min};
         my $msgs = $b->{messages} or next;
         return $msgs->[ int(rand(scalar @$msgs)) ];
     }

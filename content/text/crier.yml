@@ -17,25 +17,25 @@ crier_messages:
     - "A new season dawns. The mountain stirs. Five factions circle."
     - "The gates open. Prospectors trickle in. The Bazaar readies itself."
   daily_progress:
-    - day_max: 3
+    - day_max_pct: 0.10
       messages:
         - "The season is young. Prospectors are still finding their footing."
         - "Early days. The mountain has not yet revealed its depths."
         - "A fresh season, and the Bazaar hums with cautious optimism."
-    - day_min: 4
-      day_max: 10
+    - day_min_pct: 0.10
+      day_max_pct: 0.33
       messages:
         - "The Bazaar is finding its rhythm. Patterns emerge in the trade."
         - "Mid-early season. Some prospectors have struck rich veins; others limp back empty-handed."
         - "Rumors of a breakthrough echo through the camp. The mountain is waking up."
-    - day_min: 11
-      day_max: 20
+    - day_min_pct: 0.33
+      day_max_pct: 0.66
       messages:
         - "Mid-season now. The standings are taking shape."
         - "The mountain's mood shifts. Those who listen survive."
         - "Tensions rise at the Bazaar as factions jockey for position."
         - "Halfway through the season. The desperate take bigger risks."
-    - day_min: 21
+    - day_min_pct: 0.66
       messages:
         - "Late season. Every push matters. Every scrap counts."
         - "The end approaches. Faction buyers grow selective."

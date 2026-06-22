@@ -12,14 +12,13 @@ not yet implemented). See `AGENTS.md` for implementation status.
 | Category | Items |
 |----------|-------|
 | **Must-Have for MVP** | None. The real MVP blocker is building Prospecting, MarketVisit, Shed, and Maintenance. Everything in this doc is secondary. |
-| **Nice-to-Have Before Real Users** | CSRF protection, Season Finalization UI, Crier Narrative Expansion |
+| **Nice-to-Have Before Real Users** | Season Finalization UI, Crier Narrative Expansion |
 | **Defer Past MVP** | MariaDB Migration, Market Dynamics (§6.7), Commission System (§7.3), Bot Policy Framework, MarketVisit Enhancements, Rate limiting / HTTPS / Password auth |
 
 ### Nice-to-Have Before Real Users
 
 | Item | Effort | Why |
 |------|--------|-----|
-| CSRF protection | Low | Needed before accepting writes from real browsers |
 | Season Finalization UI | Low | CLI exists; a web button is cheap and closes the loop |
 | Crier Narrative Expansion | Low | Content-only, built on existing faction_state diffing |
 
@@ -35,6 +34,13 @@ not yet implemented). See `AGENTS.md` for implementation status.
 | Rate limiting / HTTPS / Password auth | Low | Fine for alpha; deferred per AGENTS.md |
 
 ---
+
+## CSRF Protection — DONE
+
+Session-based CSRF token returned on login, sent as `X-CSRF-Token` header
+on all authenticated write requests. Login and logout routes are exempt.
+See `lib/MagicMountain.pm` (`csrf_token` helper + `$auth_write` bridge),
+`public/js/game.js` (client-side header injection).
 
 ## Eliminate Direct JSON I/O in Tests — DONE
 
@@ -117,7 +123,6 @@ past MVP.
 
 | Concern | Priority | Notes |
 |---------|----------|-------|
-| CSRF protection | Medium | Mojolicious `csrf_protect` plugin. Needed before accepting writes from real users. |
 | Rate limiting | Medium | Brute-force prevention on login. Mojo `under` hooks can count attempts. |
 | HTTPS enforcement | Low | Handled at reverse proxy (nginx) or via Mojo config. |
 | Password/email auth | Medium | Current name-only auth is fine for alpha. Email verification flow planned post-MVP. |

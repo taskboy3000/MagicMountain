@@ -76,6 +76,17 @@
     <div class="text-center">
       <button id="delete-account-btn" class="btn btn-outline-danger btn-sm">Delete Account</button>
     </div>
+% if ($season_is_active) {
+    <div class="card mt-3" id="admin-card">
+      <div class="card-header">Admin</div>
+      <div class="card-body text-center">
+        <button class="btn btn-danger btn-sm" id="btn-end-season"
+                onclick="return confirm('End the current season? Characters and shed items will be deleted. This cannot be undone.')">
+          End Season
+        </button>
+      </div>
+    </div>
+% }
   </div>
 </div>
 
