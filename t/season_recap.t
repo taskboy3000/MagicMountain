@@ -35,11 +35,14 @@ $recs->create(
     faction_standing_snapshot => { syndicate => 4, faculty => 1 },
     skills_snapshot          => { prospecting => 2, upcycling => 1, selling => 0 },
     story_highlights         => {
-        total_sales         => 3,
-        top_sale_value      => 60,
-        top_sale_faction    => 'syndicate',
-        factions_sold_to    => ['faculty', 'syndicate'],
+        total_sales            => 3,
+        top_sale_value         => 60,
+        top_sale_faction       => 'syndicate',
+        factions_sold_to       => ['faculty', 'syndicate'],
         evolved_artifacts_sold => 1,
+        top_faction            => 'syndicate',
+        top_faction_influence  => 150,
+        factions_competing     => 3,
     },
 )->save;
 

@@ -157,6 +157,7 @@ sub show ($self) {
                 season       => {
                     day        => $season ? $season->getCol('day')     : 0,
                     total_days => $season ? $season->getCol('length')  : 0,
+                    label      => $season ? ($season->getCol('label') // 'Season') : undef,
                 },
                 world_message => $season ? $season->getCol('crier_message') : undef,
                 factions      => $self->factions_data,

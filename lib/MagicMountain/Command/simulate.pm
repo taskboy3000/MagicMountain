@@ -40,7 +40,7 @@ sub run ($self, @args) {
 
     # Wipe any model instances already memoized by startup (they point at
     # the production data dir). They'll be recreated below with the temp dir.
-    delete $app->{$_} for qw(accounts characters seasons shed session_store transcript prospecting market audit_log);
+    delete $app->{$_} for qw(accounts characters seasons shed session_store transcript prospecting market audit_log faction_snapshots);
 
     # Initialize empty data files
     write_file("$data_dir/accounts.json",   '{}');

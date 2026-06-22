@@ -25,8 +25,13 @@ my $data_dir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $data_dir;
 $ENV{MM_SKIP_SEASON_CHECK} = 1;
 
-MagicMountain::Model::Season->new(file => "$data_dir/seasons.json")
-    ->create(id => 's1', label => 'Test', status => 'active', day => 15, length => 30)->save;
+my $season_obj = MagicMountain::Model::Season->new(file => "$data_dir/seasons.json");
+$season_obj->create(id => 's1', label => 'Test', status => 'active', day => 15, length => 30,
+    faction_state => {
+        syndicate => { name => 'The Syndicate', influence => 60, artifacts_received => 1, intake_by_trait => { thermal => 1 } },
+        faculty   => { name => 'The Faculty',   influence => 0,  artifacts_received => 0, intake_by_trait => {} },
+    },
+)->save;
 
 use MagicMountain::Model::Character;
 use MagicMountain::Model::ShedItem;
@@ -107,5 +112,8 @@ my $hl = $alice_rec->getCol('story_highlights');
 is($hl->{total_sales}, 1, 'highlights: 1 sale');
 is($hl->{top_sale_value}, 60, 'highlights: top value 60');
 is($hl->{evolved_artifacts_sold}, 1, 'highlights: 1 evolved');
+is($hl->{top_faction}, 'syndicate', 'highlights: top faction');
+is($hl->{top_faction_influence}, 60, 'highlights: top faction influence');
+is($hl->{factions_competing}, 2, 'highlights: 2 factions competing');
 
 done_testing;

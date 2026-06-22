@@ -16,6 +16,7 @@ use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::Transcript;
 use MagicMountain::Model::ArtifactDisposition;
 use MagicMountain::Model::SeasonRecord;
+use MagicMountain::Model::FactionSnapshot;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::ShedManager;
@@ -142,6 +143,18 @@ has maintenance => sub ($self) {
             $season->setCol('crier_message', $msg);
             $season->setCol('crier_snapshot', $season->getCol('faction_state'));
 
+            my $fs = $season->getCol('faction_state') // {};
+            for my $fid (keys %$fs) {
+                $maint->app->faction_snapshots->create(
+                    season_id         => $season->getCol('id'),
+                    day               => $day,
+                    faction_id        => $fid,
+                    influence         => $fs->{$fid}{influence} // 0,
+                    artifacts_received => $fs->{$fid}{artifacts_received} // 0,
+                    intake_by_trait   => $fs->{$fid}{intake_by_trait} // {},
+                )->save;
+            }
+
             $maint->app->transcript->log_event({
                 type     => 'faction_snapshot',
                 day      => $day,
@@ -181,6 +194,13 @@ has disposition => sub ($self) {
 has season_records => sub ($self) {
     MagicMountain::Model::SeasonRecord->new(
         file => $self->dataDir . '/season_records.json',
+        log  => $self->log,
+    );
+};
+
+has faction_snapshots => sub ($self) {
+    MagicMountain::Model::FactionSnapshot->new(
+        file => $self->dataDir . '/faction_snapshots.json',
         log  => $self->log,
     );
 };
@@ -306,6 +326,7 @@ sub buildRoutes ($self) {
     $auth->get('/shed')->to('shed#index');
     $auth->get('/skills')->to('skills#index');
     $auth->get('/leaderboard')->to('leaderboard#index');
+    $auth->get('/leaderboard/factions')->to('leaderboard#factions');
 
     # Write routes under CSRF check
     $auth_write->delete('/player')->to('player#destroy')->name('delete_player');
@@ -316,6 +337,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/begin')->to('market#begin');
     $auth_write->post('/market/offer')->to('market#offer');
     $auth_write->post('/market/send_away')->to('market#send_away');
+    $auth_write->post('/season/end')->to('season#end');
 }
 
 sub active_season ($self) {

@@ -26,7 +26,7 @@ function render() {
 
   const s = G.season || {};
   document.getElementById('season-info').textContent =
-    s.total_days ? `Day ${s.day} of ${s.total_days}` : 'No active season.';
+    s.total_days ? `${s.label} — Day ${s.day} of ${s.total_days}` : 'No active season.';
 
   const msg = G.world_message;
   document.getElementById('crier-text').textContent =
@@ -300,6 +300,11 @@ document.getElementById('delete-account-btn').addEventListener('click', async ()
   if (!confirm('Delete your account permanently? This cannot be undone.')) return;
   const data = await api('/player', { method: 'DELETE' });
   if (data.ok) window.location.href = '/login';
+});
+
+document.getElementById('btn-end-season')?.addEventListener('click', async () => {
+  const data = await api('/season/end', { method: 'POST' });
+  if (data.ok) await loadGame();
 });
 
 loadGame();
