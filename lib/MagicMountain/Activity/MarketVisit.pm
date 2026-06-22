@@ -63,6 +63,25 @@ sub _pick_behaviors ($self, $faction) {
     return \@picked;
 }
 
+# ── Faction lookup ─────────────────────────────────────────────────────
+
+sub _faction_by_id ($self, $faction_id) {
+    my $factions = $self->_factions;
+    for my $f (@$factions) {
+        return $f if $f->{id} eq $faction_id;
+    }
+    return;
+}
+
+# ── Loyalty bonus ────────────────────────────────────────────────────
+
+sub _apply_loyalty_bonus ($self, $char, $faction_id, $offer_value) {
+    my $sales = $char->getCol('faction_sales') // {};
+    return ($sales->{$faction_id} // 0) >= 3
+        ? int($offer_value * 1.05)
+        : $offer_value;
+}
+
 # ── Narrative reactions ───────────────────────────────────────────────
 
 has reactions_filename => sub ($self) {
@@ -97,6 +116,28 @@ sub begin ($self, $char, %params) {
     die "no items in shed" unless @$shed_items;
 
     my $faction = $self->_weighted_faction($char);
+
+    # ── Loyalty access guarantee ───────────────────────────────────
+    my $faction_sales = $char->getCol('faction_sales') // {};
+    my ($top_faction, $top_count) = (undef, 0);
+    while (my ($fid, $cnt) = each %$faction_sales) {
+        ($top_faction, $top_count) = ($fid, $cnt) if $cnt > $top_count;
+    }
+    if ($top_faction && $top_count >= 2) {
+        my $visits_since = $char->getCol('loyalty_visits_since') // 0;
+        if ($faction->{id} ne $top_faction && $visits_since >= 3) {
+            $faction = $self->_faction_by_id($top_faction) // $faction;
+            $visits_since = 0;
+        } elsif ($faction->{id} eq $top_faction) {
+            $visits_since = 0;
+        } else {
+            $visits_since++;
+        }
+        $char->setCol('loyalty_visits_since', $visits_since);
+        $char->save;
+    }
+    # ────────────────────────────────────────────────────────────────
+
     my $standing = $char->getCol('standing') // {};
     my $mult_bonus = ($standing->{$faction->{id}} // 0) * 0.05;
     my $sell = $char->getCol('skill_selling') // 0;
@@ -172,6 +213,7 @@ sub offer ($self, $char, %params) {
     if ($intersect) {
         my $match_mult = $sell >= 3 ? 1.4 : 1.2;
         $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * $match_mult);
+        $offer_value = $self->_apply_loyalty_bonus($char, $customer->{faction_id}, $offer_value);
         my $narrative = $self->_pick_reaction($customer->{faction_id}, 'match',
             item_id => $item->getCol('artifact_id'), value => $offer_value,
         ) // sprintf("%s offers %d scrap for the item. Match!", $customer->{faction_name}, $offer_value);
@@ -190,6 +232,7 @@ sub offer ($self, $char, %params) {
 
         my $settle_chance = $customer->{settle_chance} // 0.15;
         if (rand() < $settle_chance) {
+            $offer_value = $self->_apply_loyalty_bonus($char, $customer->{faction_id}, $offer_value);
             my $narrative = $self->_pick_reaction($customer->{faction_id}, 'settle',
                 item_id => $item->getCol('artifact_id'), value => $offer_value,
             ) // sprintf("%s shrugs and accepts %d scrap.", $customer->{faction_name}, $offer_value);

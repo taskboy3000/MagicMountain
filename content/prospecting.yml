@@ -126,3 +126,304 @@
   collapse:
     - The crystal shatters into a thousand splinters that dissolve into light.
     - A harmonic scream echoes and fades. Your hands are empty.
+
+- id: aqueous_receiver_001
+  behaviors: [water, medical_response]
+  weight: 7
+  base_value: 5
+  starting_instability: 0
+  max_instability: 12
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 3
+  base_gain_max: 5
+  can_evolve: true
+  evolution_threshold: 0.30
+  evolution_chance: 0.04
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.0
+  state_thresholds:
+    stable: 0.35
+    strained: 0.70
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A sealed cylinder of murky fluid hums with barely contained pressure.
+  signals:
+    stable:
+      - The fluid inside glows faintly, swirling in slow currents.
+      - A rhythmic pulsing echoes through the glass surface.
+      - Warmth radiates from the cylinder in steady waves.
+    strained:
+      - The fluid froths and churns, pressure building against the seals.
+      - Hairline cracks spread across the glass. Drops of moisture bead on the surface.
+      - A low, wet thrumming vibrates through your hands.
+    unstable:
+      - The cylinder bulges outward. The fluid inside is boiling.
+      - Vapors hiss from micro-fractures. The seal groans.
+      - The receiver pulses erratically — the rhythm is breaking.
+  collapse:
+    - The cylinder bursts, releasing a scalding cloud of steam and a sharp chemical reek.
+    - The fluid crystallizes instantly, then shatters into powder.
+
+- id: cold_storage_001
+  behaviors: [storage, food_processing]
+  weight: 6
+  base_value: 6
+  starting_instability: 0
+  max_instability: 14
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 3
+  base_gain_max: 6
+  can_evolve: true
+  evolution_threshold: 0.30
+  evolution_chance: 0.05
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.5
+  state_thresholds:
+    stable: 0.35
+    strained: 0.70
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A frost-rimed module hums quietly. The air around it is noticeably colder.
+  signals:
+    stable:
+      - Frost feathers across the casing but melts at your touch.
+      - The module emits a steady, cold hum. Your breath fogs.
+      - A label reads "PERISHABLE" in a language you almost recognize.
+    strained:
+      - Condensation streams down the sides. The hum wavers in pitch.
+      - The casing is sweating. Pools of cold liquid gather beneath it.
+      - Frost spreads rapidly, then retreats, then spreads again.
+    unstable:
+      - The module rattles violently. A deep, guttural groan echoes from inside.
+      - Ice crystals form on nearby stones. Your fingers go numb at arm's length.
+      - The hum becomes a grinding screech. The casing is fracturing.
+  collapse:
+    - The module shatters into frozen fragments that evaporate into a bitter mist.
+    - An explosion of ice and metallic shards. Nothing remains but frost.
+
+- id: revelation_lens_001
+  behaviors: [revelation, transformation]
+  weight: 5
+  base_value: 8
+  starting_instability: 0
+  max_instability: 12
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 4
+  base_gain_max: 7
+  can_evolve: true
+  evolution_threshold: 0.35
+  evolution_chance: 0.06
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 2.0
+  breakthrough_multiplier_max: 3.0
+  state_thresholds:
+    stable: 0.30
+    strained: 0.65
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A dark lens in a brass casing. When you look through it, the mountain looks different.
+  signals:
+    stable:
+      - The lens shows faint afterimages of things that aren't there.
+      - Light bends oddly around the lens. Shadows move independently.
+      - Through it, your own hand appears translucent.
+    strained:
+      - The afterimages persist longer, matching your movements with a delay.
+      - The lens grows warm. Images from other places flicker across its surface.
+      - Reflections show you standing in a room you've never seen.
+    unstable:
+      - The lens pulses with colors that don't exist in nature.
+      - Winged shapes flit at the edge of your vision, visible only through the lens.
+      - The brass casing warps as if the lens is reshaping reality around it.
+  collapse:
+    - The lens cracks, releasing a silent flash. For a moment, you see every possible past.
+    - The lens dims and goes dark. Whatever it showed is lost forever.
+
+- id: force_resonator_001
+  behaviors: [force, instability]
+  weight: 7
+  base_value: 5
+  starting_instability: 0
+  max_instability: 16
+  instability_growth_min: 1
+  instability_growth_max: 3
+  base_gain_min: 3
+  base_gain_max: 5
+  can_evolve: true
+  evolution_threshold: 0.25
+  evolution_chance: 0.04
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.0
+  state_thresholds:
+    stable: 0.30
+    strained: 0.65
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A dense metal ring vibrates with a palpable tension, pulling at loose metal nearby.
+  signals:
+    stable:
+      - Small metal objects tremble when brought near the ring.
+      - The ring maintains a steady, low hum. The air around it feels taut.
+      - Loose gravel gathers in a circle around it.
+    strained:
+      - The ring's vibration climbs in pitch. Loose objects orbit it slowly.
+      - The pull intensifies — you feel it in your bones.
+      - Heat radiates from the ring. The hum is now a growl.
+    unstable:
+      - The ring generates visible ripples in the air, like heat haze.
+      - Objects within arm's reach slide toward it. You brace against the pull.
+      - The growl becomes a roar. Dust and debris form a vortex around the ring.
+  collapse:
+    - The ring crumples inward with a thunderous crack, releasing a shockwave.
+    - A violent pulse of force flattens the surrounding area. The ring is gone.
+
+- id: memory_fabric_001
+  behaviors: [storage, transformation]
+  weight: 4
+  base_value: 10
+  starting_instability: 0
+  max_instability: 12
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 4
+  base_gain_max: 7
+  can_evolve: true
+  evolution_threshold: 0.35
+  evolution_chance: 0.05
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 2.0
+  breakthrough_multiplier_max: 2.5
+  state_thresholds:
+    stable: 0.30
+    strained: 0.65
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A shimmering cloth that seems to shift patterns when you are not looking directly at it.
+  signals:
+    stable:
+      - The fabric shows brief, flickering images of a place you've never been.
+      - When folded, it weighs slightly more than it should.
+      - Patterns in the weave seem to form words in an unknown script.
+    strained:
+      - The images persist longer — a room, a desert, a face you almost recognize.
+      - The fabric tenses, pulling against itself as if remembering.
+      - Strange symbols rise from the surface, then sink back.
+    unstable:
+      - The fabric convulses, showing dozens of scenes per second.
+      - Voices whisper from its folds in languages you've never heard.
+      - The weave begins to unravel, the images bleeding into the air around it.
+  collapse:
+    - The fabric dissolves into a cascade of shimmering threads that fade to silence.
+    - With a soft pop, the cloth tears and its images scatter like startled birds.
+
+- id: biotelemeter_001
+  behaviors: [medical_response, signal]
+  weight: 6
+  base_value: 6
+  starting_instability: 0
+  max_instability: 12
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 3
+  base_gain_max: 6
+  can_evolve: true
+  evolution_threshold: 0.30
+  evolution_chance: 0.04
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.0
+  state_thresholds:
+    stable: 0.35
+    strained: 0.70
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A small metallic disk that hums in sync with your heartbeat after a few seconds.
+  signals:
+    stable:
+      - The disk vibrates gently, matching your pulse precisely.
+      - A soft blue light pulses along its edge in a steady rhythm.
+      - It feels slightly warm, like living tissue.
+    strained:
+      - The disk's pulse drifts out of sync with yours, then races to catch up.
+      - Its surface flickers between warm and cold rapidly.
+      - A high-frequency whine emerges, oscillating with your breathing.
+    unstable:
+      - The disk produces a dissonant tone that makes your teeth ache.
+      - It pulses erratically — too fast, then too slow, then both at once.
+      - The light strobing becomes disorienting. Shadows seem to move independently.
+  collapse:
+    - The disk emits a final sharp tone, then cracks into inert pieces.
+    - It goes silent and cold. The absence of its hum is louder than the hum was.
+
+- id: sanitation_coil_001
+  behaviors: [sanitation, water]
+  weight: 5
+  base_value: 5
+  starting_instability: 0
+  max_instability: 14
+  instability_growth_min: 1
+  instability_growth_max: 2
+  base_gain_min: 3
+  base_gain_max: 5
+  can_evolve: true
+  evolution_threshold: 0.30
+  evolution_chance: 0.04
+  evolution_instability_spike: 2
+  breakthrough_multiplier_min: 1.5
+  breakthrough_multiplier_max: 2.0
+  state_thresholds:
+    stable: 0.35
+    strained: 0.70
+  decay_modifiers:
+    fresh_multiplier: 1.0
+    settling_multiplier: 0.75
+    fading_multiplier: 0.40
+    settling_day: 2
+    fading_day: 5
+  intro: A coiled tube of pale ceramic that seems to purify anything passed through it.
+  signals:
+    stable:
+      - Water droplets form on the coil's surface and run off crystal clear.
+      - The ceramic feels sterile to the touch, almost frictionless.
+      - A faint clean scent, like air after rain, emanates from it.
+    strained:
+      - The coil sweats droplets that leave pale residue when they dry.
+      - The ceramic surface grows warm and develops a faint chemical smell.
+      - Fine cracks appear along the spiral, weeping a clear liquid.
+    unstable:
+      - The coil vibrates violently, shedding a fine dust that stings the skin.
+      - Liquid forced through the tubes now comes out discolored and steaming.
+      - The ceramic begins to flake. Each flake dissolves into an acrid vapor.
+  collapse:
+    - The coil shatters into sterile fragments that glow briefly, then fade.
+    - A spray of hot vapor and shards. The coil's remains are completely inert.

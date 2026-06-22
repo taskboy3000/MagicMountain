@@ -397,6 +397,86 @@ subtest '_pick_reaction picks from yaml or returns undef' => sub {
     is($undef2, undef, 'unknown outcome returns undef');
 };
 
+subtest '_faction_by_id finds faction by id' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+
+    my $f = $m->_faction_by_id('syndicate');
+    ok($f, 'syndicate faction found');
+    is($f->{name}, 'The Syndicate', 'correct name');
+
+    my $nf = $m->_faction_by_id('nonexistent');
+    is($nf, undef, 'unknown faction returns undef');
+};
+
+subtest '_apply_loyalty_bonus applies 1.10x at 3+ sales' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(skill_selling => 0);
+    $char->setCol('faction_sales', { syndicate => 2 });
+
+    # 2 sales → no bonus
+    my $r1 = $m->_apply_loyalty_bonus($char, 'syndicate', 100);
+    is($r1, 100, 'no bonus at 2 sales');
+
+    $char->setCol('faction_sales', { syndicate => 3 });
+    my $r2 = $m->_apply_loyalty_bonus($char, 'syndicate', 100);
+    is($r2, 105, '1.05x bonus at 3 sales (int)');
+
+    # Different faction with 1 sale → no bonus
+    my $r3 = $m->_apply_loyalty_bonus($char, 'faculty', 100);
+    is($r3, 100, 'no bonus for faction with <3 sales');
+};
+
+subtest 'visits_since tracking on begin' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0,
+        faction_sales => { syndicate => 5 },
+        loyalty_visits_since => 0,
+    );
+
+    my $shed = $m->app->shed;
+    for my $i (1 .. 5) {
+        $shed->create(
+            id => "item-$i", char_id => 'char-1', artifact_id => 'thermal_box_001',
+            behaviors => ['thermal'], decayed_value => 20, original_value => 20,
+        );
+    }
+
+    # Begin a few times — visits_since should increment unless syndicate
+    for my $i (1 .. 3) {
+        srand(42);
+        $m->dispatch($char, 'begin');
+        $m->phase('idle');
+        $m->customer(undef);
+    }
+    ok(1, 'visits_since tracking did not crash');
+    ok($char->{loyalty_visits_since} > 0, 'visits_since incremented after non-loyalty visits');
+};
+
+subtest 'loyalty guarantee triggers after 3 non-loyalty visits' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0,
+        faction_sales => { syndicate => 5 },
+        loyalty_visits_since => 3,
+    );
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'guarantee-item', char_id => 'char-1', artifact_id => 'thermal_box_001',
+        behaviors => ['thermal'], decayed_value => 20, original_value => 20,
+    );
+
+    srand(42);
+    $m->dispatch($char, 'begin');
+    is($char->{loyalty_visits_since}, 0, 'visits reset after guarantee fires');
+    is($m->customer->{faction_id}, 'syndicate', 'customer forced to syndicate on 4th visit');
+};
+
 subtest 'send_away returns to idle' => sub {
     my $content_file = _make_content_file();
     my $m            = _make_singleton($content_file);

@@ -4,8 +4,13 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'action_points', 'action_points_max', 'pending_activity_id', 'faction_sales', 'standing', 'current_location', 'skill_prospecting', 'skill_upcycling', 'skill_selling' ];
+    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'action_points', 'action_points_max', 'pending_activity_id', 'faction_sales', 'standing', 'current_location', 'skill_prospecting', 'skill_upcycling', 'skill_selling', 'loyalty_visits_since' ];
 };
+
+sub create ($self, %params) {
+    $params{loyalty_visits_since} //= 0;
+    return $self->SUPER::create(%params);
+}
 
 sub validate ($self, $col, $val) {
     if ($col eq 'score' && defined($val) && defined($self->getCol('score'))
