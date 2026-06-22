@@ -121,11 +121,11 @@ has maintenance => sub ($self) {
         app             => $self,
         end_of_day_hour => $self->config->{end_of_day_hour} // 0,
         on_maintenance  => sub ($maint) {
-            $maint->app->log->info("Daily maintenance: advancing season day and resetting character AP");
-
             my $season = $maint->app->active_season;
             return unless $season;
             my $day    = $season->getCol('day') + 1;
+            $maint->app->log->info(sprintf("Maintenance: %s day %d -> %d",
+                $season->getCol('label') // '?', $day - 1, $day));
             $season->setCol('day', $day);
             $season->save;
 

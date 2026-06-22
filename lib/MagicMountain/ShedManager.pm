@@ -89,7 +89,7 @@ sub apply_decay ($self) {
         $count++;
     }
 
-    $self->app->log->debug("ShedManager: applied decay to $count items") if $count;
+
     return $count;
 }
 

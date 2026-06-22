@@ -5,15 +5,20 @@ use Getopt::Long qw(GetOptionsFromArray);
 use File::Temp qw(tempdir);
 use File::Slurp qw(write_file);
 use File::Copy qw(copy);
+use YAML::XS qw(LoadFile);
 use MagicMountain::Model::Transcript;
+use MagicMountain::Bot::PushPolicy;
+use MagicMountain::Bot::SellPolicy;
 
-has description => 'Run a bot simulation season.';
+has description => 'Run a bot simulation season with configurable policies.';
 has usage => "usage: $0 simulate [OPTIONS]\n"
            . "  --count N         Number of bots (default 5)\n"
            . "  --days N          Season length in days (default 30)\n"
            . "  --seed N          RNG seed\n"
            . "  --output FILE     Transcript output path\n"
-           . "  --skill-profile S Skill levels for all bots, e.g. 'prospecting=2,upcycling=1'\n";
+           . "  --skill-profile S Skill levels, e.g. 'prospecting=2,upcycling=1'\n"
+           . "  --profile FILE    Bot profile YAML (default content/bots.yml)\n"
+           . "  --profile-weights W  Weighted profile distribution, e.g. 'a=3,b=1'\n";
 
 sub run ($self, @args) {
     my $count   = 5;
@@ -21,13 +26,17 @@ sub run ($self, @args) {
     my $seed    = undef;
     my $output  = undef;
     my $skill_profile = undef;
+    my $profile_file  = undef;
+    my $weights_str   = undef;
 
     GetOptionsFromArray(\@args,
-        'count=i'  => \$count,
-        'days=i'   => \$days,
-        'seed=i'   => \$seed,
-        'output=s' => \$output,
-        'skill-profile=s' => \$skill_profile,
+        'count=i'           => \$count,
+        'days=i'            => \$days,
+        'seed=i'            => \$seed,
+        'output=s'          => \$output,
+        'skill-profile=s'   => \$skill_profile,
+        'profile=s'         => \$profile_file,
+        'profile-weights=s' => \$weights_str,
     );
 
     srand($seed) if defined $seed;
@@ -35,14 +44,11 @@ sub run ($self, @args) {
     my $app = $self->app;
     my $data_dir = tempdir(CLEANUP => 1);
     local $ENV{MM_DATA_DIR} = $data_dir;
-    delete $app->{dataDir};  # Reset cached attribute so $app->dataDir re-evaluates
+    delete $app->{dataDir};
     local $ENV{MM_SKIP_SEASON_CHECK} = 1;
 
-    # Wipe any model instances already memoized by startup (they point at
-    # the production data dir). They'll be recreated below with the temp dir.
     delete $app->{$_} for qw(accounts characters seasons shed session_store transcript prospecting market audit_log faction_snapshots);
 
-    # Initialize empty data files
     write_file("$data_dir/accounts.json",   '{}');
     write_file("$data_dir/characters.json", '{}');
     write_file("$data_dir/sessions.json",   '{}');
@@ -50,13 +56,11 @@ sub run ($self, @args) {
     write_file("$data_dir/shed.json",       '{}');
     write_file("$data_dir/seasons.json",    '{}');
 
-    # Pre-load models so they read from the new files
     my $accts  = $app->accounts;
     my $chars  = $app->characters;
     my $season = $app->seasons;
     my $shed   = $app->shed;
 
-    # Create an active season
     my $s = $season->create(
         label   => 'Simulation 1',
         length  => $days,
@@ -64,11 +68,40 @@ sub run ($self, @args) {
         status  => 'active',
     );
     $s->save;
-    $app->log->info(sprintf("Created season %s (%d days)", $s->getCol('id'), $days));
 
-    # Parse skill profile
+    # Load profiles
+    $profile_file //= $app->home . '/content/bots.yml';
+    my $profiles = (-e $profile_file) ? LoadFile($profile_file) : [];
+    my @profiles = @$profiles;
+
+    # Fallback to a single default profile if none defined
+    unless (@profiles) {
+        @profiles = ({
+            id => 'default',
+            push_policy => { name => 'stage_guard', params => { stop_at => 'unstable' } },
+            sell_policy => { name => 'opportunist' },
+            skill_profile => { prospecting => 0, upcycling => 0, selling => 0 },
+        });
+    }
+
+    # Parse profile weights
+    my @profile_pool;
+    if ($weights_str) {
+        my %weights;
+        for my $part (split /,/, $weights_str) {
+            $part =~ s/\s+//g;
+            my ($key, $weight) = split /=/, $part;
+            $weights{$key} = int($weight // 1);
+        }
+        for my $p (@profiles) {
+            my $w = $weights{$p->{id}} // 1;
+            push @profile_pool, $p for 1 .. $w;
+        }
+    }
+
+    # Parse skill profile (used only when no profile YAML loaded)
     my %skill_defaults = (prospecting => 0, upcycling => 0, selling => 0);
-    if ($skill_profile) {
+    if ($skill_profile && @profiles == 1 && $profiles[0]->{id} eq 'default') {
         for my $part (split /,/, $skill_profile) {
             $part =~ s/\s+//g;
             my ($key, $val) = split /=/, $part;
@@ -76,12 +109,19 @@ sub run ($self, @args) {
         }
     }
 
-    # Create bot accounts and characters
-    my @bot_names;
+    # Create bot accounts, characters, and assign profiles
     my @bot_chars;
+    my %char_profile;
     for my $i (1 .. $count) {
         my $name = sprintf("bot-%03d", $i);
-        push @bot_names, $name;
+        my $profile;
+        if (@profile_pool) {
+            $profile = $profile_pool[ int(rand(scalar @profile_pool)) ];
+        } else {
+            $profile = $profiles[ ($i - 1) % @profiles ];
+        }
+
+        my $sk = $profile->{skill_profile} // \%skill_defaults;
 
         my $a = $accts->create(username => $name);
         $a->save;
@@ -94,43 +134,56 @@ sub run ($self, @args) {
             scrap             => 0,
             action_points     => 15,
             action_points_max => 15,
-            skill_prospecting => $skill_defaults{prospecting},
-            skill_upcycling   => $skill_defaults{upcycling},
-            skill_selling     => $skill_defaults{selling},
+            skill_prospecting => $sk->{prospecting} // 0,
+            skill_upcycling   => $sk->{upcycling} // 0,
+            skill_selling     => $sk->{selling} // 0,
         );
         $c->save;
         push @bot_chars, $c;
+        $char_profile{$c->getCol('id')} = $profile;
     }
 
-    $app->log->info(sprintf("Created %d bots", scalar @bot_chars));
-
-    # Open transcript (direct instance injected into app to override lazy loader)
+    # Open transcript
     my $transcript_file = "$data_dir/transcript.jsonl";
     $app->{transcript} = MagicMountain::Model::Transcript->new(file => $transcript_file);
     my $transcript = $app->transcript;
+
+    # Build bot roster for sim_start
+    my @bot_roster;
+    for my $c (@bot_chars) {
+        my $p = $char_profile{$c->getCol('id')};
+        push @bot_roster, {
+            name         => $c->getCol('name'),
+            char_id      => $c->getCol('id'),
+            profile_id   => $p->{id},
+            push_policy  => $p->{push_policy}{name},
+            push_params  => $p->{push_policy}{params},
+            sell_policy  => $p->{sell_policy}{name},
+            sell_params  => $p->{sell_policy}{params},
+            skills       => $p->{skill_profile},
+        };
+    }
+
     $transcript->log_event({
         type      => 'sim_start',
         run_id    => $s->getCol('id'),
         bot_count => $count,
-        day       => $days,
-        narrative => sprintf("Simulation %s: %d bots, %d days.", $s->getCol('id'), $count, $days),
+        days      => $days,
+        bots      => \@bot_roster,
+        narrative => sprintf("Simulation %s: %d bots, %d days, %d profiles.",
+            $s->getCol('id'), $count, $days, scalar @profiles),
     });
 
-    # Enable decay transcript events for tuning analysis
     $app->shed_manager->log_transcript(1);
 
-    # Run the simulation day loop
+    # Run simulation
     my $maint = $app->maintenance;
     my @chars = @bot_chars;
     for my $day (1 .. $days) {
         $app->seasons->load;
-        my $active = $app->seasons->find(sub { $_[0]->{status} eq 'active' });
-        my $sd = @$active ? $active->[0]->getCol('day') : '?';
-        my $ap0 = @chars && $chars[0] ? ($chars[0]->getCol('action_points') // '?') : 'none';
-        $app->log->info(sprintf("Sim loop day=%d/%d season_day=%s chars=%d ap0=%s",
-            $day, $days, $sd, scalar(@chars), $ap0));
         for my $char (@chars) {
-            $self->_run_bot_day($app, $char);
+            my $profile = $char_profile{$char->getCol('id')};
+            $self->_run_bot_day($app, $char, $profile, $transcript) if $profile;
         }
         $maint->on_maintenance->($maint) if $day < $days;
         @chars = @{ $app->characters->find(sub { $_[0]->{season_id} eq $s->getCol('id') }) };
@@ -139,10 +192,10 @@ sub run ($self, @args) {
     $transcript->log_event({
         type      => 'sim_end',
         run_id    => $s->getCol('id'),
+        bots      => \@bot_roster,
         narrative => sprintf("Simulation %s complete.", $s->getCol('id')),
     });
 
-    # Copy or print transcript path
     if ($output) {
         copy($transcript_file, $output);
         $app->log->info(sprintf("Transcript written to %s", $output));
@@ -151,10 +204,14 @@ sub run ($self, @args) {
     }
 }
 
-sub _run_bot_day ($self, $app, $char) {
+sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
     my $prospecting = $app->prospecting;
     my $market      = $app->market;
     my $shed        = $app->shed;
+    my $profile_id  = $profile->{id};
+    my $push_pol    = $profile->{push_policy};
+    my $sell_pol    = $profile->{sell_policy};
+    my $char_name   = $char->getCol('name');
 
     # Prospecting phase
     while (($char->getCol('action_points') // 0) >= 2) {
@@ -162,9 +219,7 @@ sub _run_bot_day ($self, $app, $char) {
         my $result = $activity->dispatch($char, 'begin');
         last unless $result->{view}{ok};
 
-        # Push until the naive policy says stop
-        my $should_stop = 0;
-        while (!$should_stop) {
+        while (1) {
             my $r = $activity->dispatch($char, 'push');
             my $view = $r->{view};
             last unless $view->{ok};
@@ -172,11 +227,27 @@ sub _run_bot_day ($self, $app, $char) {
             if ($view->{result} eq 'collapse' || $view->{result} eq 'breakthrough') {
                 last;
             }
+
             if ($view->{result} eq 'push') {
-                my $stage = $view->{artifact}{stage} // '';
-                if ($stage eq 'unstable') {
+                my $art = $activity->artifact;
+                my $should_stop = MagicMountain::Bot::PushPolicy::evaluate($char, $art, $push_pol);
+                if ($should_stop) {
                     $activity->dispatch($char, 'stop');
-                    $should_stop = 1;
+                    $transcript->log_event({
+                        type       => 'policy_push_stop',
+                        player     => $char_name,
+                        profile_id => $profile_id,
+                        policy     => $push_pol->{name},
+                        params     => $push_pol->{params},
+                        stage      => $art->{stage},
+                        value      => $art->{value},
+                        push_count => $art->{push_count},
+                        narrative  => sprintf("%s stopped pushing via %s (stage=%s, value=%d, pushes=%d).",
+                            $char_name, $push_pol->{name},
+                            $art->{stage} // '?',
+                            $art->{value} // 0,
+                            $art->{push_count} // 0),
+                    });
                     last;
                 }
             }
@@ -188,117 +259,81 @@ sub _run_bot_day ($self, $app, $char) {
         my $shed_items = $shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
         last unless @$shed_items;
 
+        # Hoarder check before entering market
+        if ($sell_pol->{name} eq 'hoarder') {
+            $transcript->log_event({
+                type       => 'policy_skip_market',
+                player     => $char_name,
+                profile_id => $profile_id,
+                reason     => 'hoarder',
+                narrative  => sprintf("%s skipped market (hoarder policy).", $char_name),
+            });
+            last;
+        }
+
         my $activity = $market->create(char_id => $char->getCol('id'));
         my $result = $activity->dispatch($char, 'begin');
         last unless $result->{view}{ok};
 
-        # Try each shed item until one sells, all fail, or customer storms off
+        # Check if we accept this customer
+        unless (MagicMountain::Bot::SellPolicy::accept_customer($char, $activity->customer, $sell_pol)) {
+            $activity->dispatch($char, 'send_away');
+            $transcript->log_event({
+                type       => 'policy_send_away',
+                player     => $char_name,
+                profile_id => $profile_id,
+                reason     => $sell_pol->{name},
+                narrative  => sprintf("%s sent away customer (%s policy).",
+                    $char_name, $sell_pol->{name}),
+            });
+            last;
+        }
+
+        my $n_mismatches = 0;
         for my $item (@$shed_items) {
+            # Check if this item is worth offering
+            unless (MagicMountain::Bot::SellPolicy::should_offer_item($char, $item, $sell_pol)) {
+                $transcript->log_event({
+                    type       => 'policy_skip_item',
+                    player     => $char_name,
+                    profile_id => $profile_id,
+                    reason     => $sell_pol->{name},
+                    value      => $item->getCol('decayed_value') // 0,
+                    narrative  => sprintf("%s skipped item %s (value=%d, %s policy).",
+                        $char_name, $item->getCol('artifact_id') // '?',
+                        $item->getCol('decayed_value') // 0, $sell_pol->{name}),
+                });
+                next;
+            }
+
             my $r = $activity->dispatch($char, 'offer', shed_item_id => $item->getCol('id'));
             my $view = $r->{view};
+            $view->{player}{name} = $char_name;
+            $view->{player}{profile_id} = $profile_id;
+
             if ($view->{result} eq 'sold') {
                 last;
             }
             if ($view->{result} eq 'customer_left') {
                 last;
             }
-            # 'no_match' — try the next item
+            if ($view->{result} eq 'no_match') {
+                $n_mismatches++;
+                unless (MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
+                    $transcript->log_event({
+                        type        => 'policy_stop_offer',
+                        player      => $char_name,
+                        profile_id  => $profile_id,
+                        reason      => $sell_pol->{name},
+                        mismatches  => $n_mismatches,
+                        narrative   => sprintf("%s stopped offering after %d mismatches (%s policy).",
+                            $char_name, $n_mismatches, $sell_pol->{name}),
+                    });
+                    last;
+                }
+            }
         }
     }
 }
 
 1;
-
-__END__
-
-=head1 SYNOPSIS
-
-  perl -Ilib script/mountain simulate --count 8 --days 30 --seed 42
-  perl -Ilib script/mountain simulate --count 5 --days 60 --seed 1 --output results.jsonl
-
-=head1 DESCRIPTION
-
-Runs a bot simulation season against the real game engine. Bots exercise the
-full game loop (prospect -> shed -> market -> sell) using the same dispatch(),
-transition tables, persistence, and invariants as human players - just without
-the HTTP layer.
-
-Each simulation creates a fresh set of data files in a temp directory, runs
-the specified number of bots through the specified number of in-game days, and
-writes a JSONL transcript of every event to an output file.
-
-=head1 OPTIONS
-
-=over
-
-=item B<--count> I<N>
-
-Number of bot players. Defaults to 5. Each bot gets a unique name (bot-001,
-bot-002, etc.), its own account, and its own seasonal character with 15 AP/day.
-
-=item B<--days> I<N>
-
-Season length in days. Defaults to 30. Day rollover (AP refresh, artifact
-decay, season day increment) uses the same C<on_maintenance> callback as
-production.
-
-=item B<--seed> I<N>
-
-RNG seed for reproducible runs. Same seed + same count + same days produces
-identical results. Useful for comparing balance changes.
-
-=item B<--output> I<FILE>
-
-Transcript output path. If omitted, prints the temp file path to stdout.
-Transcripts are JSONL - one JSON object per line, each with C<ts>, C<type>,
-and C<narrative> fields.
-
-=head1 BOT STRATEGY
-
-The current bot uses a single hardcoded naive strategy:
-
-=over
-
-=item B<Prospecting>: Push until the artifact reaches C<unstable> stage,
-then stop. On collapse or breakthrough, move on.
-
-=item B<Selling>: On a market visit, offer the oldest shed item. If the
-customer wants it, sell. Otherwise, the customer leaves. Visit ends.
-
-=item B<Skills>: All skills are zero (baseline).
-
-=back
-
-See L<GAME_ARCHITECTURE.md|/Future Expansion> for plans to add pluggable
-push/sell policies.
-
-=head1 OUTPUT
-
-Transcript events include (but are not limited to):
-
-  artifact_start  - A bot drew an artifact from the mountain
-  push            - A destabilization attempt
-  collapse        - Total loss
-  breakthrough    - Evolution cashout
-  stop            - Safe recovery into shed
-  shed_entry      - Artifact placed in inventory
-  market_visit    - Bot entered the Bazaar
-  offer           - Customer made an offer (match or mismatch)
-  sale            - Successful sale
-  sim_start       - Simulation metadata
-  sim_end         - Simulation complete
-
-Each event includes a C<narrative> field with a human-readable description.
-The structured fields (C<value>, C<instability>, C<stage>, etc.) are available
-for programmatic analysis.
-
-=head1 ANALYSIS
-
-  perl script/analyze results.jsonl
-
-Prints: artifacts per bot, push distribution, collapse/breakthrough/stop rates,
-average sale values, and score ranges.
-
-=head1 SEE ALSO
-
-L<MagicMountain::Model::Transcript>, L<script/analyze>
