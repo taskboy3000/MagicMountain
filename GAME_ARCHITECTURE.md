@@ -310,6 +310,7 @@ Survives across seasons. Contains no gameplay data.
 | skill_upcycling | integer | 0–3, Upcycling skill level |
 | skill_selling | integer | 0–3, Selling skill level |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
+| loyalty_visits_since | integer | Consecutive market visits without seeing the player's top faction. Used by loyalty access guarantee (see §6.5 step 1). |
 
 > `turns_remaining` has been replaced by `action_points` / `action_points_max`.
 > The old "lazy rollover" design using `last_refreshed_day` was already removed
@@ -721,16 +722,32 @@ When a player starts a Market Visit (costs 1 AP):
    - `irritation_threshold` — if exceeded, customer leaves
    - `settle_chance` — probability the customer will accept a non-matching item
 
+   Customer selection is standing-weighted: each faction's weight starts at 1.0
+   and increases by +0.5 per point of personal standing with that faction. The
+   higher a player's standing with a faction, the more likely its customers
+   appear.
+
+   **Loyalty access guarantee**: If the player has 2+ sales to a single top
+   faction and the rolled customer is from a different faction, a `loyalty_visits_since`
+   counter tracks consecutive non-loyalty visits. After 3 such visits, the
+   customer is forcibly redirected to the player's top faction (reset on
+   any loyalty-faction visit). This ensures loyalists aren't starved of their
+   preferred faction's customers.
+
 2. **Player offer**: Player selects an artifact from their Shed and presents it
    to the customer. The negotiation logic:
     - If artifact behaviors intersect desired_behaviors:
       - **Match**: High offer at `floor(decayed_value × base_multiplier × match_mult)`.
         `match_mult` is 1.2 normally, 1.4 with Selling skill 3.
-        Positive narrative response. Sale is automatic — no accept step.
+        Positive narrative response from `content/text/negotiation_reactions.yml`
+        (per-faction flavor text, with `{item_id}` / `{value}` template variables).
+        Falls back to generic text if no faction entry exists.
+        Sale is automatic — no accept step.
     - If no intersection:
       - **Mismatch**: Low offer at `floor(decayed_value × base_multiplier × 0.5)`.
-        Negative narrative response. A random roll against `settle_chance` (default
-        0.15) may cause the customer to accept the lowball anyway (see step 3).
+        Negative narrative response via `negotiation_reactions.yml`.
+        A random roll against `settle_chance` (default 0.15) may cause the customer
+        to accept the lowball anyway (see step 3).
         If the settle fails, irritation increases by exactly 1 (or 0 with
         Selling skill 2+), and the activity persists — the player may show a
         different artifact.
@@ -748,9 +765,15 @@ When a player starts a Market Visit (costs 1 AP):
      the customer to accept the mismatched item at the low offer price
 
 4. **On successful sale**:
-   - Add `offer_value` to both `scrap` and `score`
+   - Add `offer_value` to both `scrap` and `score`. If the player has 3+ sales
+     to this faction, `_apply_loyalty_bonus` applies a 1.05× price multiplier
+     (rewarding repeat patronage).
    - Increment `faction_sales[faction_id]` counter
-   - Adjust `standing[faction_id]` by +1 (or more for strong matches)
+   - Adjust `standing[faction_id]` by a delta that escalates with loyalty:
+     - Base: +2 for match, +1 for mismatch/settle
+     - +1 if artifact was evolved (breakthrough)
+     - +1 if 2nd+ sale to this faction (repeat customer bonus)
+     - +1 if 4th+ sale to this faction (deep loyalty bonus)
    - Record transcript event
    - Delete ShedItem
    - Activity row deleted, `pending_activity_id` cleared
@@ -986,21 +1009,28 @@ Admin-triggered via `end-season` CLI or `POST /season/end` web button
 (both call `Model::Season::finalize`). MUST execute in this exact order:
 
 1. Compute final leaderboard rank for each character
-2. For each SeasonalCharacter:
-   a. Collect final stats (score, scrap, standing, faction_sales, skills)
+2. **Clearance sale**: All unsold ShedItems for this season are liquidated at
+   25% of their `decayed_value`. The scrap and score are awarded to each
+   character before SeasonRecords are built. This ensures no artifact value
+   is lost to the aether — even unsold inventory contributes to final score.
+   Clearance amount is recorded in `story_highlights.clearance_bonus`.
+3. For each SeasonalCharacter:
+   a. Collect final stats (score includes clearance, scrap includes clearance,
+      standing, faction_sales, skills)
    b. Collect significant ArtifactDisposition records
    c. Build SeasonRecord (score, scrap, rank, standing snapshot, skills
-      snapshot, disposition summaries, narrative hooks)
+      snapshot, disposition summaries, narrative hooks, clearance_bonus)
    d. Store SeasonRecord (append-only, survives deletion)
-3. Verify ALL SeasonRecords are stored successfully
-4. Discard all ShedItems for this season
-5. Delete ALL SeasonalCharacter rows for this season
-6. Clear SeasonFactionState (via `nullCol`)
-7. Set Season.status = "archived"
+4. Verify ALL SeasonRecords are stored successfully
+5. Discard all ShedItems for this season (already liquidated in step 2)
+6. Delete ALL SeasonalCharacter rows for this season
+7. Clear SeasonFactionState (via `nullCol`)
+8. Set Season.status = "archived"
 
 On the next visit to `/game`, the player sees a `season_recap` card
-with their final score, rank, scrap, standing, and highlights. A new
-active season is auto-created and a fresh character issued.
+with their final score, rank, scrap, standing, and highlights (including
+clearance bonus if any). A new active season is auto-created and a fresh
+character issued.
 
 ---
 
@@ -1336,9 +1366,10 @@ Display names must be unique.
 
 ```
 content/
+  bots.yml                        # Bot profile definitions (push/sell policies, skills)
   prospecting.yml                 # All artifact definitions
   skills.yml                      # Skill definitions and costs
-  factions.yml                    # Faction definitions (future: expanded traits)
+  factions.yml                    # Faction definitions
   text/
     crier.yml                      # Daily maintenance messages (surge, slump, etc.)
     negotiation_reactions.yml      # Per-faction flavor text for market visit outcomes
@@ -1603,9 +1634,36 @@ Bots are automated players that invoke the same service classes as the web
 controllers. The simulate CLI command reads artifact content, iterates through
 a population of bots, and calls `Activity::Prospecting`, `Activity::MarketVisit`,
 `Shed`, and `SeasonalCharacter` mutators directly — producing game outcomes
-identical to human play.
+identical to human play. The simulation framework lives across three layers:
 
-### 14.1 Push Policies
+- **`MagicMountain::Bot::PushPolicy`** — stateless evaluation of push/stop
+  decisions given character state, artifact state, and policy parameters.
+- **`MagicMountain::Bot::SellPolicy`** — stateless evaluation of three
+  selling decisions: accept customer, offer item, try another after mismatch.
+- **`Command::simulate`** — orchestrates the simulation loop, creates bot
+  accounts/characters, drives prospecting and market phases, calls policies,
+  and records transcripts.
+
+### 14.1 CLI Interface
+
+```
+perl -Ilib script/mountain simulate [OPTIONS]
+
+Options:
+  --count N             Number of bots (default 5)
+  --days N              Season length in days (default 30)
+  --seed N              RNG seed for reproducibility
+  --output FILE         Transcript output path
+  --profile FILE        Bot profile YAML (default content/bots.yml)
+  --profile-weights W   Weighted profile distribution, e.g. 'a=3,b=1'
+  --skill-profile S     Skill levels (only when using inline default profile)
+```
+
+### 14.2 Push Policies
+
+Registered in `MagicMountain::Bot::PushPolicy`. Each policy is a function that
+receives `($char, $artifact, $params)` and returns true when the bot should
+STOP pushing (i.e., stop condition met).
 
 | Policy | Parameters | Behavior |
 |--------|------------|----------|
@@ -1614,31 +1672,54 @@ identical to human play.
 | `stage_guard` | `stop_at` (default "unstable") | Push until target stage reached |
 | `greed` | `prob` (default 0.7) | Push with probability P each time |
 | `value_target` | `min` (default 20) | Push until value exceeds target |
-| `composite` | `op` ("and"/"or"), `policies` (sub-policy array) | Combine multiple policies |
+| `composite_and` | `policies` (sub-policy array) | Stop only when ALL sub-policies say stop |
+| `composite_or` | `policies` (sub-policy array) | Stop when ANY sub-policy says stop |
 
-### 14.2 Selling Policies
+### 14.3 Selling Policies
 
-| Policy | Behavior |
-|--------|----------|
-| `highest_offer` | Accept any offer above a value threshold |
-| `faction_loyalist` | Sell only to specific faction, pass on others |
-| `opportunist` | Accept any match, pass on mismatches |
-| `desperate` | Accept any offer including mismatches at low value |
-| `hoarder` | Skip market visits, accumulate shed items |
+Registered in `MagicMountain::Bot::SellPolicy`. Selling is decomposed into
+three separate decisions, each with its own policy dispatch:
 
-### 14.3 Bot Strategy Profile
+| Decision | Policy | Parameters | Behavior |
+|----------|--------|------------|----------|
+| **accept_customer** | `faction_loyalist` | `faction` | Only enter market if customer matches target faction |
+| | `hoarder` | *(none)* | Never enter market |
+| | `default` | *(none)* | Accept any customer |
+| **should_offer_item** | `highest_offer` | `min_value` (default 10) | Only offer items above a value threshold |
+| | `default` | *(none)* | Offer any item in shed |
+| **try_another** | `opportunist` | *(none)* | Stop offering after first mismatch (never try another) |
+| | `default` | *(none)* | Continue offering further items |
 
-A bot profile combines a push policy with a selling policy:
+### 14.4 Bot Strategy Profile
+
+Bot profiles are defined in `content/bots.yml`:
 
 ```yaml
-- id: alice
-  display_name: "Alice"
+- id: stage_guard_opportunist
+  display_name: "Cautious"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
   sell_policy: { name: "opportunist" }
-  skill_profile: { prospecting: 1, upcycling: 2, selling: 0 }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: value_hoarder
+  display_name: "Hoarder"
+  push_policy: { name: "value_target", params: { min: 30 } }
+  sell_policy: { name: "hoarder" }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: instability_loyalist
+  display_name: "Loyalist"
+  push_policy: { name: "instability_cap", params: { max: 3 } }
+  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
 ```
 
-Bot profiles are defined in YAML content (future: `content/bots.yml`).
+The `faction_loyalist` sell policy combined with any push policy produces
+a loyalist bot that sells exclusively to one faction. The `hoarder` policy
+skips market entirely, accumulating shed items until season end.
+
+Profiles are selected per-bot either by round-robin, or by weighted random
+selection via `--profile-weights` (e.g. `--profile-weights 'stage_guard_opportunist=3,value_hoarder=1'`).
 
 ---
 
@@ -1829,9 +1910,9 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Shed controller** | `Controller::Shed` | `GET /shed` with query-string filtering (condition, artifact_id, behavior, min/max value, sort, order); `respond_to` JSON/HTML |
 | **Skills controller + purchase** | `Controller::Skills`, `skills_data` helper | `GET /skills` lists YAML definitions + current levels; `POST /skills/purchase` validates scrap, enforces level cap, deducts and increments |
 | **Leaderboard controller** | `Controller::Leaderboard` | `GET /leaderboard` — seasonal character rankings sorted by score |
-| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions |
+| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml`, `content/bots.yml`, `content/text/negotiation_reactions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions, bot profiles, per-faction negotiation flavor text |
 | **Transcript system** | `Model::Transcript` | JSONL event log with narrative, integrated into all activity handlers and simulation |
-| **Bot simulation** | `Command::simulate`, `script/analyze` | Naive bot strategy, real game engine, reproducible, analysis script |
+| **Bot simulation** | `Command::simulate`, `Bot::PushPolicy`, `Bot::SellPolicy`, `content/bots.yml`, `bin/analyze_sim` | Pluggable push/sell policies, YAML profile definitions, weighted profile distribution, reproducible simulation, analysis script |
 | **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
 | **Season-aware character lookup** | `Controller.pm` base class, `MagicMountain.pm` | `_require_character` filters by active season; `active_season` method (non-memoized, fresh each call) on app class |
 | **JS SPA** | `public/js/game.js` | Extracted from template per unobtrusive JS principle; renders idle/prospecting/market cards, shed inventory, skills, faction standing, leaderboard, season recap from JSON |
@@ -1839,12 +1920,20 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
 | **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
 | **Crier daily progress** | `Crier.pm`, `content/text/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
-| **Season finalization CLI + web UI** | `Command::end_season.pm`, `Controller::Season.pm`, `Model::Season.pm` (finalize) | 7-step archive: compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive. Web button calls same `Season::finalize` method. |
+| **Season finalization CLI + web UI** | `Command::end_season.pm`, `Controller::Season.pm`, `Model::Season.pm` (finalize) | 8-step archive: clearance sale (25% of shed value), compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive. Web button calls same `Season::finalize` method. |
+| **Clearance sale** | `Model::Season.pm` (finalize) | Unsold shed items liquidated at 25% of `decayed_value` during season finalization; awarded as scrap+score before SeasonRecord creation |
+| **Loyalty standing escalation** | `Activity::MarketVisit.pm`, `Model::Character.pm` | Standing delta grows with repeat sales: +2 match / +1 mismatch base, +1 evolved, +1 at 2nd+ sale, +1 at 4th+ sale; loyalty access guarantee redirects customers to top faction after 3 off-faction visits |
 | **SeasonRecord model** | `Model::SeasonRecord.pm` | Post-season archive per character: score, scrap, rank, standing/skills snapshots, story highlights |
 | **Season recap + auto-renew** | `Controller/Game.pm`, `public/js/game.js` | On first `/game` visit after end-season, shows recap card, auto-creates new season + fresh character |
 | **CSRF protection** | `MagicMountain.pm` (csrf_token helper, auth_write bridge), `Controller/Sessions.pm`, `Game.pm`, `public/js/game.js` | Session-based token returned on login, sent as `X-CSRF-Token` header on all authenticated write requests |
 | **Faction snapshot history** | `Model::FactionSnapshot.pm`, `Maintenance.pm`, `Season.pm` (finalize), `Controller/Leaderboard.pm` (factions) | Daily faction influence persisted during maintenance and season end; `GET /leaderboard/factions` returns per-faction time series |
 | **`nullCol` helper** | `Model.pm` | `delete` a column from row (avoids JSON `null` artifacts from `setCol($col, undef)`) |
+| **Shared mtime cache** | `Model.pm` | Sequence-number-based cache replaces file-mtime-based cache; avoids redundant reloads when multiple saves happen in the same request |
+| **Narrative reactions** | `Activity::MarketVisit.pm`, `content/text/negotiation_reactions.yml` | Per-faction flavor text for match/settle/mismatch/storm_off outcomes; `{item_id}`/`{value}` template substitution; falls back to hardcoded text |
+| **Loyalty price bonus** | `Activity::MarketVisit.pm` (`_apply_loyalty_bonus`) | 1.05× offer multiplier for 3+ sales to the same faction |
+| **Loyalty access guarantee** | `Activity::MarketVisit.pm` (begin), `Model::Character.pm` (`loyalty_visits_since`) | After 3 consecutive market visits to non-top-faction customers, forcibly redirects to player's top faction |
+| **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |
+| **Analysis script** | `bin/analyze_sim` | Reusable transcript analysis: per-bot scores, push/sell counts, match rates |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
@@ -1857,7 +1946,6 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | Counter-offers / multi-item per visit | Medium | Player can negotiate for better price; show multiple items in single visit |
-| Bot policy framework | Medium | Pluggable push/sell policies, YAML bot profiles |
 | Commission system | Low | Faction notices, active commissions |
 | Market dynamics (supply/demand) | Low | Price depression, faction appetites, daily caps |
 | Rate limiting | Medium | Brute-force prevention on login |

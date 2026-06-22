@@ -441,4 +441,4 @@ sensory detail ("the casing warps"). See `docs/Tone Guide.md`.
 2. Change `push_policy.name` to any policy from the table above
 3. Change `sell_policy.name` and `params` to any policy from the table above
 4. Test with: `perl -Ilib script/mountain simulate --count 5 --days 14 --profile-weights "your_profile_id=5"`
-5. Analyze with: `perl -Ilib script/analyze_sim <transcript>`
+5. Analyze with: `perl bin/analyze_sim <transcript>`
