@@ -299,8 +299,11 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
     my $standing = $char->getCol('standing') // {};
 
     $sales->{$fid}++;
+    my $total_to_faction = $sales->{$fid} // 0;
     my $delta = $was_match ? 2 : 1;
     $delta++ if $item->getCol('has_evolved');
+    $delta++ if $total_to_faction >= 2;   # 2nd+ sale: loyalty bonus
+    $delta++ if $total_to_faction >= 4;   # 4th+ sale: deep loyalty bonus
     $standing->{$fid} += $delta;
 
     $char->setCol('faction_sales', $sales);

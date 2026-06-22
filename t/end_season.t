@@ -97,14 +97,14 @@ $app->season_records->load;
 my $records = $app->season_records->find(sub { $_[0]->{season_id} eq 's1' });
 is(scalar @$records, 2, 'two season records created');
 
-my ($alice_rec) = grep { $_->getCol('final_score') == 100 } @$records;
+my ($alice_rec) = grep { $_->getCol('final_score') == 103 } @$records;
 my ($bob_rec)   = grep { $_->getCol('final_score') == 200 } @$records;
 ok($alice_rec, 'alice record found');
 ok($bob_rec, 'bob record found');
 
 is($bob_rec->getCol('rank'), 1, 'bob ranked 1 (score 200)');
 is($alice_rec->getCol('rank'), 2, 'alice ranked 2 (score 100)');
-is($alice_rec->getCol('final_scrap'), 50, 'alice scrap preserved');
+is($alice_rec->getCol('final_scrap'), 53, 'alice scrap preserved (50 + 3 clearance)');
 is($alice_rec->getCol('skills_snapshot')->{prospecting}, 2, 'alice skill preserved');
 is($alice_rec->getCol('faction_standing_snapshot')->{syndicate}, 3, 'alice standing preserved');
 
@@ -115,5 +115,6 @@ is($hl->{evolved_artifacts_sold}, 1, 'highlights: 1 evolved');
 is($hl->{top_faction}, 'syndicate', 'highlights: top faction');
 is($hl->{top_faction_influence}, 60, 'highlights: top faction influence');
 is($hl->{factions_competing}, 2, 'highlights: 2 factions competing');
+is($hl->{clearance_bonus}, 3, 'highlights: clearance bonus 3');
 
 done_testing;

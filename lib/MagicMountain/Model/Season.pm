@@ -31,6 +31,30 @@ sub finalize ($class, $app) {
     my $faction_state = $season->getCol('faction_state') // {};
     my @faction_rank = sort { $faction_state->{$b}{influence} // 0 <=> $faction_state->{$a}{influence} // 0 } keys %$faction_state;
 
+    # Clearance sale: unsold shed items liquidated at 25%
+    $app->shed->load;
+    my %clearance;
+    for my $sid (keys %{ $app->shed->table }) {
+        my $row = $app->shed->table->{$sid};
+        next unless $row->{char_id};
+        my $cref = $app->characters->table->{$row->{char_id}};
+        next unless $cref && $cref->{season_id} eq $season_id;
+        $clearance{ $row->{char_id} } += ($row->{decayed_value} // 0);
+        delete $app->shed->table->{$sid};
+    }
+    $app->shed->save;
+    my $total_discard = scalar keys %clearance;
+    $app->log->info("Discarded $total_discard shed items.");
+
+    # Award clearance before building SeasonRecords
+    for my $char (@sorted) {
+        my $clr = int(($clearance{ $char->getCol('id') } // 0) * 0.25);
+        next unless $clr;
+        $char->setCol('scrap', $char->getCol('scrap') + $clr);
+        $char->setCol('score', $char->getCol('score') + $clr);
+        $char->save;
+    }
+
     for my $char (@sorted) {
         my $char_id    = $char->getCol('id');
         my $player_id  = $char->getCol('account_id');
@@ -43,6 +67,8 @@ sub finalize ($class, $app) {
         $highlights->{top_faction} = $faction_rank[0] if @faction_rank;
         $highlights->{top_faction_influence} = $faction_state->{$faction_rank[0]}{influence} if @faction_rank;
         $highlights->{factions_competing} = scalar @faction_rank;
+        my $clr = int(($clearance{ $char_id } // 0) * 0.25);
+        $highlights->{clearance_bonus} = $clr if $clr;
 
         $app->season_records->create(
             season_id                 => $season_id,
@@ -64,19 +90,6 @@ sub finalize ($class, $app) {
     my $saved = $app->season_records->find(sub { $_[0]->{season_id} eq $season_id });
     die sprintf("ERROR: expected %d records, found %d", scalar @sorted, scalar @$saved)
         if scalar @$saved != scalar @sorted;
-
-    $app->shed->load;
-    my $discard = 0;
-    for my $sid (keys %{ $app->shed->table }) {
-        my $row = $app->shed->table->{$sid};
-        next unless $row->{char_id};
-        my $cref = $app->characters->table->{$row->{char_id}};
-        next unless $cref && $cref->{season_id} eq $season_id;
-        delete $app->shed->table->{$sid};
-        $discard++;
-    }
-    $app->shed->save;
-    $app->log->info("Discarded $discard shed items.");
 
     for my $char (@$chars) {
         $app->characters->delete($char->getCol('id'));

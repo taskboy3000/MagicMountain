@@ -7,6 +7,7 @@ use File::Slurp qw(write_file);
 use File::Copy qw(copy);
 use YAML::XS qw(LoadFile);
 use MagicMountain::Model::Transcript;
+use MagicMountain::Model::Season;
 use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
 
@@ -187,6 +188,14 @@ sub run ($self, @args) {
         }
         $maint->on_maintenance->($maint) if $day < $days;
         @chars = @{ $app->characters->find(sub { $_[0]->{season_id} eq $s->getCol('id') }) };
+    }
+
+    # Finalize the season (triggers clearance sale, creates SeasonRecords)
+    my $finalize_result = eval { MagicMountain::Model::Season->finalize($app) };
+    if ($@) {
+        $app->log->warn("Season finalization failed: $@");
+    } else {
+        $app->log->info(sprintf("Season finalized: %d characters.", $finalize_result->{character_count} // 0));
     }
 
     $transcript->log_event({
