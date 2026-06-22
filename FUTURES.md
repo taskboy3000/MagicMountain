@@ -10,7 +10,6 @@ See `AGENTS.md` for current implementation status.
 
 | Category | Items |
 |----------|-------|
-| **Before Real Users** | Crier Narrative Expansion (richer faction text) |
 | **Defer Past MVP** | MariaDB Migration, Market Dynamics (§6.7), Commission System (§7.3), Bot Policy Framework, MarketVisit Enhancements, Rate limiting / HTTPS / Password auth |
 
 ### Defer Past MVP
@@ -60,6 +59,17 @@ The model, activity, and controller code should require minimal changes.
 Web button on the game page (`POST /season/end`) calls the same
 `Season::finalize` method as the CLI command. Season labeling now shows
 in the UI (e.g. "Season 1 — Day 5 of 30").
+
+---
+
+## Crier Narrative Expansion — DONE
+
+Daily maintenance messages (surge, slump, dominance, milestone, season
+opening, daily progress) were already implemented in `crier.yml`. Added:
+`content/text/negotiation_reactions.yml` with per-faction flavor text for
+all offer outcomes (match, settle, mismatch, storm_off), replacing hardcoded
+sprintf messages in MarketVisit. `content/text/commission_triggers.yml`
+created as content-only (unused until Commission System is built).
 
 ---
 

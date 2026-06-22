@@ -1340,11 +1340,9 @@ content/
   skills.yml                      # Skill definitions and costs
   factions.yml                    # Faction definitions (future: expanded traits)
   text/
-    daily_messages.yml
-    season_opening.yml
-    customer_offers.yml           (future)
-    commission_triggers.yml       (future)
-    negotiation_reactions.yml     (future)
+    crier.yml                      # Daily maintenance messages (surge, slump, etc.)
+    negotiation_reactions.yml      # Per-faction flavor text for market visit outcomes
+    commission_triggers.yml        # Commission issuance text (unused until §7.3)
 ```
 
 ### 12.2 Artifact Definition Shape
@@ -1456,8 +1454,13 @@ of each season.
 **customer_offers.yml** (future): Per-faction customer offer text, tiered
 by match quality.
 
-**commission_triggers.yml** (future): Per-faction commission definitions
-(behaviors, premium_multiplier, trigger_text).
+**commission_triggers.yml**: Per-faction narrative text for commission
+issuance. Content-only — loaded by the Commission System when implemented.
+
+**negotiation_reactions.yml**: Per-faction flavor text for market visit
+outcomes (match, settle, mismatch, storm_off). Loaded lazily by
+`MarketVisit::_reactions` on first offer. Falls back to generic text if
+no faction entry exists.
 
 ### 12.5 Content Loading
 
