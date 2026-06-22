@@ -52,7 +52,8 @@ sub create ($self) {
     }
 
     $self->render(json => {
-        ok => 1,
+        ok         => 1,
+        csrf_token => $self->csrf_token,
         player => {
             id          => $player_id,
             displayName => $account->getCol('username'),

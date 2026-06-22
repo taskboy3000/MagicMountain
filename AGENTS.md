@@ -230,6 +230,8 @@ prove -lv t/prospecting_web.t
   writes, copy-pasted boilerplate, inconsistent naming, missing tests), fix it
   immediately rather than replicating it or leaving a TODO. Every bad pattern
   left in place compounds — it becomes the template for the next change.
+- **No automatic commits**: Never commit without being asked. Only commit when
+  the user explicitly instructs it. This prevents surprise history changes.
 
 ---
 

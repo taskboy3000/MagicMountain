@@ -223,6 +223,16 @@ sub startup ($self) {
         return $data->{skills};
     });
 
+    $self->helper(csrf_token => sub ($c) {
+        my $token = $c->session('csrf_token');
+        unless ($token) {
+            my @chars = ('a'..'z', 'A'..'Z', '0'..'9');
+            $token = join '', map { $chars[rand @chars] } 1..32;
+            $c->session(csrf_token => $token);
+        }
+        return $token;
+    });
+
     $self->helper(factions_data => sub ($c) {
         state $data = YAML::XS::LoadFile($c->app->home . '/content/factions.yml');
         return $data->{factions};
@@ -278,22 +288,34 @@ sub buildRoutes ($self) {
         }
         return 1;
     });
-    $auth->get('/player')->to('player#show')->name('player');
-    $auth->delete('/player')->to('player#destroy')->name('delete_player');
-    $auth->get('/game')->to('game#show')->name('game');
 
+    # CSRF check for write methods on authenticated routes
+    my $auth_write = $auth->under('/' => sub ($c) {
+        return 1 if $c->req->method eq 'GET';
+        my $header = $c->req->headers->header('X-CSRF-Token') // '';
+        my $token  = $c->session('csrf_token') // '';
+        unless ($header && $token && $header eq $token) {
+            $c->render(json => { ok => 0, error => 'Invalid CSRF token' }, status => 403);
+            return undef;
+        }
+        return 1;
+    });
+
+    $auth->get('/player')->to('player#show')->name('player');
+    $auth->get('/game')->to('game#show')->name('game');
     $auth->get('/shed')->to('shed#index');
     $auth->get('/skills')->to('skills#index');
-    $auth->post('/skills/purchase')->to('skills#purchase');
-
-    # Future (under auth):
-    $auth->post('/prospecting/begin')->to('prospecting#begin');
-    $auth->post('/prospecting/push')->to('prospecting#push');
-    $auth->post('/prospecting/stop')->to('prospecting#stop');
-    $auth->post('/market/begin')->to('market#begin');
-    $auth->post('/market/offer')->to('market#offer');
-    $auth->post('/market/send_away')->to('market#send_away');
     $auth->get('/leaderboard')->to('leaderboard#index');
+
+    # Write routes under CSRF check
+    $auth_write->delete('/player')->to('player#destroy')->name('delete_player');
+    $auth_write->post('/skills/purchase')->to('skills#purchase');
+    $auth_write->post('/prospecting/begin')->to('prospecting#begin');
+    $auth_write->post('/prospecting/push')->to('prospecting#push');
+    $auth_write->post('/prospecting/stop')->to('prospecting#stop');
+    $auth_write->post('/market/begin')->to('market#begin');
+    $auth_write->post('/market/offer')->to('market#offer');
+    $auth_write->post('/market/send_away')->to('market#send_away');
 }
 
 sub active_season ($self) {

@@ -1,13 +1,15 @@
 let G = {};
+let CSRF_TOKEN = '';
 
 async function api(path, { body, method } = {}) {
   if (!method) method = body ? 'POST' : 'GET';
-  const resp = await fetch(path, {
-    method,
-    headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return resp.json();
+  const headers = { Accept: 'application/json' };
+  if (body) headers['Content-Type'] = 'application/json';
+  if (method !== 'GET' && CSRF_TOKEN) headers['X-CSRF-Token'] = CSRF_TOKEN;
+  const resp = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await resp.json();
+  if (data.csrf_token) CSRF_TOKEN = data.csrf_token;
+  return data;
 }
 
 async function loadGame() {
@@ -296,8 +298,7 @@ function renderLeaderboard() {
 
 document.getElementById('delete-account-btn').addEventListener('click', async () => {
   if (!confirm('Delete your account permanently? This cannot be undone.')) return;
-  const resp = await fetch('/player', { method: 'DELETE' });
-  const data = await resp.json();
+  const data = await api('/player', { method: 'DELETE' });
   if (data.ok) window.location.href = '/login';
 });
 

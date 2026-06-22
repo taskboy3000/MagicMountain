@@ -139,6 +139,7 @@ sub show ($self) {
         json => sub {
             $self->render(json => {
                 ok           => 1,
+                csrf_token   => $self->csrf_token,
                 player       => {
                     name              => $char_model->getCol('name'),
                     action_points     => $char_model->getCol('action_points'),

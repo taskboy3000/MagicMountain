@@ -30,6 +30,8 @@ sub setup {
     return $t;
 }
 
+sub _csrf { my $t = shift; $t->tx->res->json->{csrf_token} // '' }
+
 subtest 'unauthenticated' => sub {
     my $t = setup;
     $t->delete_ok('/sessions')->status_is(200);
@@ -40,7 +42,8 @@ subtest 'unauthenticated' => sub {
 
 subtest 'begin — starts a new artifact' => sub {
     my $t = setup;
-    $t->post_ok('/prospecting/begin')
+    my $csrf = _csrf($t);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/result' => 'start')
@@ -50,14 +53,16 @@ subtest 'begin — starts a new artifact' => sub {
 
 subtest 'begin while processing fails' => sub {
     my $t = setup;
-    $t->post_ok('/prospecting/begin')->status_is(200);
-    $t->post_ok('/prospecting/begin')->status_is(500);
+    my $csrf = _csrf($t);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(500);
 };
 
 subtest 'push — advances artifact' => sub {
     my $t = setup;
-    $t->post_ok('/prospecting/begin')->status_is(200);
-    $t->post_ok('/prospecting/push')
+    my $csrf = _csrf($t);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+    $t->post_ok('/prospecting/push' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/ok' => 1);
 };
@@ -81,7 +86,8 @@ subtest 'begin picks active-season character over orphaned character' => sub {
 
     my $t = Test::Mojo->new('MagicMountain');
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
-    $t->post_ok('/prospecting/begin')
+    my $csrf = _csrf($t);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/player/scrap' => 0, 'used active-season character (scrap=0, not orphan scrap=99)');
@@ -89,22 +95,23 @@ subtest 'begin picks active-season character over orphaned character' => sub {
 
 subtest 'full lifecycle: begin → push → stop' => sub {
     my $t = setup;
+    my $csrf = _csrf($t);
     srand(42);
-    $t->post_ok('/prospecting/begin')
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/result' => 'start');
 
     my $collapsed = 0;
     for (1 .. 3) {
-        $t->post_ok('/prospecting/push')->status_is(200);
+        $t->post_ok('/prospecting/push' => {'X-CSRF-Token' => $csrf})->status_is(200);
         $collapsed = $t->tx->res->json->{result} ne 'push';
         last if $collapsed;
     }
 
     SKIP: {
         skip 'artifact collapsed during pushes', 1 if $collapsed;
-        $t->post_ok('/prospecting/stop')
+        $t->post_ok('/prospecting/stop' => {'X-CSRF-Token' => $csrf})
           ->status_is(200)
           ->json_is('/ok' => 1)
           ->json_is('/result' => 'stopped');

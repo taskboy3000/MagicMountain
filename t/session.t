@@ -176,8 +176,9 @@ subtest 'DELETE /player deletes account, character, and session' => sub {
 
     $t->post_ok('/sessions', json => { displayName => 'alice' })
       ->status_is(200)->json_is('/ok' => 1);
+    my $csrf = $t->tx->res->json->{csrf_token} // '';
 
-    $t->delete_ok('/player')
+    $t->delete_ok('/player' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/ok' => 1);
 

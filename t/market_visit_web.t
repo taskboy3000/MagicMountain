@@ -47,6 +47,8 @@ sub setup {
     return $t;
 }
 
+sub _csrf { my $t = shift; $t->tx->res->json->{csrf_token} // '' }
+
 subtest 'unauthenticated redirects' => sub {
     my $t = setup;
     $t->delete_ok('/sessions')->status_is(200);
@@ -57,7 +59,8 @@ subtest 'unauthenticated redirects' => sub {
 
 subtest 'begin — starts a market visit' => sub {
     my $t = setup;
-    $t->post_ok('/market/begin')
+    my $csrf = _csrf($t);
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/result' => 'negotiating')
@@ -66,15 +69,16 @@ subtest 'begin — starts a market visit' => sub {
 
 subtest 'full lifecycle: begin → offer → sale' => sub {
     my $t = setup;
+    my $csrf = _csrf($t);
 
-    $t->post_ok('/market/begin')->status_is(200)->json_is('/ok' => 1);
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200)->json_is('/ok' => 1);
 
     # Get the shed_item_id from the character's shed
     my $char = $t->app->characters->find(sub { 1 })->[0];
     my $shed_items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
     my $shed_item_id = $shed_items->[0]->getCol('id');
 
-    $t->post_ok('/market/offer', json => { shed_item_id => $shed_item_id })
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf}, json => { shed_item_id => $shed_item_id })
       ->status_is(200);
     my $result = $t->tx->res->json->{result};
     ok($result, "offer returned result: $result");

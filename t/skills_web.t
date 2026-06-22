@@ -30,6 +30,8 @@ sub setup {
     return $t;
 }
 
+sub _csrf { my $t = shift; $t->tx->res->json->{csrf_token} // '' }
+
 subtest 'unauthenticated redirects' => sub {
     my $t = setup;
     $t->delete_ok('/sessions')->status_is(200);
@@ -57,13 +59,15 @@ subtest 'index — lists skills with current levels' => sub {
 
 subtest 'purchase — missing skill_id dies' => sub {
     my $t = setup;
-    $t->post_ok('/skills/purchase', json => {})
+    my $csrf = _csrf($t);
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => {})
       ->status_is(500);
 };
 
 subtest 'purchase — unknown skill_id dies' => sub {
     my $t = setup;
-    $t->post_ok('/skills/purchase', json => { skill_id => 'nonexistent' })
+    my $csrf = _csrf($t);
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'nonexistent' })
       ->status_is(500);
 };
 
@@ -84,7 +88,8 @@ subtest 'purchase — insufficient scrap dies' => sub {
 
     my $t = Test::Mojo->new('MagicMountain');
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
-    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+    my $csrf = _csrf($t);
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(500);
 };
 
@@ -106,13 +111,15 @@ subtest 'purchase — already at max dies' => sub {
 
     my $t = Test::Mojo->new('MagicMountain');
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
-    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+    my $csrf = _csrf($t);
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(500);
 };
 
 subtest 'purchase — success deducts scrap and increases level' => sub {
     my $t = setup;
-    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+    my $csrf = _csrf($t);
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/player/scrap' => 90)
@@ -124,7 +131,7 @@ subtest 'purchase — success deducts scrap and increases level' => sub {
       ->json_is('/skills/0/current_level' => 1);
 
     # Buy level 2 (cost 25)
-    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/player/scrap' => 65);
@@ -133,7 +140,7 @@ subtest 'purchase — success deducts scrap and increases level' => sub {
       ->json_is('/skills/0/current_level' => 2);
 
     # Buy level 3 (cost 50)
-    $t->post_ok('/skills/purchase', json => { skill_id => 'prospecting' })
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(200);
     $t->get_ok('/skills')
       ->json_is('/skills/0/current_level' => 3);
