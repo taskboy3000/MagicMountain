@@ -1,0 +1,65 @@
+#!/usr/bin/env perl
+use Modern::Perl;
+use Mojo::JSON qw(decode_json);
+use File::Slurp qw(read_file);
+
+my $file = shift or die "Usage: $0 <transcript.jsonl>\n";
+my @lines = read_file($file);
+my $start = decode_json($lines[0]);
+
+my (%cid, %n2b);
+for my $b (@{$start->{bots}}) { $cid{$b->{char_id}} = $b; $n2b{$b->{name}} = $b; }
+
+printf "Season: %d days, %d bots\n\n", $start->{days} // '?', $start->{bot_count} // 0;
+
+my (%cnt, %scr, %off);
+for my $line (@lines) {
+    my $ev = decode_json($line);
+    my $bot;
+    if ($ev->{char_id} && $cid{$ev->{char_id}}) { $bot = $cid{$ev->{char_id}}; }
+    elsif ($ev->{player} && $n2b{$ev->{player}}) { $bot = $n2b{$ev->{player}}; }
+    next unless $bot;
+    $cnt{$bot->{name}}{$ev->{type}}++;
+    $scr{$bot->{name}} = ($scr{$bot->{name}} // 0) + ($ev->{value} // 0) if $ev->{type} eq "sale";
+    if ($ev->{type} eq "offer") {
+        $off{$bot->{name}}{total}++;
+        $off{$bot->{name}}{match}++ if $ev->{match};
+    }
+}
+
+printf "%-22s | %-16s | %-16s | Score | Sls | Sell%%\n", "Bot", "Push", "Sell";
+print "-" x 80 . "\n";
+for my $n (sort keys %cnt) {
+    my $b = $n2b{$n};
+    my $total_offers = $off{$n}{total} // 0;
+    my $match_pct = $total_offers ? int(($off{$n}{match}//0) / $total_offers * 100) : 0;
+    printf "%-22s | %-16s | %-16s | %4d  | %2d  | %3d%%\n",
+        $n, $b->{push_policy}, $b->{sell_policy}, $scr{$n} // 0,
+        $cnt{$n}{sale} // 0, $match_pct;
+}
+
+print "\n=== BY SELL POLICY ===\n";
+my (%sp_sc, %sp_ct, %sp_sl, %sp_of, %sp_mt);
+for my $n (keys %scr) {
+    my $sp = $n2b{$n}{sell_policy};
+    $sp_sc{$sp} += $scr{$n}; $sp_ct{$sp}++; $sp_sl{$sp} += $cnt{$n}{sale};
+    $sp_of{$sp} += $off{$n}{total} // 0; $sp_mt{$sp} += $off{$n}{match} // 0;
+}
+printf "%-18s | Score  | Sales | Match%%\n", "Sell Policy";
+print "-" x 50 . "\n";
+for my $sp (sort { ($sp_sc{$b}//0) <=> ($sp_sc{$a}//0) } keys %sp_sc) {
+    my $n = $sp_ct{$sp} || 1;
+    my $m = $sp_mt{$sp} // 0; my $t = $sp_of{$sp} // 0;
+    printf "%-18s | %4d   | %4.1f  | %d%%\n",
+        $sp, int($sp_sc{$sp}/$n), $sp_sl{$sp}/$n, $t ? int($m/$t*100) : 0;
+}
+
+print "\n=== PUSH POLICY ===\n";
+my (%pp_sc, %pp_ct);
+for my $n (keys %scr) {
+    my $pp = $n2b{$n}{push_policy};
+    $pp_sc{$pp} += $scr{$n}; $pp_ct{$pp}++;
+}
+for my $pp (sort { ($pp_sc{$b}//0) <=> ($pp_sc{$a}//0) } keys %pp_sc) {
+    printf "%-18s | %4d\n", $pp, int($pp_sc{$pp}/$pp_ct{$pp});
+}
