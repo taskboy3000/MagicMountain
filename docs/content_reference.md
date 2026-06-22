@@ -24,14 +24,14 @@ factions:
 
 ### Fields
 
-| Field | Required | Type | Description |
-|-------|----------|------|-------------|
-| `id` | yes | string | Internal key. Used in standing, faction_sales, and bot profiles |
-| `name` | yes | string | Display name in the UI |
-| `interests` | yes | list of strings | Artifact behavior tags the faction buys. An artifact matches if ANY of its behaviors appear in this list |
-| `base_multiplier` | yes | float | Base offer multiplier. Final offer = `decayed_value × base_multiplier × match_mult` where match_mult is 1.2 (match) or 0.5 (mismatch). Standing adds +0.05 per point. Selling skill 3 increases match_mult to 1.4 |
-| `settle_chance` | no | float 0–1 | Default 0.15. Probability the faction accepts a mismatch offer (settle) |
-| `disposition` | no | string | Displayed in the UI alongside the faction name (e.g. "commercial_resale") |
+| Field | Required | Type | Default | Description | Tuning |
+|-------|----------|------|---------|-------------|--------|
+| `id` | yes | string | — | Internal key | Must match any bot profile references. Keep stable once set |
+| `name` | yes | string | — | Display name in the UI | Cosmetic only |
+| `interests` | yes | list of strings | — | Artifact behaviors this faction buys. Match if ANY artifact behavior matches | **Widen** → faction buys more artifacts, higher match rate. **Narrow** → faction is more selective, lower loyalist viability. Recommend 3–5 interests per faction, drawn from the actual artifact pool |
+| `base_multiplier` | yes | float | — | Base offer scalar. Final = `decayed_value × multiplier × match_mult` (match_mult=1.2 or 0.5) | **Higher** → more scrap per sale, stronger faction. Range 0.8–1.3 typical. Purifiers (1.2) pay well but have narrow interests. LibreMount (0.9) pays poorly but wants common artifacts |
+| `settle_chance` | no | float 0–1 | 0.15 | Probability faction accepts a mismatch offer | **Higher** → more sales via settlement. Caps at ~0.30 before it feels like the faction isn't selective |
+| `disposition` | no | string | — | Flavor tag shown in UI | Cosmetic only. "commercial_resale", "scholarly", "destruction", etc. |
 
 ---
 
@@ -105,38 +105,36 @@ Defines every artifact that can be drawn from the mountain.
 
 ### Fields
 
-| Field | Required | Type | Default | Description |
-|-------|----------|------|---------|-------------|
-| `id` | yes | string | — | Unique artifact key |
-| `behaviors` | yes | list of strings | — | Tags for faction match. Each faction checks if any of its `interests` match these |
-| `weight` | yes | integer | — | Draw probability weight. Total pool weight = sum of all artifact weights |
-| `base_value` | yes | integer | — | Starting value. Modified by Prospecting skill |
-| `starting_instability` | yes | integer | — | Always 0 |
-| `max_instability` | yes | integer | — | Ceiling for ratio. Higher = more pushes before collapse |
-| `instability_growth_min` | yes | integer | — | Minimum instability added per push |
-| `instability_growth_max` | yes | integer | — | Maximum instability added per push (inclusive) |
-| `base_gain_min` | yes | integer | — | Minimum value added per push |
-| `base_gain_max` | yes | integer | — | Maximum value added per push (inclusive) |
-| `can_evolve` | yes | boolean | — | Whether breakthrough is possible |
-| `evolution_threshold` | yes | float 0–1 | — | Minimum instability ratio eligible for evolution |
-| `evolution_chance` | yes | float 0–1 | — | Probability per eligible push |
-| `evolution_instability_spike` | yes | integer | — | Added to instability on breakthrough |
-| `breakthrough_multiplier_min` | yes | float | — | Minimum breakthrough value multiplier |
-| `breakthrough_multiplier_max` | yes | float | — | Maximum breakthrough value multiplier |
-| `state_thresholds.stable` | yes | float 0–1 | — | Ratio ≤ this → stage "stable" |
-| `state_thresholds.strained` | yes | float 0–1 | — | Ratio ≤ this → stage "strained" |
-| `decay_modifiers` | no | map | see table | How shed decay affects this type |
-| `decay_modifiers.fresh_multiplier` | no | float | 1.0 | Value multiplier while fresh |
-| `decay_modifiers.settling_multiplier` | no | float | 0.75 | Value multiplier while settling |
-| `decay_modifiers.fading_multiplier` | no | float | 0.40 | Minimum value multiplier while fading |
-| `decay_modifiers.settling_day` | no | integer | 2 | Day in shed when settling begins |
-| `decay_modifiers.fading_day` | no | integer | 5 | Day in shed when fading begins (must be > settling_day) |
-| `intro` | yes | string | — | Flavor text on first draw |
-| `signals` | yes | map of string lists | — | Per-stage flavor text (picks randomly) |
-| `signals.stable` | yes | list of strings | — | Shown while ratio ≤ stable threshold |
-| `signals.strained` | yes | list of strings | — | Shown while ratio between stable and strained |
-| `signals.unstable` | yes | list of strings | — | Shown while ratio ≥ strained |
-| `collapse` | yes | list of strings | — | Flavor text on collapse (picks randomly) |
+| Field | Required | Type | Default | Description | Tuning |
+|-------|----------|------|---------|-------------|--------|
+| `id` | yes | string | — | Unique artifact key | Must be unique across all artifacts |
+| `behaviors` | yes | list of strings | — | Tags for faction interest matching | **More tags** → matches more factions → sells faster. **1–2 tags** is typical. 2 is safer for balance |
+| `weight` | yes | integer | — | Draw probability (higher = more common) | Total pool weight = sum of all weights. **Higher** → more common. **Lower** → rarer. Ranges 2–15 are practical. Most artifacts should be weight 5–8 |
+| `base_value` | yes | integer | — | Starting value before pushes | **Higher** → more valuable baseline. Prospecting skill adds +2 per level. Typical range 3–10 |
+| `max_instability` | yes | integer | — | Ratio ceiling for instability/max | **Higher** → more pushes before collapse risk ramps up. Typical range 10–16 |
+| `instability_growth_min` | yes | integer | — | Minimum instability per push | **Higher** → faster instability growth → riskier. Typical 1–2 |
+| `instability_growth_max` | yes | integer | — | Maximum instability per push (inclusive) | **Higher** → more variance in risk per push. Typical 2–3 |
+| `base_gain_min` | yes | integer | — | Minimum value gained per push | **Higher** → richer per push. Prospecting 3 adds +1. Typical 3–5 |
+| `base_gain_max` | yes | integer | — | Maximum value gained per push (inclusive) | **Higher** → more value variance. Typical 5–8 |
+| `can_evolve` | yes | boolean | — | Whether breakthrough is possible | `true` for most artifacts. Breakthrough is exciting. A few non-evolvable cheap artifacts add texture |
+| `evolution_threshold` | yes | float 0–1 | — | Minimum instability/ratio for evolution check | **Lower** → breakthrough possible earlier. Typical 0.20–0.40 |
+| `evolution_chance` | yes | float 0–1 | — | Breakthrough probability per eligible push | **Higher** → breakthrough more likely. Typical 0.03–0.07. Above 0.10 makes breakthrough feel common, reducing tension |
+| `evolution_instability_spike` | yes | integer | — | Instability added on breakthrough | **Higher** → breakthrough itself is riskier (may still collapse!). Typical 2–3 |
+| `breakthrough_multiplier_min` | yes | float | — | Minimum value multiplier on breakthrough | **Higher** → bigger payout. Typical 1.5–2.0 |
+| `breakthrough_multiplier_max` | yes | float | — | Maximum value multiplier on breakthrough | Range between min and max creates payout variance. Typical 2.0–3.0 |
+| `state_thresholds.stable` | yes | float 0–1 | — | Ratio ≤ this → stage "stable" | **Lower stable** → artifact reaches strained/unstable faster. Affects narrative timing only |
+| `state_thresholds.strained` | yes | float 0–1 | — | Ratio ≤ this → stage "strained" | Gap between stable and strained determines "middle ground" window. Typical gap 0.25–0.35 |
+| `decay_modifiers` | no | map | defaults | How shed decay affects this type | Omit for standard decay. Override for rare artifact types that decay differently |
+| `decay_modifiers.fresh_multiplier` | no | float | 1.0 | Value multiplier while fresh | Rarely changed. Only for artifacts that lose value even when fresh |
+| `decay_modifiers.settling_multiplier` | no | float | 0.75 | Value while settling | **Lower** → decays faster. Range 0.60–0.85 |
+| `decay_modifiers.fading_multiplier` | no | float | 0.40 | Floor value while fading | **Lower** → artifacts become nearly worthless. **Higher** → decay has less sting. Range 0.25–0.50 |
+| `decay_modifiers.settling_day` | no | integer | 2 | Day settling begins | **Lower** → decay starts sooner. **Higher** → more "fresh" time. Range 1–4 |
+| `decay_modifiers.fading_day` | no | integer | 5 | Day fading begins (must be > settling_day) | Gap between settling_day and fading_day = gradual decay window. Typical gap 3–6 |
+| `intro` | yes | string | — | First-draw flavor text | Cosmetic. One sentence |
+| `signals.stable` | yes | list of strings | — | Flavor during stable stage | Cosmetic. 2–4 recommended. Picks randomly each push |
+| `signals.strained` | yes | list of strings | — | Flavor during strained stage | Cosmetic. 2–4 recommended |
+| `signals.unstable` | yes | list of strings | — | Flavor during unstable stage | Cosmetic. 2–4 recommended. Should feel intense/high-stakes |
+| `collapse` | yes | list of strings | — | On-collapse flavor text | Cosmetic. 1–3 recommended |
 
 ### Decay formula (applied daily during maintenance)
 
@@ -358,7 +356,68 @@ commission_triggers:
 
 ---
 
-## Adding a New Artifact — Quick Start
+---
+
+## Tuning Principles
+
+### Risk vs Reward
+
+The core tension is **push vs collapse**. Every artifact parameter should be
+evaluated against this tradeoff:
+
+- **Higher `base_value` / `base_gain`** → more reward per push → players push
+  more aggressively → more collapses → more excitement. If average score per
+  bot rises above ~250 in a 14-day sim, either values are too high or collapse
+  is too rare.
+- **Higher `max_instability` / lower `instability_growth`** → slower risk
+  accumulation → more pushes before collapse → higher final values. Extends
+  the "safe zone."
+- **Lower `evolution_threshold` / higher `evolution_chance`** → breakthroughs
+  feel attainable. If breakthroughs happen on >15% of artifacts, the mechanic
+  becomes expected rather than exciting.
+
+### Faction Balance
+
+`base_multiplier` should be inversely related to how many artifacts match
+a faction's interests:
+
+- Syndicate (1.1, 4 interests) — moderate pay, broad coverage
+- Purifiers (1.2, 3 interests) — best pay, narrow coverage
+- Revelationists (0.8, 4 interests) — worst pay, broad coverage
+
+If one faction dominates simulation scores, either its `interests` are too
+common or its `base_multiplier` is too high relative to coverage.
+
+### The Standing Loop
+
+Standing compounds: more sales → higher standing → better prices (+0.05×
+per point) + more frequent customers (+0.5 weight per point). This means
+high-volume sellers (desperate, highest_offer) naturally pull away from
+low-volume sellers (opportunist, loyalist) over longer seasons.
+
+If opportunist or loyalist scores trail badly in extended sims (14+ days),
+the issue may not be the sell policy — it could be the standing feedback
+loop amplifying volume advantages. Consider narrowing the standing effect
+(change +0.05 to +0.03) or widening faction interests to help selective
+sellers find matches.
+
+### Signal Text Tuning
+
+Signal text has no mechanical effect. Guidelines for writing good signals:
+
+- **Stable**: Curiosity and wonder. Describe the artifact's state neutrally.
+- **Strained**: Warning signs. Temperature, sound, vibration changes.
+- **Unstable**: Urgency and danger. Sensory overload, visible distress.
+- **Collapse**: Finality. The artifact is gone. Should feel consequential.
+
+Avoid game-rule language ("instability is increasing"). Use concrete
+sensory detail ("the casing warps"). See `docs/Tone Guide.md`.
+
+---
+
+## Quick Start Guides
+
+### Adding a New Artifact — Quick Start
 
 1. Add a new entry to `content/prospecting.yml`
 2. Give it a unique `id` starting from `_001`
