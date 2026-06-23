@@ -180,6 +180,7 @@ sub begin ($self, $char, %params) {
     my $base_budget = 50 + int(rand(100));
     my $standing_bonus = ($standing->{$faction->{id}} // 0) * 5;
     my $soft_budget = $base_budget + $standing_bonus;
+    my $sales_to_faction = ($faction_sales->{$faction->{id}} // 0);
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
@@ -192,6 +193,7 @@ sub begin ($self, $char, %params) {
         soft_budget         => $soft_budget,
         absolute_budget     => int($soft_budget * 1.2),
         spent_so_far        => 0,
+        loyalty_free_mismatches => $sales_to_faction >= 1 ? 1 : 0,
     };
 
     my $revealed = [];
@@ -349,9 +351,13 @@ sub offer ($self, $char, %params) {
         }
 
         # ── No counter-offers: existing behavior ──────────────────
-        my $irritation_gain = 1;
-        $irritation_gain = 0 if $sell >= 2;
-        $customer->{irritation} += $irritation_gain;
+        if ($customer->{loyalty_free_mismatches} && $customer->{loyalty_free_mismatches} > 0) {
+            $customer->{loyalty_free_mismatches}--;
+        } else {
+            my $irritation_gain = 1;
+            $irritation_gain = 0 if $sell >= 2;
+            $customer->{irritation} += $irritation_gain;
+        }
 
         if ($customer->{irritation} >= $customer->{irritation_threshold}) {
             my $narrative = $self->_pick_reaction($customer->{faction_id}, 'storm_off',

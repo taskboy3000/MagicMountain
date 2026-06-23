@@ -22,6 +22,9 @@ my %ACCEPT_COUNTER = (
     default          => sub ($char, $counter_value, $decayed, $p) {
         my $agg = $p->{haggle_aggression};
         return 0 if defined($agg) && !$agg;
+        if (defined($agg) && $agg < 1.0) {
+            return 0 unless rand() < $agg;
+        }
         my $min_pct = $p->{min_counter_pct} // 0;
         return $counter_value >= ($decayed // 0) * $min_pct;
     },
