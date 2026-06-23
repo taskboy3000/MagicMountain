@@ -17,7 +17,7 @@ clean:
 
 cover:
 	rm -rf t/cover_db
-	cd t && PERL5OPT=-MDevel::Cover prove .
+	cd t && PERL5OPT=-MDevel::Cover prove -I../lib .
 
 report:
 	cd t && cover -summary
