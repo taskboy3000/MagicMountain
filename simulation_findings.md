@@ -1,6 +1,6 @@
 # Magic Mountain — Bot Simulation Findings
 
-**Generated**: 2026-06-22T20:53 UTC
+**Generated**: 2026-06-23T14:20 UTC
 **Simulation framework**: Pluggable PushPolicy/SellPolicy dispatch modules
 **Artifact pool**: 10 artifacts covering all 14 faction-interest behaviors
 **Build**: commit `89530e2` (plus subsequent local changes)
@@ -510,3 +510,59 @@ instead of `// 1` default.
    on push strategy balance rather than sell mechanics. `fixed_pushes`
    (258 avg) is notably weak and may need attention if it represents a
    viable real-player archetype.
+
+---
+
+## Experiment 14: Market Dynamics — 20-Seed Validation
+
+After implementing market dynamics (trait saturation at 0.01/sale, daily
+faction appetite with penalty, and desperation bonus), a 20-seed validation
+was run for statistically meaningful results.
+
+**Config**: 10 bots, 30 days, 9 profiles, sat_rate=0.01,
+appetite_penalty=0.50, appetite_base per faction (2–4), desperation_bonus=2.0.
+
+| Sell Policy | Avg | Median | Min | Max | StdDev | Win Rate |
+|-------------|-----|--------|-----|-----|--------|----------|
+| opportunist | 297 | 282 | 115 | 524 | 100 | **40%** |
+| highest_offer | 357 | 348 | 243 | 492 | 67 | **25%** |
+| faction_loyalist | 167 | 150 | 2 | 454 | 92 | **20%** |
+| desperate | 318 | 320 | 226 | 417 | 44 | **15%** |
+
+**Config summary**: sat_rate=0.01, appetite_penalty=0.50, base appetite
+per faction (2–4), desperation_bonus=2.0, highest_offer min_value=18,
+loyalty bonus +0.05×.
+
+**Key findings**:
+
+1. **No single strategy dominates** — four different sell policies won across
+   20 seeds. Top win rate is 40% (opportunist). Bottom is 15% (desperate).
+   This is healthy.
+
+2. **opportunist (40% wins)** — leads in win rate with solid average (297)
+   and strong spike potential (max 524). Benefits from avoiding saturation
+   penalties through selective matching.
+
+3. **highest_offer (25% wins)** — highest average score (357) with low
+   variance (stddev 67). Consistent but doesn't dominate. The value filter
+   (min_value=18) produces steady results.
+
+4. **faction_loyalist (20% wins)** — high-variance (stddev 92, range 2–454).
+   Can spike to win or crash to zero. The 20% win rate confirms loyalty is
+   viable but carries concentration risk. The min floor of 2 suggests some
+   loyalist bots have genuinely dead seasons — acceptable for a specialist
+   strategy.
+
+5. **desperate (15% wins)** — lowest win rate despite good average (318)
+   and the tightest variance (stddev 44). Never does terribly (min 226)
+   but rarely wins. The market dynamics successfully penalized volume-first
+   selling without making it nonviable.
+
+6. **Median scores track averages** — no strategy relies on rare spikes
+   alone; the medians (150–348) are close to the means (167–357).
+
+7. **Current tuning recommendation**: Freeze these knobs. The strategy
+   ecology supports four viable paths with no single dominant policy.
+   If further tuning is needed, inspect the loyalist floor (min 2) rather
+   than raising saturation. A mild stabilizer (faction recognition of
+   returning sellers) could lift the floor without buffing the ceiling.

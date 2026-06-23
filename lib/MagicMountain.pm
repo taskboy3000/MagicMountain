@@ -43,6 +43,10 @@ has defaultConfig => sub ($self) {
         rate_limit_block_minutes         => 15,
         rate_limit_cleanup_interval      => 300,
         rate_limit_trusted_proxies       => 0,
+        market_trait_saturation_rate    => 0.01,
+        market_max_saturation_discount  => 0.50,
+        market_post_appetite_penalty    => 0.50,
+        market_desperation_bonus        => 1.30,
     }
 };
 
@@ -161,6 +165,12 @@ has maintenance => sub ($self) {
                     intake_by_trait   => $fs->{$fid}{intake_by_trait} // {},
                 )->save;
             }
+
+            for my $fid (keys %$fs) {
+                $fs->{$fid}->{daily_intake} = 0;
+                $fs->{$fid}->{days_since_purchase}++;
+            }
+            $season->setCol('faction_state', $fs);
 
             $maint->app->transcript->log_event({
                 type     => 'faction_snapshot',

@@ -73,6 +73,44 @@ sub _faction_by_id ($self, $faction_id) {
     return;
 }
 
+# ── Market dynamics ──────────────────────────────────────────────────
+
+sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors) {
+    my $faction = $self->_faction_by_id($faction_id) or return 1.0;
+    my $fs      = $season->getCol('faction_state') // {};
+    my $fdata   = $fs->{$faction_id};
+
+    my $mult = $faction->{base_multiplier} // 1.0;
+    return $mult unless $fdata;   # no sales yet → base multiplier, no dynamics
+
+    # 1. Trait saturation
+    my $intake       = $fdata->{intake_by_trait} // {};
+    my $sat_rate     = $self->app->config->{market_trait_saturation_rate} // 0.02;
+    my $max_discount = $self->app->config->{market_max_saturation_discount} // 0.50;
+    my $total_discount = 0;
+    for my $trait (@$behaviors) {
+        $total_discount += $sat_rate * ($intake->{$trait} // 0);
+    }
+    $total_discount = $max_discount if $total_discount > $max_discount;
+    $mult *= (1 - $total_discount);
+
+    # 2. Daily appetite penalty
+    my $daily_intake  = $fdata->{daily_intake} // 0;
+    my $appetite_base = $faction->{daily_appetite_base} // 3;
+    if ($daily_intake >= $appetite_base) {
+        $mult *= ($self->app->config->{market_post_appetite_penalty} // 0.50);
+    }
+
+    # 3. Desperation bonus
+    my $days_idle        = $fdata->{days_since_purchase} // 0;
+    my $desperation_days = $faction->{desperation_days} // 3;
+    if ($days_idle >= $desperation_days) {
+        $mult *= ($self->app->config->{market_desperation_bonus} // 1.30);
+    }
+
+    return $mult;
+}
+
 # ── Loyalty bonus ────────────────────────────────────────────────────
 
 sub _apply_loyalty_bonus ($self, $char, $faction_id, $offer_value) {
@@ -208,11 +246,15 @@ sub offer ($self, $char, %params) {
 
     my $decayed  = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
     my $sell     = $char->getCol('skill_selling') // 0;
+    my $season   = $self->app->active_season;
+    my $dyn_mult = $season
+        ? $self->_dynamic_multiplier($season, $customer->{faction_id}, $item->getCol('behaviors') // [])
+        : ($customer->{base_multiplier} // 1.0);
     my $offer_value;
 
     if ($intersect) {
         my $match_mult = $sell >= 3 ? 1.4 : 1.2;
-        $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * $match_mult);
+        $offer_value = int($decayed * $dyn_mult * $match_mult);
         $offer_value = $self->_apply_loyalty_bonus($char, $customer->{faction_id}, $offer_value);
         my $narrative = $self->_pick_reaction($customer->{faction_id}, 'match',
             item_id => $item->getCol('artifact_id'), value => $offer_value,
@@ -228,7 +270,7 @@ sub offer ($self, $char, %params) {
         });
         return $self->_do_sale($char, $item, $offer_value, 1);
     } else {
-        $offer_value = int($decayed * ($customer->{base_multiplier} // 1.0) * 0.5);
+        $offer_value = int($decayed * $dyn_mult * 0.5);
 
         my $settle_chance = $customer->{settle_chance} // 0.15;
         if (rand() < $settle_chance) {
@@ -356,8 +398,10 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
     if ($season) {
         my $fs = $season->getCol('faction_state') // {};
         $fs->{$fid}->{name}                //= $self->customer->{faction_name};
-        $fs->{$fid}->{influence}           += $value;
+        $fs->{$fid}->{influence}            += $value;
         $fs->{$fid}->{artifacts_received}++;
+        $fs->{$fid}->{daily_intake}++;
+        $fs->{$fid}->{days_since_purchase} = 0;
         for my $t (@{ $item->getCol('behaviors') // [] }) {
             $fs->{$fid}->{intake_by_trait}->{$t}++;
         }

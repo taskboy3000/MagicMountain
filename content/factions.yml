@@ -3,19 +3,29 @@ factions:
     name: "The Syndicate"
     interests: [thermal, storage, food_processing, power]
     base_multiplier: 1.1
+    daily_appetite_base: 3
+    desperation_days: 3
   - id: libremount
     name: "LibreMount"
     interests: [thermal, water, sanitation, medical_response, power]
     base_multiplier: 0.9
+    daily_appetite_base: 4
+    desperation_days: 2
   - id: faculty
     name: "The Faculty"
     interests: [signal, revelation, field, medical_response]
     base_multiplier: 1.0
+    daily_appetite_base: 3
+    desperation_days: 3
   - id: purifiers
     name: "The Purifiers"
     interests: [force, instability, medical_response]
     base_multiplier: 1.2
+    daily_appetite_base: 2
+    desperation_days: 4
   - id: revelationists
     name: "The Revelationists"
     interests: [revelation, signal, field, transformation]
     base_multiplier: 0.8
+    daily_appetite_base: 3
+    desperation_days: 2

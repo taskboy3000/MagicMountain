@@ -399,6 +399,12 @@ The `offers` column is removed — selling no longer happens inside a
 prospecting activity. Offers are replaced by the negotiation flow in the
 MarketVisit activity.
 
+The `customer` column shape during negotiating includes market dynamics
+state: faction_id, faction_name, desired_behaviors, base_multiplier
+(the faction's static rate, before saturation/appetite/desperation adjustments
+from §6.7 are applied). The effective multiplier is computed at offer time
+by `_dynamic_multiplier()`.
+
 **Prospecting — artifact column shape** (same as before):
 
 ```json
@@ -468,10 +474,12 @@ the authoritative final influence at season end.
 | influence | integer | Accumulated value from all sales to this faction |
 | artifacts_received | integer | Count of artifacts sold to this faction |
 | intake_by_trait | map | Map of trait → count received |
+| daily_intake | integer | Artifacts bought today (reset each maintenance) |
+| days_since_purchase | integer | Consecutive days without a sale to this faction |
 
-Currently embedded in `season.faction_state` (§5.2). Updated atomically
-on every sale. Could be extracted to a separate model when market dynamics
-require it.
+Embedded in `season.faction_state` (§5.2). Updated atomically on every
+sale and reset during daily maintenance. Used by market dynamics (§6.7)
+for appetite and desperation calculation.
 
 ### 5.8 ArtifactDisposition (per-sale record)
 
@@ -834,31 +842,71 @@ Skill costs are defined in `content/skills.yml`. Cost scales per level (e.g.
 level 1 costs 10 scrap, level 2 costs 25, level 3 costs 50). Skill training
 does not cost AP.
 
-### 6.7 Market Dynamics — Planned
+### 6.7 Market Dynamics (Supply/Demand)
 
-Future refinement beyond MVP:
-- Similar artifacts sold repeatedly depress price for that trait
-- Factions have daily appetite caps
-- Rival sales affect supply and price
-- Late-season market saturation prevents optimal last-day dumping
-- Some days favor or punish certain artifact types
+Three levers create a dynamic pricing economy that penalizes concentration
+and rewards market timing. All three operate on the season's `faction_state`
+hash, which already tracks `intake_by_trait`, `artifacts_received`, and
+`influence` per faction.
 
-#### Catch-Up Through Faction Rivalry
+#### Trait Saturation
 
-When a faction trails significantly in aggregate influence, random events
-can offer premium standing gains or bonus scrap for selling to them.
-Narrative: the underdog faction recruits players as counter-agents against
-the dominant faction. This provides soft rubber-banding without altering
-artifact physics or directly penalizing the leader.
+Each artifact trait sold to a faction increases that faction's saturation
+for that trait. The effective offer multiplier is reduced:
 
-Implementation sketch: the daily maintenance timer checks faction influence
-ratios; if the gap exceeds a threshold, a "Desperate Recruiter" flag is set
-for the trailing faction. MarketVisit activity checks this flag and applies
-bonuses (extra standing, higher multiplier) when the player sells to that
-faction. The event is gated behind `faction_sales[faction_id] >= 1` so only
-players who have already engaged that faction can trigger it.
+```
+effective_mult = base_multiplier × (1 - sat_rate × trait_count)
+```
 
-These are not required for the initial implementation.
+`sat_rate` defaults to 0.01 per sale. Capped at `max_saturation_discount`
+(0.50, preventing offers below 50% of base).
+
+**Effect**: Selling 10 of the same trait drops the multiplier to 0.90×
+of base. Penalizes mono-trait farming and rewards diversification.
+
+#### Daily Faction Appetite
+
+Each faction has a `daily_appetite_base` (per-faction, 2–4). After receiving
+that many artifacts in a single day, all subsequent offers from that faction
+get a `post_appetite_penalty` multiplier (default 0.50×). Resets at daily
+maintenance.
+
+**Effect**: Prevents dumping 10 items on the same faction in one day.
+Encourages rotating between factions.
+
+#### Desperation Mechanic
+
+Track `days_since_purchase` per faction. If a faction hasn't bought any
+artifacts in `desperation_days` (per-faction, 2–4), their next customer
+visit gets a `desperation_bonus` multiplier (default 2.0×).
+
+**Effect**: Factions cycle between hungry and satiated. A faction you
+haven't sold to in a while pays a premium. Rewards rotating between
+factions and sitting on inventory.
+
+#### Application
+
+The `_dynamic_multiplier` method in MarketVisit computes the effective
+multiplier as:
+
+```
+mult = base_multiplier
+  × (1 − total_trait_saturation)
+  × (appetite_penalty if daily_intake ≥ appetite_base)
+  × (desperation_bonus if days_since_purchase ≥ desperation_days)
+```
+
+This replaces the raw `base_multiplier` in both match and no-match offer
+calculations. The desperation and saturation states are maintained in
+`season.faction_state` and updated in `_do_sale` (daily_intake++,
+days_since_purchase=0) and daily maintenance (daily_intake=0,
+days_since_purchase++).
+
+#### Planned (not yet implemented)
+
+- **Desperate Recruiter**: When a faction trails significantly in influence,
+  random events offer premium standing gains or bonus scrap. Gated behind
+  `faction_sales[faction_id] >= 1`.
 
 ---
 
@@ -866,13 +914,13 @@ These are not required for the initial implementation.
 
 ### 7.1 Factions (content-driven, loaded from YAML config)
 
-| ID | Name | Interests | Base Multiplier | Disposition |
-|----|------|-----------|-----------------|-------------|
-| syndicate | The Syndicate | thermal, storage, food_processing, power | 1.1 | commercial_resale |
-| libremount | LibreMount | thermal, water, sanitation, medical_response, power | 0.9 | public_distribution |
-| faculty | The Faculty | signal, revelation, field, medical_response | 1.0 | scholarly |
-| purifiers | The Purifiers | force, instability, medical_response | 1.2 | destruction |
-| revelationists | The Revelationists | revelation, signal, field, transformation | 0.8 | sacred_custody |
+| ID | Name | Interests | Base Mult | Daily Appetite | Desperation Days | Disposition |
+|----|------|-----------|-----------|----------------|------------------|-------------|
+| syndicate | The Syndicate | thermal, storage, food_processing, power | 1.1 | 3 | 3 | commercial_resale |
+| libremount | LibreMount | thermal, water, sanitation, medical_response, power | 0.9 | 4 | 2 | public_distribution |
+| faculty | The Faculty | signal, revelation, field, medical_response | 1.0 | 3 | 3 | scholarly |
+| purifiers | The Purifiers | force, instability, medical_response | 1.2 | 2 | 4 | destruction |
+| revelationists | The Revelationists | revelation, signal, field, transformation | 0.8 | 3 | 2 | sacred_custody |
 
 Faculty has a special rule: its `effective_multiplier` increases for evolved
 (breakthrough) artifacts.
@@ -973,9 +1021,11 @@ receives the Maintenance object (`$self`). Implementation:
 6. Write FactionSnapshot rows: for each faction in `faction_state`, create
    a snapshot row with season_id, day, faction_id, influence,
    artifacts_received, intake_by_trait.
-7. Log transcript event with full faction_state.
-8. Preserve activity rows — in-progress prospecting survives rollover
-9. If `season.day > season_length`, emit a warning (season end is manual)
+7. **Reset market dynamics state**: For each faction in `faction_state`:
+   `daily_intake = 0` and `days_since_purchase++`.
+8. Log transcript event with full faction_state.
+9. Preserve activity rows — in-progress prospecting survives rollover
+10. If `season.day > season_length`, emit a warning (season end is manual)
 
 **Route gating during maintenance**:
 
@@ -1701,10 +1751,22 @@ Bot profiles are defined in `content/bots.yml`:
   sell_policy: { name: "opportunist" }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
 
+- id: greed_desperate
+  display_name: "Risk Taker"
+  push_policy: { name: "greed", params: { prob: 0.8 } }
+  sell_policy: { name: "desperate" }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
 - id: value_hoarder
   display_name: "Hoarder"
   push_policy: { name: "value_target", params: { min: 30 } }
   sell_policy: { name: "hoarder" }
+  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+- id: fixed_highest
+  display_name: "Measured"
+  push_policy: { name: "fixed_pushes", params: { max: 2 } }
+  sell_policy: { name: "highest_offer", params: { min_value: 18 } }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
 
 - id: instability_loyalist
@@ -1712,6 +1774,9 @@ Bot profiles are defined in `content/bots.yml`:
   push_policy: { name: "instability_cap", params: { max: 3 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate" } }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
+
+And four additional loyalist variants pairing faction_loyalist with different
+push policies (fixed_pushes, stage_guard, greed, value_target).
 ```
 
 The `faction_loyalist` sell policy combined with any push policy produces
@@ -1934,6 +1999,8 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Loyalty access guarantee** | `Activity::MarketVisit.pm` (begin), `Model::Character.pm` (`loyalty_visits_since`) | After 3 consecutive market visits to non-top-faction customers, forcibly redirects to player's top faction |
 | **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |
 | **Analysis script** | `bin/analyze_sim` | Reusable transcript analysis: per-bot scores, push/sell counts, match rates |
+| **Rate limiting** | `MagicMountain::RateLimiter.pm`, `MagicMountain.pm` (bridge, helper, config), `Controller/Sessions.pm` (recording) | IP-based + account-name-based rate limiting on login; Retry-After, X-RateLimit-* headers; configurable window/attempts/block |
+| **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (2.0× after idle); configured via defaultConfig and per-faction YAML |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
@@ -1947,8 +2014,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 |---------|----------|-------|
 | Counter-offers / multi-item per visit | Medium | Player can negotiate for better price; show multiple items in single visit |
 | Commission system | Low | Faction notices, active commissions |
-| Market dynamics (supply/demand) | Low | Price depression, faction appetites, daily caps |
-| Rate limiting | Medium | Brute-force prevention on login |
+| Desperate Recruiter (underdog catch-up) | Low | Premium standing/bonus for selling to trailing factions |
 
 ---
 
