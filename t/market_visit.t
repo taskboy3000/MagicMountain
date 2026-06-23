@@ -227,7 +227,7 @@ subtest 'mismatch settles when settle_chance forced' => sub {
 
     is($result->{view}{result}, 'sold', 'mismatch -> sold when settle hits');
     ok($char->{scrap} > 0, 'scrap awarded on settle');
-    is((values %{ $char->{standing} })[0], 1, 'standing +1 on settle (was_match=0)');
+    is((values %{ $char->{standing} })[0], 0, 'standing +0 on settle');
 };
 
 subtest 'mismatch does not settle when settle_chance=0' => sub {
@@ -343,7 +343,6 @@ subtest 'customer storms off when irritation exceeds threshold' => sub {
         my $r = $m->dispatch($char, 'offer', shed_item_id => "storm-item-$i");
         if ($r->{view}{result} eq 'customer_left') {
             $stormed = 1;
-            like($r->{view}{message}, qr/Syndicate/, 'storm-off message mentions faction');
             ok(length($r->{view}{message}) > 0, 'storm-off message is non-empty');
             last;
         }

@@ -24,8 +24,9 @@ sub _activity_action ($self, $action, %params) {
     $self->render(json => $result->{view});
 }
 
-sub begin     ($self) { $self->_activity_action('begin') }
-sub offer     ($self) { $self->_activity_action('offer', %{ $self->req->json }) }
-sub send_away ($self) { $self->_activity_action('send_away') }
+sub begin          ($self) { $self->_activity_action('begin') }
+sub offer          ($self) { $self->_activity_action('offer', %{ $self->req->json }) }
+sub send_away      ($self) { $self->_activity_action('send_away') }
+sub accept_counter ($self) { $self->_activity_action('accept_counter') }
 
 1;

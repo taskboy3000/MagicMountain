@@ -10,7 +10,7 @@ See `AGENTS.md` for current implementation status.
 
 | Category | Items |
 |----------|-------|
-| **Defer Past MVP** | MariaDB Migration, Commission System (§7.3), MarketVisit Enhancements, HTTPS / Password auth |
+| **Defer Past MVP** | MariaDB Migration, Commission System (§7.3), HTTPS / Password auth |
 
 ### Defer Past MVP
 
@@ -18,7 +18,6 @@ See `AGENTS.md` for current implementation status.
 |------|--------|-----|
 | MariaDB Migration | High | JSON works for single-server; arch doc says post-MVP (§18.2) |
 | Commission System (§7.3) | Medium | Requires data model + MarketVisit changes; post-MVP feature |
-| MarketVisit Enhancements (§6.5) | Low-Med | Basic one-shot flow works; multi-item/counter-offer is polish |
 | HTTPS / Password auth | Low | Handled at reverse proxy; fine for alpha |
 
 ---
@@ -91,11 +90,25 @@ prospecting attempts are not yet implemented.
 
 ---
 
-## MarketVisit Enhancements (§6.5)
+## MarketVisit Enhancements (§6.5) — DONE
 
-Counter-offers and multi-item visits are not yet implemented. The current
-implementation is one-shot: match → sale, mismatch → settle or irritation
-→ try another item or storm off.
+Counter-offers and multi-item sales implemented as optional features gated
+by `market_counter_offers` and `market_multi_item` config flags (both
+disabled by default):
+
+- **Counter-offers**: On mismatch when settle fails, the customer counters
+  at a midpoint price (`decayed × dyn_mult × counter_pct`). The player may
+  accept (`POST /market/accept_counter`) or reject (by offering another
+  item, which ticks irritation). Selling skill and standing improve the
+  counter midpoint. No loyalty bonus on counters.
+- **Multi-item sales**: A match or accepted counter does not end the visit.
+  Irritation carries over without reset — the press-your-luck mechanic.
+  Player may keep offering items until they send away or the customer
+  storms off.
+- **Standing grants**: Match = +2, accepted counter = +1, settle = +0.
+- **Bot profiles** updated with `max_irritation`, `accept_counter`, and
+  `min_counter_pct` params. Simulate command supports `--counter-offers`
+  and `--multi-item` flags.
 
 ---
 

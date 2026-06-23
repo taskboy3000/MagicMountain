@@ -233,11 +233,19 @@ Defines bot strategy profiles used by the simulation system.
 
 | Policy name | Params | Description |
 |-------------|--------|-------------|
-| `opportunist` | — | Offer one item. If mismatch → leave visit. Match → sell |
-| `desperate` | — | Offer all items until sale or customer storms off |
-| `highest_offer` | `min_value` (default 10) | Skip items below value threshold. Offer rest aggressively |
-| `faction_loyalist` | `faction` (e.g. "syndicate") | Only sell to specified faction. Send away other customers |
+| `opportunist` | `max_irritation` (default 3), `max_budget_pressure` (default 1.0), `haggle_aggression` (default 1), `min_counter_pct` (default 0) | Offer items until budget pressure or irritation cap. Accepts counters if `haggle_aggression` is set and `min_counter_pct` is met. |
+| `desperate` | `max_irritation` (default 4), `max_budget_pressure` (default 1.15), `haggle_aggression` (default 1), `min_counter_pct` (default 0.50) | Push past soft budget, accept almost any counter. Relies on volume. |
+| `highest_offer` | `min_value` (default 10), `max_irritation` (default 2), `max_budget_pressure` (default 0.50), `haggle_aggression` (default 0) | Skip items below value threshold. Never accepts counters, leaves early on budget or irritation. |
+| `faction_loyalist` | `faction` (e.g. "syndicate"), `max_irritation` (default 3), `max_budget_pressure` (default 1.0), `haggle_aggression` (default 1), `min_counter_pct` (default 0.60) | Only sell to specified faction. Accepts counters for their faction, matches budget to soft cap. |
 | `hoarder` | — | Never enter market. Accumulate shed items |
+
+**Budget pressure**: Each customer has a `soft_budget` (50–150 base + 5 per standing point)
+and an `absolute_budget` (1.2× soft). `spent_so_far` tracks cumulative sale value.
+Going over soft budget adds +1 irritation. Going over absolute rejects the sale
+and adds +2 irritation.
+
+**Precision bonus**: A sale landing within 95%–99.99% of absolute budget awards
+a 15% bonus (does not count toward budget pressure).
 
 ### Profile assignment at simulation start
 
@@ -246,6 +254,8 @@ Defines bot strategy profiles used by the simulation system.
 --profile-weights "a=3,b=1"          Weighted distribution. Only named profiles are included.
                                       Each bot gets a random profile from the weighted pool.
                                       Without --profile-weights, profiles cycle round-robin.
+--counter-offers                     Enable counter-offer haggle step on mismatches.
+--multi-item                         Enable multi-item sales with budget pressure system.
 ```
 
 ---

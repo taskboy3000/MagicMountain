@@ -19,7 +19,9 @@ has usage => "usage: $0 simulate [OPTIONS]\n"
            . "  --output FILE     Transcript output path\n"
            . "  --skill-profile S Skill levels, e.g. 'prospecting=2,upcycling=1'\n"
            . "  --profile FILE    Bot profile YAML (default content/bots.yml)\n"
-           . "  --profile-weights W  Weighted profile distribution, e.g. 'a=3,b=1'\n";
+           . "  --profile-weights W  Weighted profile distribution, e.g. 'a=3,b=1'\n"
+           . "  --counter-offers  Enable counter-offer haggle step\n"
+           . "  --multi-item      Enable multi-item sales per market visit\n";
 
 sub run ($self, @args) {
     my $count   = 5;
@@ -29,6 +31,8 @@ sub run ($self, @args) {
     my $skill_profile = undef;
     my $profile_file  = undef;
     my $weights_str   = undef;
+    my $counter_offers = 0;
+    my $multi_item     = 0;
 
     GetOptionsFromArray(\@args,
         'count=i'           => \$count,
@@ -38,6 +42,8 @@ sub run ($self, @args) {
         'skill-profile=s'   => \$skill_profile,
         'profile=s'         => \$profile_file,
         'profile-weights=s' => \$weights_str,
+        'counter-offers!'   => \$counter_offers,
+        'multi-item!'       => \$multi_item,
     );
 
     srand($seed) if defined $seed;
@@ -56,6 +62,9 @@ sub run ($self, @args) {
     write_file("$data_dir/activities.json", '{}');
     write_file("$data_dir/shed.json",       '{}');
     write_file("$data_dir/seasons.json",    '{}');
+
+    $app->config->{market_counter_offers} = $counter_offers;
+    $app->config->{market_multi_item}     = $multi_item;
 
     my $accts  = $app->accounts;
     my $chars  = $app->characters;
@@ -298,49 +307,116 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
             last;
         }
 
-        my $n_mismatches = 0;
-        for my $item (@$shed_items) {
-            # Check if this item is worth offering
-            unless (MagicMountain::Bot::SellPolicy::should_offer_item($char, $item, $sell_pol)) {
-                $transcript->log_event({
-                    type       => 'policy_skip_item',
-                    player     => $char_name,
-                    profile_id => $profile_id,
-                    reason     => $sell_pol->{name},
-                    value      => $item->getCol('decayed_value') // 0,
-                    narrative  => sprintf("%s skipped item %s (value=%d, %s policy).",
-                        $char_name, $item->getCol('artifact_id') // '?',
-                        $item->getCol('decayed_value') // 0, $sell_pol->{name}),
-                });
-                next;
-            }
+        my $sell_params        = $sell_pol->{params} // {};
+        my $max_irritation     = $sell_params->{max_irritation} // 3;
+        my $max_budget_pressure = $sell_params->{max_budget_pressure} // 1.0;
+        my $n_mismatches       = 0;
 
-            my $r = $activity->dispatch($char, 'offer', shed_item_id => $item->getCol('id'));
-            my $view = $r->{view};
-            $view->{player}{name} = $char_name;
-            $view->{player}{profile_id} = $profile_id;
+        my $keep_offering = 1;
+        while ($keep_offering) {
+            my $current_items = $shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
+            last unless @$current_items;
 
-            if ($view->{result} eq 'sold') {
-                last;
-            }
-            if ($view->{result} eq 'customer_left') {
-                last;
-            }
-            if ($view->{result} eq 'no_match') {
-                $n_mismatches++;
-                unless (MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
+            for my $item (@$current_items) {
+                unless (MagicMountain::Bot::SellPolicy::should_offer_item($char, $item, $sell_pol)) {
                     $transcript->log_event({
-                        type        => 'policy_stop_offer',
-                        player      => $char_name,
-                        profile_id  => $profile_id,
-                        reason      => $sell_pol->{name},
-                        mismatches  => $n_mismatches,
-                        narrative   => sprintf("%s stopped offering after %d mismatches (%s policy).",
-                            $char_name, $n_mismatches, $sell_pol->{name}),
+                        type       => 'policy_skip_item',
+                        player     => $char_name,
+                        profile_id => $profile_id,
+                        reason     => $sell_pol->{name},
+                        value      => $item->getCol('decayed_value') // 0,
+                        narrative  => sprintf("%s skipped item %s (value=%d, %s policy).",
+                            $char_name, $item->getCol('artifact_id') // '?',
+                            $item->getCol('decayed_value') // 0, $sell_pol->{name}),
                     });
+                    next;
+                }
+
+                my $r = $activity->dispatch($char, 'offer', shed_item_id => $item->getCol('id'));
+                my $view = $r->{view};
+                $view->{player}{name} = $char_name;
+                $view->{player}{profile_id} = $profile_id;
+
+                if ($view->{result} eq 'sold') {
+                    $keep_offering = 0;
                     last;
                 }
+
+                if ($view->{result} eq 'sold_more') {
+                    if (($view->{budget_pressure_pct} // 0) >= $max_budget_pressure) {
+                        $activity->dispatch($char, 'send_away');
+                        $keep_offering = 0;
+                    } elsif ($view->{irritation} >= $max_irritation) {
+                        $activity->dispatch($char, 'send_away');
+                        $keep_offering = 0;
+                    }
+                    last;
+                }
+
+                if ($view->{result} eq 'counter_offer') {
+                    my $decayed = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
+                    if (MagicMountain::Bot::SellPolicy::should_accept_counter($char, $view->{counter_value}, $decayed, $sell_pol)) {
+                        my $r2 = $activity->dispatch($char, 'accept_counter');
+                        my $v2 = $r2->{view};
+                        if ($v2->{result} eq 'sold_more') {
+                            if (($v2->{budget_pressure_pct} // 0) >= $max_budget_pressure) {
+                                $activity->dispatch($char, 'send_away');
+                                $keep_offering = 0;
+                            } elsif ($v2->{irritation} >= $max_irritation) {
+                                $activity->dispatch($char, 'send_away');
+                                $keep_offering = 0;
+                            }
+                            last;
+                        }
+                        $keep_offering = 0;
+                        last;
+                    }
+                    # Reject counter — try next item
+                    $n_mismatches++;
+                    unless (MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
+                        $transcript->log_event({
+                            type        => 'policy_stop_offer',
+                            player      => $char_name,
+                            profile_id  => $profile_id,
+                            reason      => $sell_pol->{name},
+                            narrative   => sprintf("%s stopped offering (%s policy).",
+                                $char_name, $sell_pol->{name}),
+                        });
+                        $keep_offering = 0;
+                        last;
+                    }
+                    next;
+                }
+
+                if ($view->{result} eq 'over_budget') {
+                    # Try a cheaper item — this one exceeded absolute
+                    next;
+                }
+
+                if ($view->{result} eq 'customer_left') {
+                    $keep_offering = 0;
+                    last;
+                }
+
+                if ($view->{result} eq 'no_match') {
+                    $n_mismatches++;
+                    unless (MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
+                        $transcript->log_event({
+                            type        => 'policy_stop_offer',
+                            player      => $char_name,
+                            profile_id  => $profile_id,
+                            reason      => $sell_pol->{name},
+                            narrative   => sprintf("%s stopped offering (%s policy).",
+                                $char_name, $sell_pol->{name}),
+                        });
+                        $keep_offering = 0;
+                        last;
+                    }
+                    next;
+                }
             }
+            # For loop exhausted all items — exit
+            $keep_offering = 0;
         }
     }
 }

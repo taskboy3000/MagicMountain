@@ -6,7 +6,7 @@ use YAML::XS qw(LoadFile);
 # ── Transition table ────────────────────────────────────────────────
 
 has transitions => sub {
-    { idle => ['begin'], negotiating => ['offer', 'send_away'] }
+    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter'] }
 };
 
 # ── Construction ──────────────────────────────────────────────────
@@ -81,9 +81,8 @@ sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors) {
     my $fdata   = $fs->{$faction_id};
 
     my $mult = $faction->{base_multiplier} // 1.0;
-    return $mult unless $fdata;   # no sales yet → base multiplier, no dynamics
+    return $mult unless $fdata;
 
-    # 1. Trait saturation
     my $intake       = $fdata->{intake_by_trait} // {};
     my $sat_rate     = $self->app->config->{market_trait_saturation_rate} // 0.02;
     my $max_discount = $self->app->config->{market_max_saturation_discount} // 0.50;
@@ -94,14 +93,12 @@ sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors) {
     $total_discount = $max_discount if $total_discount > $max_discount;
     $mult *= (1 - $total_discount);
 
-    # 2. Daily appetite penalty
     my $daily_intake  = $fdata->{daily_intake} // 0;
     my $appetite_base = $faction->{daily_appetite_base} // 3;
     if ($daily_intake >= $appetite_base) {
         $mult *= ($self->app->config->{market_post_appetite_penalty} // 0.50);
     }
 
-    # 3. Desperation bonus
     my $days_idle        = $fdata->{days_since_purchase} // 0;
     my $desperation_days = $faction->{desperation_days} // 3;
     if ($days_idle >= $desperation_days) {
@@ -179,6 +176,10 @@ sub begin ($self, $char, %params) {
     my $standing = $char->getCol('standing') // {};
     my $mult_bonus = ($standing->{$faction->{id}} // 0) * 0.05;
     my $sell = $char->getCol('skill_selling') // 0;
+
+    my $base_budget = 50 + int(rand(100));
+    my $standing_bonus = ($standing->{$faction->{id}} // 0) * 5;
+    my $soft_budget = $base_budget + $standing_bonus;
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
@@ -188,6 +189,9 @@ sub begin ($self, $char, %params) {
         irritation          => 0,
         irritation_threshold => 5,
         settle_chance       => $faction->{settle_chance} // 0.15,
+        soft_budget         => $soft_budget,
+        absolute_budget     => int($soft_budget * 1.2),
+        spent_so_far        => 0,
     };
 
     my $revealed = [];
@@ -231,6 +235,21 @@ sub offer ($self, $char, %params) {
     my $shed_item_id = $params{shed_item_id} or die "shed_item_id is required";
     my $customer     = $self->customer or die "no customer";
 
+    # Auto-accept if same item is re-offered with pending counter
+    if ($customer->{pending_counter} && $customer->{pending_counter}{item_id} eq $shed_item_id) {
+        my $counter_value = $customer->{pending_counter}{value};
+        $customer->{pending_counter} = undef;
+        $self->customer($customer);
+        my $item = $self->app->shed->get($shed_item_id);
+        die "shed item not found" unless $item;
+        die "shed item belongs to another character"
+            unless $item->getCol('char_id') eq $char->getCol('id');
+        return $self->_do_sale($char, $item, $counter_value, 'counter');
+    }
+
+    # Clear any pending counter for a different item
+    $customer->{pending_counter} = undef;
+
     my $item = $self->app->shed->get($shed_item_id);
     die "shed item not found" unless $item;
     die "shed item belongs to another character"
@@ -268,7 +287,7 @@ sub offer ($self, $char, %params) {
             accepted      => 1,
             narrative     => $narrative,
         });
-        return $self->_do_sale($char, $item, $offer_value, 1);
+        return $self->_do_sale($char, $item, $offer_value, 'match');
     } else {
         $offer_value = int($decayed * $dyn_mult * 0.5);
 
@@ -288,9 +307,48 @@ sub offer ($self, $char, %params) {
                 accepted      => 1,
                 narrative     => $narrative,
             });
-            return $self->_do_sale($char, $item, $offer_value, 0);
+            return $self->_do_sale($char, $item, $offer_value, 'settle');
         }
 
+        # ── Counter-offer (haggle) ────────────────────────────────
+        if ($self->app->can('config') && $self->app->config->{market_counter_offers}) {
+            my $standing = $char->getCol('standing') // {};
+            my $counter_pct = 0.75;
+            $counter_pct = 0.80 if $sell >= 2;
+            $counter_pct += ($standing->{$customer->{faction_id}} // 0) * 0.01;
+            $counter_pct = 0.95 if $counter_pct > 0.95;
+
+            my $counter_value = int($decayed * $dyn_mult * $counter_pct);
+            $customer->{pending_counter} = { value => $counter_value, item_id => $shed_item_id };
+            $self->customer($customer);
+            $self->save;
+
+            my $narrative = $self->_pick_reaction($customer->{faction_id}, 'counter',
+                item_id => $item->getCol('artifact_id'), value => $counter_value,
+            ) // sprintf("%s considers your offer. \"How about %d scrap?\"", $customer->{faction_name}, $counter_value);
+
+            $self->_log_event($char, {
+                type          => 'counter_offer',
+                shed_item_id  => $shed_item_id,
+                faction_id    => $customer->{faction_id},
+                offered_value => $counter_value,
+                narrative     => $narrative,
+            });
+
+            return {
+                view => {
+                    ok            => 1,
+                    result        => 'counter_offer',
+                    counter_value => $counter_value,
+                    irritation    => $customer->{irritation},
+                    max_irritation => $customer->{irritation_threshold},
+                    message       => $narrative,
+                    player        => $self->_player_snapshot($char),
+                },
+            };
+        }
+
+        # ── No counter-offers: existing behavior ──────────────────
         my $irritation_gain = 1;
         $irritation_gain = 0 if $sell >= 2;
         $customer->{irritation} += $irritation_gain;
@@ -352,6 +410,33 @@ sub offer ($self, $char, %params) {
     }
 }
 
+# ── accept_counter ────────────────────────────────────────────────────
+
+sub accept_counter ($self, $char, %params) {
+    my $customer = $self->customer or die "no customer";
+    my $pc       = $customer->{pending_counter} or die "no pending counter";
+
+    my $item = $self->app->shed->get($pc->{item_id});
+    die "shed item not found" unless $item;
+    die "shed item belongs to another character"
+        unless $item->getCol('char_id') eq $char->getCol('id');
+
+    my $counter_value = $pc->{value};
+    $customer->{pending_counter} = undef;
+    $self->customer($customer);
+
+    $self->_log_event($char, {
+        type          => 'accept_counter',
+        shed_item_id  => $pc->{item_id},
+        faction_id    => $customer->{faction_id},
+        offered_value => $counter_value,
+        accepted      => 1,
+        narrative     => sprintf("You accept %d scrap from %s.", $counter_value, $customer->{faction_name}),
+    });
+
+    return $self->_do_sale($char, $item, $counter_value, 'counter');
+}
+
 # ── send_away ─────────────────────────────────────────────────────────
 
 sub send_away ($self, $char, %params) {
@@ -375,20 +460,94 @@ sub send_away ($self, $char, %params) {
 # INTERNAL OUTCOMES
 # ═══════════════════════════════════════════════════════════════════════
 
-sub _do_sale ($self, $char, $item, $value, $was_match) {
-    $char->setCol('scrap', $char->getCol('scrap') + $value);
-    $char->setCol('score', $char->getCol('score') + $value);
+sub _budget_pressure_state ($self, $customer) {
+    my $budget = $customer->{soft_budget} or return { state => 'mood_comfortable', pct => 0 };
+    my $pct = ($customer->{spent_so_far} // 0) / $budget;
+    my $state;
+    if    ($pct <= 0.50) { $state = 'mood_comfortable' }
+    elsif ($pct <= 0.80) { $state = 'mood_interested' }
+    elsif ($pct <= 1.00) { $state = 'mood_wary' }
+    elsif ($pct <= 1.10) { $state = 'mood_strained' }
+    elsif ($pct <  1.20) { $state = 'mood_leaving' }
+    else                 { $state = 'mood_over_absolute' }
+    return { state => $state, pct => $pct };
+}
 
-    my $fid = $self->customer->{faction_id};
+sub _over_budget ($self, $char, $item, $value) {
+    my $customer = $self->customer;
+    $customer->{irritation} += 2;
+    $self->customer($customer);
+    $self->save;
+
+    my $narrative = $self->_pick_reaction($customer->{faction_id}, 'over_absolute',
+        item_id => $item->getCol('artifact_id'), value => $value,
+    ) // sprintf("The buyer shakes their head. 'I don't have that much scrap.'");
+
+    $self->_log_event($char, {
+        type          => 'over_budget',
+        shed_item_id  => $item->getCol('id'),
+        faction_id    => $customer->{faction_id},
+        offered_value => $value,
+        irritation    => $customer->{irritation},
+        narrative     => $narrative,
+    });
+
+    return {
+        view => {
+            ok            => 1,
+            result        => 'over_budget',
+            message       => $narrative,
+            irritation    => $customer->{irritation},
+            max_irritation => $customer->{irritation_threshold},
+            player        => $self->_player_snapshot($char),
+        },
+    };
+}
+
+sub _do_sale ($self, $char, $item, $value, $sale_type) {
+    my $customer = $self->customer;
+
+    # ── Over-absolute check ──────────────────────────────────────
+    my $new_spent = ($customer->{spent_so_far} // 0) + $value;
+    if ($new_spent > ($customer->{absolute_budget} // 999999)) {
+        return $self->_over_budget($char, $item, $value);
+    }
+
+    # ── Track budget ─────────────────────────────────────────────
+    $customer->{spent_so_far} = $new_spent;
+    my $over_soft = $new_spent > ($customer->{soft_budget} // 999999);
+
+    # ── Precision bonus (within 5% of absolute, < 100%) ──────────
+    my $bonus = 0;
+    my $pct_of_abs = $new_spent / ($customer->{absolute_budget} // 1);
+    if ($pct_of_abs >= 0.95 && $pct_of_abs < 1.0) {
+        $bonus = int($value * 0.15);
+    }
+
+    $char->setCol('scrap', $char->getCol('scrap') + $value + $bonus);
+    $char->setCol('score', $char->getCol('score') + $value + $bonus);
+
+    # ── Irritation from over-budget ──────────────────────────────
+    if ($over_soft) {
+        $customer->{irritation} += 1;
+    }
+
+    # ── Standing ─────────────────────────────────────────────────
+    my $fid = $customer->{faction_id};
     my $sales    = $char->getCol('faction_sales') // {};
     my $standing = $char->getCol('standing') // {};
 
     $sales->{$fid}++;
     my $total_to_faction = $sales->{$fid} // 0;
-    my $delta = $was_match ? 2 : 1;
+    my $delta;
+    if ($sale_type eq 'match') {
+        $delta = $over_soft ? 1 : 2;
+    } else {
+        $delta = $sale_type eq 'counter' ? 1 : 0;
+    }
     $delta++ if $item->getCol('has_evolved');
-    $delta++ if $total_to_faction >= 2;   # 2nd+ sale: loyalty bonus
-    $delta++ if $total_to_faction >= 4;   # 4th+ sale: deep loyalty bonus
+    $delta++ if $total_to_faction >= 2;
+    $delta++ if $total_to_faction >= 4;
     $standing->{$fid} += $delta;
 
     $char->setCol('faction_sales', $sales);
@@ -397,8 +556,8 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
     my $season = $self->app->active_season;
     if ($season) {
         my $fs = $season->getCol('faction_state') // {};
-        $fs->{$fid}->{name}                //= $self->customer->{faction_name};
-        $fs->{$fid}->{influence}            += $value;
+        $fs->{$fid}->{name}                //= $customer->{faction_name};
+        $fs->{$fid}->{influence}            += $value + $bonus;
         $fs->{$fid}->{artifacts_received}++;
         $fs->{$fid}->{daily_intake}++;
         $fs->{$fid}->{days_since_purchase} = 0;
@@ -410,27 +569,69 @@ sub _do_sale ($self, $char, $item, $value, $was_match) {
     }
 
     $self->app->shed->delete($item->getCol('id'));
+
+    $self->_record_disposition($char, $item, $value + $bonus, $delta, $fid) if $season;
+
+    my $pressure = $self->_budget_pressure_state($customer);
+    my $mood_text = $self->_pick_reaction($customer->{faction_id}, $pressure->{state},
+        value => $value, item_id => $item->getCol('artifact_id'),
+    );
+
+    my $bonus_msg = $bonus ? sprintf(" Precision hit: +%d bonus scrap!", $bonus) : '';
+
+    $self->_log_event($char, {
+        type          => 'sale',
+        shed_item_id  => $item->getCol('id'),
+        faction_id    => $customer->{faction_id},
+        value         => $value + $bonus,
+        sale_type     => $sale_type,
+        spent_so_far  => $customer->{spent_so_far},
+        soft_budget   => $customer->{soft_budget},
+        over_budget   => $over_soft ? 1 : 0,
+        precision_bonus => $bonus ? 1 : 0,
+        narrative     => sprintf("Sale complete: sold to %s for %d scrap.%s",
+            $customer->{faction_name}, $value + $bonus, $bonus_msg),
+    });
+
+    $self->customer($customer);
+
+    # ── Multi-item: stay in negotiating phase ────────────────────
+    if ($self->app->can('config') && $self->app->config->{market_multi_item}) {
+        $customer->{pending_counter} = undef;
+        $self->customer($customer);
+        $self->save;
+        $char->setCol('pending_activity_id', $self->getCol('id'));
+        $char->save;
+        return {
+            view => {
+                ok                 => 1,
+                result             => 'sold_more',
+                value              => $value + $bonus,
+                pressure_state     => $pressure->{state},
+                budget_pressure_pct => $pressure->{pct},
+                precision_bonus    => $bonus,
+                irritation         => $customer->{irritation},
+                max_irritation     => $customer->{irritation_threshold},
+                message            => $mood_text,
+                player             => $self->_player_snapshot($char),
+            },
+        };
+    }
+
+    # ── Single-item: end visit ───────────────────────────────────
     $self->delete;
     $char->setCol('pending_activity_id', undef);
     $char->save;
 
-    $self->_record_disposition($char, $item, $value, $delta, $fid) if $season;
-
-    $self->_log_event($char, {
-        type         => 'sale',
-        shed_item_id => $item->getCol('id'),
-        faction_id   => $self->customer->{faction_id},
-        value        => $value,
-        narrative    => sprintf("Sale complete: sold to %s for %d scrap.",
-            $self->customer->{faction_name}, $value),
-    });
-
     return {
         view => {
-            ok      => 1,
-            result  => 'sold',
-            value   => $value,
-            player  => $self->_player_snapshot($char),
+            ok                 => 1,
+            result             => 'sold',
+            value              => $value + $bonus,
+            pressure_state     => $pressure->{state},
+            budget_pressure_pct => $pressure->{pct},
+            precision_bonus    => $bonus,
+            player             => $self->_player_snapshot($char),
         },
     };
 }

@@ -47,6 +47,8 @@ has defaultConfig => sub ($self) {
         market_max_saturation_discount  => 0.50,
         market_post_appetite_penalty    => 0.50,
         market_desperation_bonus        => 1.30,
+        market_counter_offers           => 0,
+        market_multi_item               => 0,
     }
 };
 
@@ -392,6 +394,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/begin')->to('market#begin');
     $auth_write->post('/market/offer')->to('market#offer');
     $auth_write->post('/market/send_away')->to('market#send_away');
+    $auth_write->post('/market/accept_counter')->to('market#accept_counter');
     $auth_write->post('/season/end')->to('season#end');
 }
 

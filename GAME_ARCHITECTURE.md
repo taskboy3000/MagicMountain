@@ -442,7 +442,10 @@ by `_dynamic_multiplier()`.
   "irritation_threshold": 5,
   "settle_chance": 0.15,
   "offer_value": null,
-  "offer_text": null
+  "offer_text": null,
+  "soft_budget": 120,
+  "absolute_budget": 144,
+  "spent_so_far": 0
 }
 ```
 
@@ -727,8 +730,11 @@ When a player starts a Market Visit (costs 1 AP):
    - `desired_behaviors` — a subset of the faction's interests (hidden from player)
    - `base_multiplier` — the faction's standard offer multiplier
    - `irritation` — starts at 0
-   - `irritation_threshold` — if exceeded, customer leaves
+   - `irritation_threshold` — if exceeded, customer leaves (default 5)
    - `settle_chance` — probability the customer will accept a non-matching item
+   - `soft_budget` — 50–150 base + 5 per standing point with this faction
+   - `absolute_budget` — 1.2 × soft_budget (hard cap)
+   - `spent_so_far` — cumulative value of all purchases this visit (starts 0)
 
    Customer selection is standing-weighted: each faction's weight starts at 1.0
    and increases by +0.5 per point of personal standing with that faction. The
@@ -743,27 +749,47 @@ When a player starts a Market Visit (costs 1 AP):
    preferred faction's customers.
 
 2. **Player offer**: Player selects an artifact from their Shed and presents it
-   to the customer. The negotiation logic:
-    - If artifact behaviors intersect desired_behaviors:
-      - **Match**: High offer at `floor(decayed_value × base_multiplier × match_mult)`.
-        `match_mult` is 1.2 normally, 1.4 with Selling skill 3.
-        Positive narrative response from `content/text/negotiation_reactions.yml`
-        (per-faction flavor text, with `{item_id}` / `{value}` template variables).
-        Falls back to generic text if no faction entry exists.
-        Sale is automatic — no accept step.
-    - If no intersection:
-      - **Mismatch**: Low offer at `floor(decayed_value × base_multiplier × 0.5)`.
-        Negative narrative response via `negotiation_reactions.yml`.
-        A random roll against `settle_chance` (default 0.15) may cause the customer
-        to accept the lowball anyway (see step 3).
-        If the settle fails, irritation increases by exactly 1 (or 0 with
-        Selling skill 2+), and the activity persists — the player may show a
-        different artifact.
-    - After a match (auto-sold) or non-settle mismatch, the player may:
-      - **Show another artifact**: Repeat offer step with a different shed item
-        (only available after a non-settle mismatch — match ends the visit).
-      - **Send away**: No sale. Artifact remains in shed. Customer leaves. Market
-        Visit AP is consumed.
+    to the customer. The negotiation logic:
+     - If artifact behaviors intersect desired_behaviors:
+       - **Match**: High offer at `floor(decayed_value × base_multiplier × match_mult)`.
+         `match_mult` is 1.2 normally, 1.4 with Selling skill 3.
+         Positive narrative response from `content/text/negotiation_reactions.yml`
+         (per-faction flavor text, with `{item_id}` / `{value}` template variables).
+         Falls back to generic text if no faction entry exists.
+         Sale is automatic — no accept step.
+     - If no intersection:
+       - **Mismatch**: Low offer at `floor(decayed_value × base_multiplier × 0.5)`.
+         Negative narrative response via `negotiation_reactions.yml`.
+         A random roll against `settle_chance` (default 0.15) may cause the customer
+         to accept the lowball anyway (see step 3).
+         If the settle fails and **counter-offers are disabled**, irritation increases
+         by exactly 1 (or 0 with Selling skill 2+), and the activity persists.
+       - **Counter-offer (optional, gated by config)**: If `market_counter_offers`
+         is enabled, the settle failure is followed by a customer counter at
+         `floor(decayed_value × base_multiplier × counter_pct)`. `counter_pct`
+         starts at 0.75, increased to 0.80 with Selling skill 2+, plus +0.01
+         per point of standing with that faction (capped at 0.95). The player
+         may accept (`accept_counter` action) or reject the counter (implicitly
+         by offering a different item, which ticks irritation by 1). The loyalty
+         bonus does NOT apply to counter values.
+     - After a result, the player may:
+       - **Show another artifact**: Repeat offer step with a different shed item.
+         Available after any non-storm-off outcome when the visit is still active.
+       - **Accept counter** (`accept_counter` action): Accept the customer's
+         last counter-offer. Only available when `pending_counter` is set.
+       - **Send away**: No sale. Artifact remains in shed. Customer leaves. Market
+         Visit AP is consumed.
+     - **Multi-item sales (optional, gated by config)**: If `market_multi_item`
+       is enabled, a successful sale (match, counter, or settle) does NOT end the
+       visit. The customer remains in `negotiating` phase, irritation carries over,
+       and the player may offer additional items.
+       **Budget pressure**: Each sale ticks `spent_so_far` up. Going over
+       `soft_budget` adds +1 irritation (press-your-luck). Sales exceeding
+       `absolute_budget` are rejected outright (+2 irritation, no sale).
+       A sale within 95%–99.99% of `absolute_budget` awards a 15% precision
+       bonus (does not count toward budget pressure). Standing raises the
+       soft budget (+5 per point), rewarding loyalists with longer visits.
+       The visit ends when the player sends away or the customer storms off.
 
 3. **Customer leaves** if:
    - A sale is agreed (success)
@@ -777,32 +803,38 @@ When a player starts a Market Visit (costs 1 AP):
      to this faction, `_apply_loyalty_bonus` applies a 1.05× price multiplier
      (rewarding repeat patronage).
    - Increment `faction_sales[faction_id]` counter
-   - Adjust `standing[faction_id]` by a delta that escalates with loyalty:
-     - Base: +2 for match, +1 for mismatch/settle
-     - +1 if artifact was evolved (breakthrough)
-     - +1 if 2nd+ sale to this faction (repeat customer bonus)
-     - +1 if 4th+ sale to this faction (deep loyalty bonus)
-   - Record transcript event
-   - Delete ShedItem
-   - Activity row deleted, `pending_activity_id` cleared
+    - Adjust `standing[faction_id]` by a delta that escalates with loyalty:
+      - Base: +2 for match (under budget), +1 for match (over budget),
+        +1 for accepted counter, **+0 for settle**
+      - +1 if artifact was evolved (breakthrough)
+      - +1 if 2nd+ sale to this faction (repeat customer bonus)
+      - +1 if 4th+ sale to this faction (deep loyalty bonus)
+    - Record transcript event
+    - Delete ShedItem
+    - With multi-item disabled: activity row deleted, `pending_activity_id` cleared
+    - With multi-item enabled: activity persists, `pending_activity_id` stays set
 
 5. **On failed/abandoned negotiation**:
-   - **Mismatch under irritation threshold**: Artifact returns to Shed unchanged.
-     Activity persists (phase stays `negotiating`), player may try another item.
-     No scrap or score. AP is still consumed.
+   - **Mismatch under irritation threshold (counter-offers disabled)**: Artifact
+     returns to Shed unchanged. Activity persists (phase stays `negotiating`),
+     player may try another item. No scrap or score. AP is still consumed.
+   - **Counter-offer rejected**: Irritation ticks by 1 (or 0 with Selling skill
+     2+). Same as mismatch under threshold — player may try another item or
+     send away.
    - **Customer storms off (irritation exceeds threshold)**: Activity deleted,
      `pending_activity_id` cleared. No scrap or score. AP consumed.
    - **Player sends away**: Activity deleted, `pending_activity_id` cleared.
      No scrap or score. AP consumed.
    - **Settle on mismatch**: Same as successful sale (step 4), but `standing`
-     gains +1 instead of +2.
+     gains +0 instead of +2 (compromised sale).
 
 **Invariants**:
 - Selling skill level affects negotiation outcomes (see 6.6)
 - Offers are generated fresh per customer interaction — never persisted across
   visits
 - Customers do not remember previous offers or visits
-- At most ONE customer per Market Visit
+- At most ONE customer per Market Visit (but that customer may buy multiple
+  items when multi-item mode is enabled)
 
 ### 6.6 Skills (Mechanical Effects)
 
@@ -1268,7 +1300,7 @@ has market => sub ($self) {
 
 # MarketVisit subclass:
 has transitions => sub {
-    { idle => ['begin'], negotiating => ['offer', 'send_away'] }
+    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter'] }
 };
 
 sub create ($self, %params) {
@@ -1283,13 +1315,16 @@ sub create ($self, %params) {
 | Phase | Action | Effect | Persistence |
 |-------|--------|--------|-------------|
 | idle | begin | Deduct 1 AP. Generate customer. Set FK. Set phase to `negotiating` | `$self->save`, `$char->save` |
-| negotiating | offer | Receive `shed_item_id`. Match `desired_behaviors` vs item `behaviors`. Match → auto-sale. Mismatch → roll against `settle_chance`; on settle → sale at lowball, on fail → increment irritation. Under threshold → `no_match` (try another item). At threshold → `customer_left` (storm off). | Match/settle/customer_left/send_away: `$self->delete`, `$char->save`. No_match under threshold: `$self->save`, `$char->save` |
+| negotiating | offer | Receive `shed_item_id`. Match `desired_behaviors` vs item `behaviors`. Match → auto-sale. Mismatch → roll against `settle_chance`; on settle → sale at lowball, on fail → if counter-offers enabled → `counter_offer`; else → increment irritation and `no_match`. At irritation threshold → `customer_left` (storm off). | Match/settle/customer_left/send_away (single-item mode): `$self->delete`, `$char->save`. Match (multi-item mode): `$self->save`. No_match: `$self->save`, `$char->save`. |
+| negotiating | accept_counter | Accept pending counter-offer. Triggers sale at counter price. | Same as match/above. |
 | negotiating | send_away | Player ends negotiation. No sale. | `$self->delete`, `$char->save` |
 
 The `offer` action takes a `shed_item_id` parameter identifying which artifact
 from the player's shed is being offered. Counter-offers and multi-item visits
-(one customer shown multiple artifacts in a single offer action) are planned
-enhancements.
+are optional features gated by config flags (`market_counter_offers`,
+`market_multi_item`), both disabled by default. When multi-item is enabled, a
+sale does not end the visit — irritation carries over as the press-your-luck
+mechanism.
 
 ### 9.7 Bots
 
@@ -1579,6 +1614,7 @@ changes, no manual registration.
 | POST | `/market/begin` | `Market#begin` | Start market visit (costs 1 AP) |
 | POST | `/market/offer` | `Market#offer` | Offer shed item to customer |
 | POST | `/market/send_away` | `Market#send_away` | End negotiation, no sale |
+| POST | `/market/accept_counter` | `Market#accept_counter` | Accept customer's counter-offer |
 | GET | `/shed` | `Shed#index` | List shed contents |
 | GET | `/skills` | `Skills#index` | List available skills and current levels |
 | POST | `/skills/purchase` | `Skills#purchase` | Buy skill upgrade (costs scrap) |
@@ -1611,6 +1647,11 @@ desired_behaviors).
 Runs negotiation logic. May result in sale (scrap+score, shed item deleted,
 activity deleted) or continued negotiation (irritation updated, activity
 saved).
+
+**Market#accept_counter**: Requires activity `type == "market_visit"` and
+`phase == "negotiating"` and a pending counter-offer on the customer.
+Triggers sale at the counter price. Returns same result shapes as a match
+sale (`sold` or `sold_more` in multi-item mode).
 
 **Market#send_away**: Requires activity `phase == "negotiating"`. Ends
 negotiation without sale. Artifact remains in shed. Activity row deleted.

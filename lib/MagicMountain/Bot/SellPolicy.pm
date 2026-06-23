@@ -17,6 +17,16 @@ my %TRY_ANOTHER = (
     default          => sub ($char, $offer, $cust, $p) { 1 },
 );
 
+my %ACCEPT_COUNTER = (
+    highest_offer    => sub ($char, $counter_value, $decayed, $p) { 0 },
+    default          => sub ($char, $counter_value, $decayed, $p) {
+        my $agg = $p->{haggle_aggression};
+        return 0 if defined($agg) && !$agg;
+        my $min_pct = $p->{min_counter_pct} // 0;
+        return $counter_value >= ($decayed // 0) * $min_pct;
+    },
+);
+
 sub _dispatch ($name, $table, @args) {
     my $handler = $table->{$name} // $table->{default};
     return $handler->(@args);
@@ -35,6 +45,11 @@ sub should_offer_item ($char, $item, $policy) {
 sub try_another ($char, $offer_view, $customer, $policy) {
     my $name = $policy->{name} // 'default';
     _dispatch($name, \%TRY_ANOTHER, $char, $offer_view, $customer, $policy->{params} // {});
+}
+
+sub should_accept_counter ($char, $counter_value, $decayed_value, $policy) {
+    my $name = $policy->{name} // 'default';
+    _dispatch($name, \%ACCEPT_COUNTER, $char, $counter_value, $decayed_value, $policy->{params} // {});
 }
 
 1;

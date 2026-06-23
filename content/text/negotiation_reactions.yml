@@ -13,6 +13,22 @@ negotiation_reactions:
     storm_off:
       - "'We're done here.' The Syndicate buyer sweeps their ledgers off the counter."
       - "'You're wasting my time.' The factor turns and walks away."
+    counter:
+      - "'How about {value} scrap? That's my final offer.'"
+    mood_comfortable:
+      - "The Syndicate buyer nods, still interested."
+    mood_interested:
+      - "They check their ledgers. 'Show me what else you have.'"
+    mood_wary:
+      - "The factor hesitates. 'That's getting expensive.'"
+    mood_strained:
+      - "The buyer winces. 'We're stretching the budget here.'"
+    mood_leaving:
+      - "The Syndicate factor glances toward the exit."
+    mood_over_absolute:
+      - "'I simply don't have that kind of scrap left.'"
+    precision_bonus:
+      - "'Right on the money. You know your buyers.'"
   faculty:
     match:
       - "'Remarkable.' The scholar examines the {item_id} with undisguised fascination. '{value} scrap.'"
@@ -26,6 +42,22 @@ negotiation_reactions:
     storm_off:
       - "'You're wasting the university's time.' The academic packs their notes and leaves."
       - "'I expected more from a Mountain prospector.' They gather their things."
+    counter:
+      - "'I could stretch to {value} scrap. Take it or leave it.'"
+    mood_comfortable:
+      - "The scholar adjusts their spectacles, curious."
+    mood_interested:
+      - "They make notes. 'Continue. I'm listening.'"
+    mood_wary:
+      - "'The department's budget isn't infinite, you know.'"
+    mood_strained:
+      - "The academic frowns. 'That's more than I'd allocated.'"
+    mood_leaving:
+      - "They gather their notes, preparing to leave."
+    mood_over_absolute:
+      - "'My research grant simply won't cover that.'"
+    precision_bonus:
+      - "'An exact fit for our budget. Impressive estimation.'"
   purifiers:
     match:
       - "'This will serve the work.' The Purifier's eyes gleam. {value} scrap."
@@ -39,6 +71,22 @@ negotiation_reactions:
     storm_off:
       - "'Incompetence!' The Purifier storms out, knocking over a stool."
       - "'I've had enough of this farce.' They leave in disgust."
+    counter:
+      - "'I'll give you {value}. Not a scrap more.'"
+    mood_comfortable:
+      - "The Purifier waits, arms crossed, attentive."
+    mood_interested:
+      - "'Hm. Go on. What else do you carry?'"
+    mood_wary:
+      - "They narrow their eyes. 'You're testing my patience.'"
+    mood_strained:
+      - "'The order has limits. You're approaching them.'"
+    mood_leaving:
+      - "They turn toward the door, done listening."
+    mood_over_absolute:
+      - "'I've exhausted my allocation. Find another buyer.'"
+    precision_bonus:
+      - "'Dead on our budget. You've done this before.'"
   revelationists:
     match:
       - "'The pattern accepts this offering.' {value} scrap, counted out as if in a trance."
@@ -52,6 +100,22 @@ negotiation_reactions:
     storm_off:
       - "'The pattern closes to you.' They vanish into the crowd."
       - "Without a word, the Revelationist turns and melts into the Bazaar."
+    counter:
+      - "'The pattern offers {value} scrap. Accept or decline.'"
+    mood_comfortable:
+      - "The Revelationist stands in stillness, waiting."
+    mood_interested:
+      - "A subtle shift. 'The pattern is receptive.'"
+    mood_wary:
+      - "'The pattern wavers. Choose your next words.'"
+    mood_strained:
+      - "'The pattern strains. I feel it closing.'"
+    mood_leaving:
+      - "They begin to fade into the crowd."
+    mood_over_absolute:
+      - "'The pattern rejects this exchange. It is too costly.'"
+    precision_bonus:
+      - "'The pattern aligns perfectly. You are attuned.'"
   libremount:
     match:
       - "'This helps. Thank you.' {value} scrap, counted precisely."
@@ -65,3 +129,19 @@ negotiation_reactions:
     storm_off:
       - "'I'm afraid I can't continue this negotiation.' They gather their things quietly."
       - "'We'll have to try another time.' The representative leaves."
+    counter:
+      - "'Our community can offer {value} scrap. It's what we have.'"
+    mood_comfortable:
+      - "The settlement representative smiles, still hopeful."
+    mood_interested:
+      - "'This is promising. What else do you have?'"
+    mood_wary:
+      - "'We have limited funds. Please be mindful.'"
+    mood_strained:
+      - "'That's... more than we'd planned for one item.'"
+    mood_leaving:
+      - "They glance back at their cart, readying to leave."
+    mood_over_absolute:
+      - "'I'm sorry. Our community simply cannot afford that.'"
+    precision_bonus:
+      - "'You've exactly met our budget. Thank you for your care.'"
