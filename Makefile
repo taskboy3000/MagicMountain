@@ -16,11 +16,11 @@ clean:
 	rm -rf t/cover_db coverage
 
 cover:
-	rm -rf t/cover_db
-	cd t && PERL5OPT=-MDevel::Cover prove -I../lib .
+	rm -rf cover_db
+	PERL5OPT=-MDevel::Cover prove -Ilib t
 
 report:
-	cd t && cover -summary
+	cover -summary
 
 .PHONY: indent
 indent:
