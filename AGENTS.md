@@ -195,7 +195,18 @@ prove -l t/
 
 # Run specific test
 prove -lv t/prospecting_web.t
+
+# Run coverage analysis (run before every commit)
+make cover
+
+# View coverage summary
+make report
 ```
+
+Test coverage must stay at or above **85%**. Run `make cover && make report`
+before every commit to verify. `make cover` runs the full test suite under
+Devel::Cover instrumentation (takes a while), then `make report` displays
+the summary.
 
 ---
 
@@ -241,6 +252,11 @@ prove -lv t/prospecting_web.t
   left in place compounds — it becomes the template for the next change.
 - **No automatic commits**: Never commit without being asked. Only commit when
   the user explicitly instructs it. This prevents surprise history changes.
+- **Coverage**: Run `make cover && make report` before every commit. Coverage
+  for all `lib/*.pm` files must stay at or above **85%** (statement coverage).
+  If you add new code without tests, coverage drops and the commit should be
+  blocked. Test script (`.t`) and test helper coverage is not part of this
+  threshold.
 - **Balance checks**: Run `make check-coverage` for fast static validation
   that all faction interest tags have adequate artifact coverage. Run
   `make check-loyalist` (~15s) to verify each faction can support a viable
