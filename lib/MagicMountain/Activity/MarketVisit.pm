@@ -342,8 +342,6 @@ sub offer ($self, $char, %params) {
                     ok            => 1,
                     result        => 'counter_offer',
                     counter_value => $counter_value,
-                    irritation    => $customer->{irritation},
-                    max_irritation => $customer->{irritation_threshold},
                     message       => $narrative,
                     player        => $self->_player_snapshot($char),
                 },
@@ -407,8 +405,6 @@ sub offer ($self, $char, %params) {
             view => {
                 ok        => 1,
                 result    => 'no_match',
-                irritation => $customer->{irritation},
-                max_irritation => $customer->{irritation_threshold},
                 message   => $narrative,
                 player    => $self->_player_snapshot($char),
             },
@@ -500,12 +496,10 @@ sub _over_budget ($self, $char, $item, $value) {
 
     return {
         view => {
-            ok            => 1,
-            result        => 'over_budget',
-            message       => $narrative,
-            irritation    => $customer->{irritation},
-            max_irritation => $customer->{irritation_threshold},
-            player        => $self->_player_snapshot($char),
+            ok      => 1,
+            result  => 'over_budget',
+            message => $narrative,
+            player  => $self->_player_snapshot($char),
         },
     };
 }
@@ -610,16 +604,14 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
         $char->save;
         return {
             view => {
-                ok                 => 1,
-                result             => 'sold_more',
-                value              => $value + $bonus,
-                pressure_state     => $pressure->{state},
-                budget_pressure_pct => $pressure->{pct},
-                precision_bonus    => $bonus,
-                irritation         => $customer->{irritation},
-                max_irritation     => $customer->{irritation_threshold},
-                message            => $mood_text,
-                player             => $self->_player_snapshot($char),
+                ok              => 1,
+                result          => 'sold_more',
+                value           => $value + $bonus,
+                pressure_state  => $pressure->{state},
+                precision_bonus => $bonus,
+                irritation      => $customer->{irritation},
+                message         => $mood_text,
+                player          => $self->_player_snapshot($char),
             },
         };
     }
@@ -631,13 +623,12 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
 
     return {
         view => {
-            ok                 => 1,
-            result             => 'sold',
-            value              => $value + $bonus,
-            pressure_state     => $pressure->{state},
-            budget_pressure_pct => $pressure->{pct},
-            precision_bonus    => $bonus,
-            player             => $self->_player_snapshot($char),
+            ok              => 1,
+            result          => 'sold',
+            value           => $value + $bonus,
+            pressure_state  => $pressure->{state},
+            precision_bonus => $bonus,
+            player          => $self->_player_snapshot($char),
         },
     };
 }

@@ -1,0 +1,162 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+use Mojo::JSON qw(decode_json);
+use File::Slurp qw(read_file);
+
+my $bots     = 2;
+my $days     = 30;
+my $seeds    = "1-20";
+my $profile  = "stage_guard_opportunist=1,greed_desperate=1,value_hoarder=1,fixed_highest=1,instability_loyalist=1,stage_loyalist=1";
+my $config   = "default";
+my $head2head;
+my $help;
+
+GetOptions(
+    'bots=i'       => \$bots,
+    'days=i'       => \$days,
+    'seeds=s'      => \$seeds,
+    'profile=s'    => \$profile,
+    'config=s'     => \$config,
+    'head-to-head=s' => \$head2head,
+    'help'         => \$help,
+) or die "Usage: $0 [options]\n";
+
+if ($help) {
+    print <<"USAGE";
+Usage: $0 [options]
+
+Run batched simulations with progress reporting and aggregation.
+
+Options:
+  --bots N          Bots per seed (default: 2, ignored with --head-to-head)
+  --days N          Season length (default: 30)
+  --seeds RANGE     e.g. "1-20" or "1,3,5" (default: 1-20)
+  --profile S       Bot profile weights (default: 6-bot mix, ignored with --head-to-head)
+  --head-to-head S  Two profiles to run 1v1, e.g. "stage_guard_opportunist,value_hoarder"
+  --config S        Config: default, counter_offers, multi_item, both (default: default)
+  --help            This message
+
+Config flag mapping:
+  default          (no flags)
+  counter_offers   --counter-offers
+  multi_item       --multi-item
+  both             --counter-offers --multi-item
+
+Output dir: /tmp/mm_many_<timestamp>/
+USAGE
+    exit 0;
+}
+
+my @seeds;
+if ($seeds =~ /^(\d+)-(\d+)$/) {
+    @seeds = $1 .. $2;
+} elsif ($seeds =~ /^(\d+)(?:,(\d+))*$/) {
+    @seeds = split /,/, $seeds;
+} else {
+    @seeds = ($seeds);
+}
+
+my $outdir = "/tmp/mm_many_" . time;
+mkdir $outdir or die "Cannot create $outdir: $!";
+
+my $total = scalar @seeds;
+my %flag_for = (
+    default         => '',
+    counter_offers  => '--counter-offers',
+    multi_item      => '--multi-item',
+    both            => '--counter-offers --multi-item',
+);
+my $flags = $flag_for{$config} // '';
+
+my $mode = 'pool';
+my @profs;
+if ($head2head) {
+    @profs = split /,/, $head2head;
+    die "--head-to-head requires exactly 2 profile names, got " . scalar(@profs)
+        unless @profs == 2;
+    $mode = 'head2head';
+    print "Head-to-head: $profs[0] vs $profs[1]\n";
+} else {
+    print "Config: $config ($flags)\n";
+}
+print "Bots: $bots, Days: $days, Seeds: $total\n\n";
+
+my $start = time;
+for my $i (0 .. $#seeds) {
+    my $seed = $seeds[$i];
+
+    if ($mode eq 'head2head') {
+        # Run two separate single-bot sims to guarantee exact matchup
+        my @cmds;
+        for my $idx (0, 1) {
+            push @cmds, "perl -Ilib script/mountain simulate"
+                . " --count 1 --days $days --seed $seed"
+                . " --profile-weights \"$profs[$idx]=1\""
+                . " --output \"$outdir/seed_${seed}_p${idx}.jsonl\""
+                . ($flags ? " $flags" : "");
+        }
+        system("$cmds[0] 2>/dev/null >/dev/null & $cmds[1] 2>/dev/null >/dev/null && wait");
+    } else {
+        my $cmd = "perl -Ilib script/mountain simulate"
+            . " --count $bots --days $days --seed $seed"
+            . " --profile-weights \"$profile\""
+            . " --output \"$outdir/seed_${seed}.jsonl\""
+            . ($flags ? " $flags" : "");
+        system("$cmd 2>/dev/null >/dev/null");
+    }
+
+    my $elapsed = time - $start;
+    my $avg = $i > 0 ? int($elapsed / ($i+1)) : 0;
+    my $remaining = ($total - $i - 1) * $avg;
+
+    printf "\rSeed %2d/%d done (elapsed: %dm %2ds, est remaining: %dm %2ds)   ",
+        $i+1, $total, int($elapsed/60), $elapsed%60, int($remaining/60), $remaining%60;
+    $| = 1;
+}
+
+my $total_time = time - $start;
+print "\nDone in ${total_time}s (" . int($total_time/60) . "m " . ($total_time%60) . "s)\n\n";
+
+# Aggregate
+my (%wins, %apps, %scores);
+for my $seed (@seeds) {
+    my @files;
+    if ($mode eq 'head2head') {
+        @files = ("$outdir/seed_${seed}_p0.jsonl", "$outdir/seed_${seed}_p1.jsonl");
+    } else {
+        @files = ("$outdir/seed_${seed}.jsonl");
+    }
+    my %seed_scores;
+    my %cid2bot;
+    for my $f (@files) {
+        my @lines = eval { read_file($f) };
+        next unless @lines;
+        my $meta = decode_json($lines[0]);
+        for my $b (@{$meta->{bots}}) { $cid2bot{$b->{char_id}} = $b; }
+        for my $line (@lines) {
+            my $ev = decode_json($line);
+            next unless $ev->{type} eq "sale" && $ev->{char_id};
+            $seed_scores{$ev->{char_id}} += $ev->{value} // 0;
+        }
+    }
+    for my $id (keys %seed_scores) {
+        my $c = $cid2bot{$id}->{push_policy} . "+" . $cid2bot{$id}->{sell_policy};
+        $apps{$c}++;
+        $scores{$c} += $seed_scores{$id};
+    }
+    my @ranked = sort { $seed_scores{$b} <=> $seed_scores{$a} } keys %seed_scores;
+    my $w = $cid2bot{$ranked[0]};
+    $wins{$w->{push_policy} . "+" . $w->{sell_policy}}++ if $w;
+}
+
+printf "%-35s | %4s | %4s | %6s\n", "Personality", "Wins", "Apps", "AvgScr";
+print "-" x 65 . "\n";
+for my $c (sort { ($wins{$b}//0) <=> ($wins{$a}//0) } keys %apps) {
+    printf "%-35s | %4d | %4d | %6d\n",
+        $c, $wins{$c}//0, $apps{$c},
+        $apps{$c} ? int($scores{$c}/$apps{$c}) : 0;
+}
+
+print "\nTranscripts: $outdir/\n";

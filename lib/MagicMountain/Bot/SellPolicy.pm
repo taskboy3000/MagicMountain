@@ -18,7 +18,6 @@ my %TRY_ANOTHER = (
 );
 
 my %ACCEPT_COUNTER = (
-    highest_offer    => sub ($char, $counter_value, $decayed, $p) { 0 },
     default          => sub ($char, $counter_value, $decayed, $p) {
         my $agg = $p->{haggle_aggression};
         return 0 if defined($agg) && !$agg;

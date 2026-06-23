@@ -11,6 +11,21 @@ use MagicMountain::Model::Season;
 use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
 
+my %PRESSURE_RANK = (
+    mood_comfortable   => 0,
+    mood_interested    => 1,
+    mood_wary          => 2,
+    mood_strained      => 3,
+    mood_leaving       => 4,
+    mood_over_absolute => 5,
+);
+
+sub _pressure_at_or_beyond {
+    my ($state, $threshold) = @_;
+    return 0 unless $state && $threshold;
+    return ($PRESSURE_RANK{$state} // 0) >= ($PRESSURE_RANK{$threshold} // 0);
+}
+
 has description => 'Run a bot simulation season with configurable policies.';
 has usage => "usage: $0 simulate [OPTIONS]\n"
            . "  --count N         Number of bots (default 5)\n"
@@ -309,7 +324,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
 
         my $sell_params        = $sell_pol->{params} // {};
         my $max_irritation     = $sell_params->{max_irritation} // 3;
-        my $max_budget_pressure = $sell_params->{max_budget_pressure} // 1.0;
+        my $max_pressure_state = $sell_params->{max_pressure_state} // 'mood_wary';
         my $n_mismatches       = 0;
 
         my $keep_offering = 1;
@@ -343,7 +358,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
                 }
 
                 if ($view->{result} eq 'sold_more') {
-                    if (($view->{budget_pressure_pct} // 0) >= $max_budget_pressure) {
+                    if (_pressure_at_or_beyond($view->{pressure_state}, $max_pressure_state)) {
                         $activity->dispatch($char, 'send_away');
                         $keep_offering = 0;
                     } elsif ($view->{irritation} >= $max_irritation) {
@@ -359,7 +374,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
                         my $r2 = $activity->dispatch($char, 'accept_counter');
                         my $v2 = $r2->{view};
                         if ($v2->{result} eq 'sold_more') {
-                            if (($v2->{budget_pressure_pct} // 0) >= $max_budget_pressure) {
+                            if (_pressure_at_or_beyond($v2->{pressure_state}, $max_pressure_state)) {
                                 $activity->dispatch($char, 'send_away');
                                 $keep_offering = 0;
                             } elsif ($v2->{irritation} >= $max_irritation) {

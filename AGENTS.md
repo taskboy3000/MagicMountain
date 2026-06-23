@@ -187,6 +187,21 @@ TMPDIR=/mnt/ramdisk perl -Ilib script/mountain simulate --count 10 --days 14
 This redirects File::Temp's tempdir (where sim data lives) to RAM instead of
 disk, which significantly speeds up simulation runs.
 
+### Batch Simulation Runner
+
+```bash
+# Run 20 seeds of 2-bot default config (fast sanity check, ~1 min)
+TMPDIR=/mnt/ramdisk perl bin/run_many --bots 2 --days 30 --seeds 1-20
+
+# Run 100 seeds of 6-bot both config (takes a while)
+TMPDIR=/mnt/ramdisk perl bin/run_many --bots 6 --days 30 --seeds 1-100 --config both
+
+# Other configs: default, counter_offers, multi_item, both
+```
+
+Shows seed-by-seed progress with ETA, then aggregates win counts and average
+scores per bot personality.
+
 ## Testing
 
 ```bash
