@@ -5,6 +5,7 @@ requires 'YAML::XS';
 requires 'File::Slurp';
 requires 'UUID::Tiny';
 requires 'Perl::Tidy';
+requires 'Cpanel::JSON::XS';
 
 on 'test' => sub {
     requires 'Test::More';

@@ -115,7 +115,7 @@ disabled by default):
 ## Market Dynamics (§6.7) — DONE
 
 Trait saturation (0.01/sale), daily faction appetite (2–4/day with 0.50×
-penalty), and desperation bonus (2.0× after idle period). Implemented in
+penalty), and desperation bonus (1.30× after idle period). Implemented in
 `Activity::MarketVisit.pm` (`_dynamic_multiplier`), tracked in
 `season.faction_state`. The Desperate Recruiter underdog catch-up mechanic
 is not yet implemented.

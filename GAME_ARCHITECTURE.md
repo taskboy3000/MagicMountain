@@ -910,7 +910,8 @@ Encourages rotating between factions.
 
 Track `days_since_purchase` per faction. If a faction hasn't bought any
 artifacts in `desperation_days` (per-faction, 2–4), their next customer
-visit gets a `desperation_bonus` multiplier (default 2.0×).
+visit gets a `desperation_bonus` multiplier (default 1.30×, configurable
+via `market_desperation_bonus`).
 
 **Effect**: Factions cycle between hungry and satiated. A faction you
 haven't sold to in a while pays a premium. Rewards rotating between
@@ -1024,8 +1025,8 @@ executes.
 **Configuration** (in `magic_mountain.yml`):
 ```yaml
 end_of_day_hour: 0              # 0–23, local time hour when maintenance fires
-maintenance_window_minutes: 5   # planned gate duration (route guard fires
-                                # for the duration of the callback)
+maintenance_window_minutes: 5   # reserved — route guard is currently a simple
+                                # boolean gate during the callback
 ```
 
 **Maintenance.pm lifecycle**:
@@ -1561,11 +1562,10 @@ skills:
 
 ### 12.4 Text Content Shape
 
-**daily_messages.yml**: Array under `daily_messages` key. Shown on state
-requests, cycled by season day or random.
-
-**season_opening.yml**: Array under `season_opening` key. Shown on day 1
-of each season.
+**crier.yml**: Contains all Crier message categories under `crier_messages`:
+`faction_surge`, `faction_slump`, `faction_dominance`, `milestone`,
+`season_opening` (day 1), `daily_progress` (ranged by day percentage),
+and generic fallback messages. Loaded at startup by `Crier.pm`.
 
 **customer_offers.yml** (future): Per-faction customer offer text, tiered
 by match quality.
@@ -1976,15 +1976,20 @@ These are non-negotiable rules for all content:
 
 ---
 
-## 18. Activity Discovery (Dynamic Registration)
+## 18. Activity Registration
 
-New activity types are discovered at startup by scanning the Activity
-directory. Any class in that namespace is automatically loaded and registered
-by its `name()` (lowercased short class name). Adding a new activity type is a
-single-file operation — no manual registration, no wiring changes.
+Activity types are registered manually in `MagicMountain.pm` as explicit `has`
+attributes. Each global instance is constructed with its persistence file,
+content YAML path, and app reference, then calls `load_content` to parse its
+YAML definitions. Adding a new activity type requires:
 
-The activity registry lives on the app instance (`$app->activities`) and is
-available to controllers at request time.
+1. Creating the subclass in `lib/MagicMountain/Activity/`
+2. Adding a `has` declaration to `MagicMountain.pm` with the constructor call
+3. Adding the activity's controller routes in `buildRoutes`
+
+There is no dynamic scanning or automatic registry. The two current activities
+are `$app->prospecting` and `$app->market`, directly available to controllers
+at request time.
 
 ---
 
@@ -2041,7 +2046,10 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |
 | **Analysis script** | `bin/analyze_sim` | Reusable transcript analysis: per-bot scores, push/sell counts, match rates |
 | **Rate limiting** | `MagicMountain::RateLimiter.pm`, `MagicMountain.pm` (bridge, helper, config), `Controller/Sessions.pm` (recording) | IP-based + account-name-based rate limiting on login; Retry-After, X-RateLimit-* headers; configurable window/attempts/block |
-| **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (2.0× after idle); configured via defaultConfig and per-faction YAML |
+| **Hall of Fame model** | `Model::HallOfFame.pm` | Append-only records for seasonal achievements; columns: character_name, score, season_id |
+| **Counter-offers** | `Activity/MarketVisit.pm` (offer/accept_counter), `Controller/Market.pm`, `Bot/SellPolicy.pm` | Optional, gated by `market_counter_offers` config (default off). Customer counters at midpoint price; player may accept or reject. |
+| **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default off). Multiple sales per visit with budget pressure and irritation carryover. |
+| **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (1.30× after idle); configured via defaultConfig and per-faction YAML |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
@@ -2053,7 +2061,6 @@ The new codebase (`lib/`) is a ground-up rebuild.
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Counter-offers / multi-item per visit | Medium | Player can negotiate for better price; show multiple items in single visit |
 | Commission system | Low | Faction notices, active commissions |
 | Desperate Recruiter (underdog catch-up) | Low | Premium standing/bonus for selling to trailing factions |
 

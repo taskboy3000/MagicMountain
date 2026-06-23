@@ -10,6 +10,17 @@ use MagicMountain::Model::ShedItem;
 use MagicMountain::Activity::MarketVisit;
 
 {
+    package FakeDispositionStore;
+    sub new { bless { items => [] }, shift }
+    sub create {
+        my ($self, %params) = @_;
+        my $item = bless { %params }, 'FakeShedItem';
+        push @{ $self->{items} }, $item;
+        return $item;
+    }
+}
+
+{
     package FakeApp;
     sub new { bless {}, shift }
     sub home { $FindBin::Bin . '/..' }
@@ -43,8 +54,8 @@ use MagicMountain::Activity::MarketVisit;
     sub transcript { bless {}, 'FakeTranscript' }
     sub disposition {
         my $self = shift;
-        $self->{_dispositions} //= [];
-        return $self;
+        $self->{_disposition_store} //= FakeDispositionStore->new;
+        return $self->{_disposition_store};
     }
     sub seasons { shift->{_seasons} }
     sub active_season { shift->{_active_season} }

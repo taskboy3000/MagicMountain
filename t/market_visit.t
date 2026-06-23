@@ -6,15 +6,28 @@ use File::Temp qw(tempfile tempdir);
 use File::Slurp qw(write_file);
 
 use_ok('MagicMountain::Activity::MarketVisit');
+use MagicMountain::Model::Season;
 use_ok('TestCharacter');
 
 # ── Helpers ──────────────────────────────────────────────────────────
+
+{
+    package FakeDispositionStore;
+    sub new { bless { items => [] }, shift }
+    sub create {
+        my ($self, %params) = @_;
+        my $item = bless { %params }, 'FakeShedItem';
+        push @{ $self->{items} }, $item;
+        return $item;
+    }
+}
 
 {
     package FakeApp;
     sub new { bless {}, shift }
     sub home { $FindBin::Bin . '/..' }
     sub log { bless {}, 'FakeLogger' }
+    sub config { shift->{config} || {} }
     sub shed {
         my $self = shift;
         $self->{_shed_items} //= [];
@@ -42,7 +55,13 @@ use_ok('TestCharacter');
         $self->{_shed_items} = \@kept;
     }
     sub transcript { bless {}, 'FakeTranscript' }
-    sub active_season { undef }
+    sub disposition {
+        my $self = shift;
+        $self->{_disposition_store} //= FakeDispositionStore->new;
+        return $self->{_disposition_store};
+    }
+    sub seasons { shift->{_seasons} }
+    sub active_season { shift->{_active_season} }
     sub find {
         my ($self, $code) = @_;
         my @found;
@@ -491,6 +510,149 @@ subtest 'send_away returns to idle' => sub {
     my $result = $m->dispatch($char, 'send_away');
 
     is($result->{view}{result}, 'sent_away', 'send_away -> sent_away');
+};
+
+
+# ── Counter-offer flow (gated by config) ───────────────────────────────
+
+subtest 'counter-offer generated on mismatch when market_counter_offers enabled' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    $m->app->{config} = { market_counter_offers => 1 };
+    my $char = _fresh_char();
+    $char->setCol('name', 'TestBot');
+
+    my $shed = $m->app->shed;
+    $shed->create(id => 'co-item', char_id => 'char-1', artifact_id => 'unknown',
+        behaviors => ['force'], decayed_value => 30, original_value => 30);
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 0.0;
+    srand(42);
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'co-item');
+
+    is($result->{view}{result}, 'counter_offer', 'mismatch -> counter_offer when enabled');
+    ok($result->{view}{counter_value} > 0, 'counter_value is positive');
+    ok(exists $m->customer->{pending_counter}, 'pending_counter stored on customer');
+    is($m->customer->{pending_counter}{item_id}, 'co-item', 'pending_counter references correct item');
+};
+
+subtest 'accept_counter sells at counter price' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    $m->app->{config} = { market_counter_offers => 1 };
+    my $char = _fresh_char();
+    $char->setCol('name', 'TestBot');
+
+    my $shed = $m->app->shed;
+    $shed->create(id => 'ac-item', char_id => 'char-1', artifact_id => 'unknown',
+        behaviors => ['force'], decayed_value => 30, original_value => 30);
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{settle_chance} = 0.0;
+    srand(42);
+    $m->dispatch($char, 'offer', shed_item_id => 'ac-item');
+    ok($m->customer->{pending_counter}, 'counter-offer generated');
+
+    my $result = $m->dispatch($char, 'accept_counter');
+    is($result->{view}{result}, 'sold', 'accept_counter -> sold');
+    ok($char->{scrap} > 0, 'scrap awarded on counter acceptance');
+    is((values %{ $char->{standing} })[0], 1, 'standing +1 on counter acceptance');
+};
+
+# ── Multi-item mode (gated by config) ──────────────────────────────────
+
+subtest 'multi-item allows multiple sales per visit' => sub {
+    my $data_dir = tempdir(CLEANUP => 1);
+    my $season = MagicMountain::Model::Season->new(file => "$data_dir/s.json");
+    $season->create(id => 's1', label => 'Test', status => 'active',
+        day => 1, length => 30, faction_state => {})->save;
+
+    my $content_file = _make_content_file();
+    my ($fh, $table_file) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($table_file, '{}');
+    my $app = FakeApp->new;
+    $app->{_active_season} = $season;
+    $app->{_seasons} = $season;
+    $app->{config} = { market_multi_item => 1 };
+    my $m = MagicMountain::Activity::MarketVisit->new(
+        file => $table_file, app => $app,
+        content_filename => $content_file,
+    );
+    $m->load_content;
+
+    my $char = TestCharacter->new(
+        id => 'char-1', action_points => 15, scrap => 0, score => 0, name => 'TestBot',
+    );
+
+    $app->shed->create(id => 'm1', char_id => 'char-1',
+        artifact_id => 'thermal_box_001', behaviors => ['thermal'],
+        decayed_value => 20, original_value => 20);
+    $app->shed->create(id => 'm2', char_id => 'char-1',
+        artifact_id => 'thermal_box_001', behaviors => ['thermal'],
+        decayed_value => 20, original_value => 20);
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{desired_behaviors} = ['thermal'];
+    $m->customer->{soft_budget} = 999;
+    $m->customer->{absolute_budget} = 9999;
+
+    my $r1 = $m->dispatch($char, 'offer', shed_item_id => 'm1');
+    is($r1->{view}{result}, 'sold_more', 'first multi-item sale -> sold_more');
+    ok($r1->{view}{value} > 0, 'first sale value positive');
+    ok($r1->{view}{pressure_state}, 'budget pressure state returned');
+    is($m->phase, 'negotiating', 'visit remains in negotiating after multi-item sale');
+
+    my $r2 = $m->dispatch($char, 'offer', shed_item_id => 'm2');
+    is($r2->{view}{result}, 'sold_more', 'second multi-item sale -> sold_more');
+    ok($r2->{view}{value} > 0, 'second sale value positive');
+
+    # Send away to end the visit
+    my $r3 = $m->dispatch($char, 'send_away');
+    is($r3->{view}{result}, 'sent_away', 'send_away ends multi-item visit');
+};
+
+# ── Budget / over_budget ──────────────────────────────────────────────
+
+subtest 'sale exceeding absolute_budget returns over_budget with irritation' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+    $char->setCol('name', 'TestBot');
+
+    $m->app->shed->create(id => 'ob-item', char_id => 'char-1',
+        artifact_id => 'thermal_box_001', behaviors => ['thermal'],
+        decayed_value => 100, original_value => 100);
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{desired_behaviors} = ['thermal'];
+    $m->customer->{soft_budget} = 10;
+    $m->customer->{absolute_budget} = 15;
+
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'ob-item');
+    is($result->{view}{result}, 'over_budget', 'over_budget result');
+    is($m->customer->{irritation}, 2, 'irritation +2 on over_budget');
+};
+
+subtest 'budget pressure state tracks spending' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+    $char->setCol('name', 'TestBot');
+
+    $m->app->shed->create(id => 'ps-item', char_id => 'char-1',
+        artifact_id => 'thermal_box_001', behaviors => ['thermal'],
+        decayed_value => 20, original_value => 20);
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{desired_behaviors} = ['thermal'];
+    $m->customer->{soft_budget} = 999;
+    $m->customer->{absolute_budget} = 9999;
+
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'ps-item');
+    is($result->{view}{result}, 'sold', 'sale succeeds with high budget');
+    ok($result->{view}{pressure_state}, 'pressure_state is returned');
+    ok($result->{view}{budget_pressure_pct} > 0, 'budget_pressure_pct is positive');
 };
 
 done_testing;
