@@ -1,0 +1,99 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+
+my $count     = 6;
+my $days      = 30;
+my $seeds     = "1-5";
+my $profile   = "stage_guard_opportunist=1,greed_desperate=1,value_hoarder=1,fixed_highest=1,instability_loyalist=1,stage_loyalist=1";
+my @configs;
+my $help;
+
+GetOptions(
+    'count=i'     => \$count,
+    'days=i'      => \$days,
+    'seeds=s'     => \$seeds,
+    'profile=s'   => \$profile,
+    'config=s'    => \@configs,
+    'help'        => \$help,
+) or die "Usage: $0 [options]\n";
+
+if ($help) {
+    print <<"USAGE";
+Usage: $0 [options]
+
+Run batched simulations across seeds and configs.
+
+Options:
+  --count N       Bots per seed (default: 6)
+  --days N        Season length (default: 30)
+  --seeds RANGE   Seed range, e.g. "1-10" or "1,3,5" (default: 1-5)
+  --profile P     Profile weights (default: 6-profile mix)
+  --config NAME   One or more: default, counter_offers, multi_item, both
+                  Can repeat: --config default --config both
+  --help          This message
+
+Configs map to flags:
+  default          (no flags)
+  counter_offers   --counter-offers
+  multi_item       --multi-item
+  both             --counter-offers --multi-item
+
+Output dir: /tmp/mm_run_<timestamp>/
+Transcripts: /tmp/mm_run_<timestamp>/<config>/seed_<N>.jsonl
+Results summary written to stdout after all runs.
+USAGE
+    exit 0;
+}
+
+# Parse seed range
+my @seeds;
+if ($seeds =~ /^(\d+)-(\d+)$/) {
+    @seeds = $1 .. $2;
+} elsif ($seeds =~ /^(\d+)(?:,(\d+))*$/) {
+    @seeds = split /,/, $seeds;
+} else {
+    @seeds = ($seeds);
+}
+
+# Default configs
+@configs = qw(default both) unless @configs;
+
+my %flag_for = (
+    default         => '',
+    counter_offers  => '--counter-offers',
+    multi_item      => '--multi-item',
+    both            => '--counter-offers --multi-item',
+);
+
+my $outdir = "/tmp/mm_run_" . time;
+mkdir $outdir or die "Cannot create $outdir: $!";
+
+for my $config (@configs) {
+    my $dir = "$outdir/$config";
+    mkdir $dir or die "Cannot create $dir: $!";
+    my $flags = $flag_for{$config} // '';
+    print "--- Config: $config ($flags) ---\n";
+    for my $seed (@seeds) {
+        my $cmd = "perl -Ilib script/mountain simulate --count $count --days $days --seed $seed"
+                . " --profile-weights \"$profile\""
+                . " --output \"$dir/seed_$seed.jsonl\""
+                . ($flags ? " $flags" : "");
+        system $cmd;
+        my $exit = $? >> 8;
+        print "  seed=$seed " . ($exit == 0 ? "done" : "FAILED (exit $exit)") . "\n\n";
+    }
+}
+
+print "\n=== All runs complete ===\n";
+print "Output directory: $outdir\n";
+print "\nTo analyze individual transcripts:\n";
+print "  perl bin/analyze_sim $outdir/<config>/seed_<N>.jsonl\n";
+print "\nTo aggregate scores:\n";
+print "  for config in @configs; do\n";
+print "    echo \"\\\$config:\"\n";
+print "    for f in \$outdir/\\\$config/seed_*.jsonl; do\n";
+print "      perl -MMojo::JSON=decode_json -e '...' \"\\\$f\"\n";
+print "    done | awk '{...}'\n";
+print "  done\n";
