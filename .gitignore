@@ -6,3 +6,4 @@ data
 original
 out.log
 package-lock.json
+start.sh

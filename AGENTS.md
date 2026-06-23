@@ -114,14 +114,6 @@ magic_mountain/
 │   ├── bot_simulate.t             # Bot simulation tests
 │   └── command_advance_day.t      # advance-day CLI tests
 │
-├── design_docs/                   # Obsidian design vault
-│   ├── Core Design.md             # Game vision, premise, philosophy
-│   ├── Artifact Mechanics.md      # Push/collapse/breakthrough math
-│   ├── Engine Design.md           # Time structure, core loop, systems
-│   ├── Tone Guide.md              # Narrative voice and writing rules
-│   ├── MVP 1.0.md                 # Original implementation plan
-│   └── ...                        # Factions, Events, PvP, etc.
-│
 └── script/mountain                # App entry point: perl script/mountain <command>
 ```
 
@@ -258,13 +250,10 @@ prove -lv t/prospecting_web.t
 
 ## Design Vault
 
-The `design_docs/` directory is the canonical design reference. When in doubt
-about *how the game should work*, consult:
-1. `design_docs/Core Design.md` — game vision and philosophy
-2. `design_docs/Artifact Mechanics.md` — core math
-3. `design_docs/Engine Design.md` — systems and architecture
-4. `design_docs/Tone Guide.md` — writing style
-5. `GAME_ARCHITECTURE.md` — target rebuild specification
+The `docs/` directory is the canonical design reference. When in doubt
+about *how the game should work*, consult the design docs for vision,
+philosophy, mechanics, and writing guidance, along with
+`GAME_ARCHITECTURE.md` — target rebuild specification.
 
 ---
 
@@ -272,5 +261,5 @@ about *how the game should work*, consult:
 
 | Concern | Authority |
 |---------|-----------|
-| What the game should do | `design_docs/` + `GAME_ARCHITECTURE.md` |
+| What the game should do | `docs/` + `GAME_ARCHITECTURE.md` |
 | New codebase structure | This directory (`lib/`, `t/`, `templates/`) |
