@@ -11,7 +11,7 @@ sub show ($self) {
 
     my $season_recap;
 
-    unless ($season) {
+    if (!$season) {
         $self->app->season_records->load;
         my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
         if (@$archived) {
@@ -61,7 +61,7 @@ sub show ($self) {
         sub { $_[0]->{account_id} eq $player_id && (!$season || $_[0]->{season_id} eq $season->getCol('id')) }
     ) };
 
-    unless ($char_model) {
+    if (!$char_model) {
         my $daily_ap = $self->app->config->{default_action_points} // 15;
         $char_model = $self->app->characters->create(
             name                  => $account->getCol('username'),

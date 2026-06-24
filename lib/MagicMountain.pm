@@ -273,7 +273,7 @@ sub startup ($self) {
 
     $self->helper(csrf_token => sub ($c) {
         my $token = $c->session('csrf_token');
-        unless ($token) {
+        if (!$token) {
             my @chars = ('a'..'z', 'A'..'Z', '0'..'9');
             $token = join '', map { $chars[rand @chars] } 1..32;
             $c->session(csrf_token => $token);
@@ -288,14 +288,14 @@ sub startup ($self) {
 
     $self->helper(current_player => sub ($c) {
         my $player_id = $c->session('playerId');
-        return undef unless $player_id;
+        return unless $player_id;
         my $session = $c->app->session_store->find_by_player_id($player_id);
-        return undef unless $session;
+        return unless $session;
         my $timeout = $c->app->config->{session_timeout_minutes} // 60;
         if ($session->is_expired($timeout)) {
             $c->app->session_store->delete($session->getCol('id'));
             $c->session(expires => 1);
-            return undef;
+            return;
         }
         $session->touch;
         return $player_id;
@@ -326,7 +326,7 @@ sub buildRoutes ($self) {
     my $no_maintenance = $r->under('/' => sub ($c) {
         if ($c->is_maintenance) {
             $c->render(text => 'Maintenance in progress', status => 503);
-            return undef;
+            return;
         }
         return 1;
     });
@@ -338,14 +338,14 @@ sub buildRoutes ($self) {
 
         my $rl = $c->app->rate_limiter;
 
-        unless ($rl->check($ip)) {
+        if (!$rl->check($ip)) {
             my $retry_after = $rl->get_reset_time($ip);
             $c->res->headers->header('Retry-After' => $retry_after);
             $c->render(json => {
                 ok => 0, error => 'Too many attempts',
                 retry_after => $retry_after,
             }, status => 429);
-            return undef;
+            return;
         }
 
         $c->res->headers->header('X-RateLimit-Limit'     => $rl->max_attempts);
@@ -359,9 +359,9 @@ sub buildRoutes ($self) {
     # Authenticated routes (also blocked during maintenance)
     my $auth = $no_maintenance->under('/' => sub ($c) {
         my $player_id = $c->current_player;
-        unless ($player_id) {
+        if (!$player_id) {
             $c->redirect_to('login_form');
-            return undef;
+            return;
         }
         return 1;
     });
@@ -371,9 +371,9 @@ sub buildRoutes ($self) {
         return 1 if $c->req->method eq 'GET';
         my $header = $c->req->headers->header('X-CSRF-Token') // '';
         my $token  = $c->session('csrf_token') // '';
-        unless ($header && $token && $header eq $token) {
+        if (!($header && $token && $header eq $token)) {
             $c->render(json => { ok => 0, error => 'Invalid CSRF token' }, status => 403);
-            return undef;
+            return;
         }
         return 1;
     });

@@ -100,7 +100,7 @@ sub run ($self, @args) {
     my @profiles = @$profiles;
 
     # Fallback to a single default profile if none defined
-    unless (@profiles) {
+    if (!@profiles) {
         @profiles = ({
             id => 'default',
             push_policy => { name => 'stage_guard', params => { stop_at => 'unstable' } },
@@ -309,7 +309,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
         last unless $result->{view}{ok};
 
         # Check if we accept this customer
-        unless (MagicMountain::Bot::SellPolicy::accept_customer($char, $activity->customer, $sell_pol)) {
+        if (!MagicMountain::Bot::SellPolicy::accept_customer($char, $activity->customer, $sell_pol)) {
             $activity->dispatch($char, 'send_away');
             $transcript->log_event({
                 type       => 'policy_send_away',
@@ -333,7 +333,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
             last unless @$current_items;
 
             for my $item (@$current_items) {
-                unless (MagicMountain::Bot::SellPolicy::should_offer_item($char, $item, $sell_pol)) {
+                if (!MagicMountain::Bot::SellPolicy::should_offer_item($char, $item, $sell_pol)) {
                     $transcript->log_event({
                         type       => 'policy_skip_item',
                         player     => $char_name,
@@ -388,7 +388,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
                     }
                     # Reject counter — try next item
                     $n_mismatches++;
-                    unless (MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
+                    if (!MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
                         $transcript->log_event({
                             type        => 'policy_stop_offer',
                             player      => $char_name,
@@ -415,7 +415,7 @@ sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
 
                 if ($view->{result} eq 'no_match') {
                     $n_mismatches++;
-                    unless (MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
+                    if (!MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
                         $transcript->log_event({
                             type        => 'policy_stop_offer',
                             player      => $char_name,

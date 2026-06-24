@@ -69,11 +69,11 @@ sub customer {
 
 sub _current_day ($self) {
     my $seasons = eval { $self->app->seasons };
-    return undef unless $seasons;
+    return unless $seasons;
     $seasons->load;
     my $active = $seasons->find(sub { $_[0]->{status} && $_[0]->{status} eq 'active' });
     return $active->[0]->getCol('day') if @$active;
-    return undef;
+    return;
 }
 
 sub _log_event ($self, $char, $event) {

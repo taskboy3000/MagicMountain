@@ -4,3 +4,10 @@
 # We use Perl 5.40 signatures (via Mojo::Base -signatures).
 # The old-style subroutine prototypes are not a concern.
 [-Subroutines::ProhibitSubroutinePrototypes]
+
+# Test files use inline helper packages that don't match filenames.
+[-Modules::RequireFilenameMatchesPackage]
+
+# Prohibit unless { BLOCK } — prefer if (!COND) { BLOCK }
+[ControlStructures::ProhibitUnlessBlocks]
+severity = 5

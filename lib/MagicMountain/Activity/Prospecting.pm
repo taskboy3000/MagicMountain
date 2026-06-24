@@ -61,14 +61,16 @@ sub _draw_artifact ($self, $char) {
 
 sub _pick_signal ($self, $artifact, $stage) {
     my $spec    = $self->_find_spec($artifact->{id});
-    my $signals = $spec->{signals}{$stage} if $spec;
+    my $signals;
+    $signals = $spec->{signals}{$stage} if $spec;
     return '' unless $signals && @$signals;
     return $signals->[ int(rand(scalar @$signals)) ];
 }
 
 sub _pick_collapse ($self, $artifact) {
     my $spec  = $self->_find_spec($artifact->{id});
-    my $texts = $spec->{collapse} if $spec;
+    my $texts;
+    $texts = $spec->{collapse} if $spec;
     return 'The artifact collapses.' unless $texts && @$texts;
     return $texts->[ int(rand(scalar @$texts)) ];
 }
