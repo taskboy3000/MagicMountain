@@ -22,6 +22,16 @@ cover:
 report:
 	cover -summary
 
+perlcritic:
+	@echo "Running perlcritic (severity 3 — stern)..."
+	@find . -name '*.pl' -o -name '*.pm' -o -name '*.t' -type f \
+	  | xargs perlcritic --verbose 8
+
+perlcritic-brutal:
+	@echo "Running perlcritic (severity 5 — brutal)..."
+	@find . -name '*.pl' -o -name '*.pm' -o -name '*.t' -type f \
+	  | xargs perlcritic --severity 5 --verbose 8
+
 .PHONY: indent
 indent:
 	@echo "Finding Perl files..."

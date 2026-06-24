@@ -106,7 +106,7 @@ disabled by default):
   Player may keep offering items until they send away or the customer
   storms off.
 - **Standing grants**: Match = +2, accepted counter = +1, settle = +0.
-- **Bot profiles** updated with `max_irritation`, `accept_counter`, and
+- **Bot profiles** updated with `max_irritation`, `haggle_aggression`, and
   `min_counter_pct` params. Simulate command supports `--counter-offers`
   and `--multi-item` flags.
 
@@ -134,7 +134,33 @@ IP-based + account-name-based rate limiter implemented:
 
 ---
 
-## Infrastructure Backlog
+## Production UI Redesign
+
+Replace the current Bootstrap 5 + client-side template literal UI with an
+Amber ANSI terminal aesthetic ("ProspectBoy 3000") using server-rendered
+HTML fragments. The full plan is in `plan_ui_update.md` (10 phases).
+
+**Architectural change**: Distributed fragment resources — server renders
+HTML fragments that JS fetches and inserts, instead of building UI in JS
+template literals. Controllers serve resources with `respond_to` format
+negotiation (`json`, `html`, `fragment`).
+
+**Phases**:
+- Phase 0: CSS design system + layout (amber palette, monospace font, CSS grid, no Bootstrap)
+- Phase 1: Fragment rendering infrastructure (MIME type, routes, controllers, rewrite `game.js`)
+- Phase 2: ProspectBoy 3000 header + status strip
+- Phase 3: Faction SVGs (5 inline SVG emblems)
+- Phase 4: Prospecting panel (field scan aesthetic)
+- Phase 5: Market visit panel (buyer negotiation card)
+- Phase 6: Shed, Crier, Skills, Leaderboard panels
+- Phase 7: Idle actions and navigation
+- Phase 8: Visual polish + hardware effects (scanlines, phosphor glow)
+- Phase 9: Login screen restyle
+- Phase 10: Season recap and other pages
+
+**Reference**: `plan_ui_update.md`
+
+---
 
 | Concern | Priority | Notes |
 |---------|----------|-------|

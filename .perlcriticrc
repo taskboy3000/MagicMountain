@@ -1,0 +1,6 @@
+# Perl::Critic configuration for Magic Mountain
+# Tune policies here: disable, adjust severity, or exclude files.
+
+# We use Perl 5.40 signatures (via Mojo::Base -signatures).
+# The old-style subroutine prototypes are not a concern.
+[-Subroutines::ProhibitSubroutinePrototypes]

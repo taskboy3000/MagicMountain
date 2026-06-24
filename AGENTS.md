@@ -275,6 +275,10 @@ the summary.
   to `loadGame()`. Add the frontend wiring as a task in the same session as
   the backend change — never ship a backend feature without the corresponding
   JS handler.
+- **New result types**: When adding a new `result` string to an Activity handler
+  (e.g. `'sold_more'`, `'over_budget'`), read the full set of possible result
+  values back to the user before finishing the session so they can confirm the
+  API shape before any frontend work starts.
 - **Coverage**: Run `make cover && make report` before every commit. Coverage
   for all `lib/*.pm` files must stay at or above **85%** (statement coverage).
   If you add new code without tests, coverage drops and the commit should be

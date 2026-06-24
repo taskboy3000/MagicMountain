@@ -741,12 +741,17 @@ When a player starts a Market Visit (costs 1 AP):
    higher a player's standing with a faction, the more likely its customers
    appear.
 
-   **Loyalty access guarantee**: If the player has 2+ sales to a single top
-   faction and the rolled customer is from a different faction, a `loyalty_visits_since`
-   counter tracks consecutive non-loyalty visits. After 3 such visits, the
-   customer is forcibly redirected to the player's top faction (reset on
-   any loyalty-faction visit). This ensures loyalists aren't starved of their
-   preferred faction's customers.
+**Loyalty access guarantee**: If the player has 2+ sales to a single top
+    faction and the rolled customer is from a different faction, a `loyalty_visits_since`
+    counter tracks consecutive non-loyalty visits. After 3 such visits, the
+    customer is forcibly redirected to the player's top faction (reset on
+    any loyalty-faction visit). This ensures loyalists aren't starved of their
+    preferred faction's customers.
+
+    **Loyalty free mismatch**: If the player has 1+ prior sales to the visiting
+    faction, the first mismatch each visit is free — no irritation is added.
+    The `loyalty_free_mismatches` counter (initialized to 1 when
+    `faction_sales >= 1`, 0 otherwise) is decremented on each mismatch.
 
 2. **Player offer**: Player selects an artifact from their Shed and presents it
     to the customer. The negotiation logic:
@@ -769,9 +774,11 @@ When a player starts a Market Visit (costs 1 AP):
          `floor(decayed_value × base_multiplier × counter_pct)`. `counter_pct`
          starts at 0.75, increased to 0.80 with Selling skill 2+, plus +0.01
          per point of standing with that faction (capped at 0.95). The player
-         may accept (`accept_counter` action) or reject the counter (implicitly
-         by offering a different item, which ticks irritation by 1). The loyalty
-         bonus does NOT apply to counter values.
+          may accept (`accept_counter` action) or reject the counter (implicitly
+          by offering a different item, which clears the pending counter and
+          generates a fresh counter for the newly offered item; no irritation
+          is added on counter rejection). The loyalty bonus does NOT apply to
+          counter values.
      - After a result, the player may:
        - **Show another artifact**: Repeat offer step with a different shed item.
          Available after any non-storm-off outcome when the visit is still active.
@@ -818,9 +825,12 @@ When a player starts a Market Visit (costs 1 AP):
    - **Mismatch under irritation threshold (counter-offers disabled)**: Artifact
      returns to Shed unchanged. Activity persists (phase stays `negotiating`),
      player may try another item. No scrap or score. AP is still consumed.
-   - **Counter-offer rejected**: Irritation ticks by 1 (or 0 with Selling skill
-     2+). Same as mismatch under threshold — player may try another item or
-     send away.
+    - **Counter-offer rejected**: The pending counter is cleared and a fresh
+      counter is generated for the newly offered item — no irritation is added
+      on counter rejection. Player may continue offering other items or send
+      away. (Note: the counter-offer rejection mechanic was adjusted during
+      implementation; investigate adding irritation-on-reject as a future
+      balance tuning lever.)
    - **Customer storms off (irritation exceeds threshold)**: Activity deleted,
      `pending_activity_id` cleared. No scrap or score. AP consumed.
    - **Player sends away**: Activity deleted, `pending_activity_id` cleared.
@@ -1748,6 +1758,8 @@ Options:
   --profile FILE        Bot profile YAML (default content/bots.yml)
   --profile-weights W   Weighted profile distribution, e.g. 'a=3,b=1'
   --skill-profile S     Skill levels (only when using inline default profile)
+  --counter-offers      Enable counter-offer haggle step
+  --multi-item          Enable multi-item sales per market visit
 ```
 
 ### 14.2 Push Policies
@@ -1769,7 +1781,7 @@ STOP pushing (i.e., stop condition met).
 ### 14.3 Selling Policies
 
 Registered in `MagicMountain::Bot::SellPolicy`. Selling is decomposed into
-three separate decisions, each with its own policy dispatch:
+four separate decisions, each with its own policy dispatch:
 
 | Decision | Policy | Parameters | Behavior |
 |----------|--------|------------|----------|
@@ -1780,6 +1792,8 @@ three separate decisions, each with its own policy dispatch:
 | | `default` | *(none)* | Offer any item in shed |
 | **try_another** | `opportunist` | *(none)* | Stop offering after first mismatch (never try another) |
 | | `default` | *(none)* | Continue offering further items |
+| **should_accept_counter** | `default` | `haggle_aggression` (default 1.0), `min_counter_pct` (default 0) | Accept if `rand() < aggression` AND `counter_value >= decayed_value × min_pct` |
+| | `highest_offer` | *(none)* | Never accept counters |
 
 ### 14.4 Bot Strategy Profile
 

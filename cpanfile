@@ -6,6 +6,8 @@ requires 'File::Slurp';
 requires 'UUID::Tiny';
 requires 'Perl::Tidy';
 requires 'Cpanel::JSON::XS';
+requires 'Perl::Critic';
+
 
 on 'test' => sub {
     requires 'Test::More';
