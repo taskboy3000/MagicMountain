@@ -383,7 +383,7 @@ sub buildRoutes ($self) {
 
     # Resource endpoints (fragment/JSON via show action)
     $auth->get('/player')->to('player#show')->name('player');
-    $auth->get('/season')->to('season#show');
+    # $auth->get('/season')->to('season#show');
     $auth->get('/crier')->to('crier#show');
     $auth->get('/idle')->to('idle#show');
     $auth->get('/prospecting')->to('prospecting#show');

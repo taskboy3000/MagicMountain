@@ -26,20 +26,9 @@ async function renderPlayerFragment() {
 }
 
 function render() {
-  const p = G.player || {};
-  document.getElementById('player-name').textContent = p.name || '—';
-  document.getElementById('stat-score').textContent = p.score ?? '—';
-  document.getElementById('stat-scrap').textContent = p.scrap ?? '—';
-  document.getElementById('stat-ap').textContent = p.action_points ?? '—';
-
-  const s = G.season || {};
-  document.getElementById('season-info').textContent =
-    s.total_days ? `${s.label} — Day ${s.day} of ${s.total_days}` : 'No active season.';
-
   renderRecap();
-  renderActionCard();
   renderActionFragment();
-  renderCrierFragment();
+  renderPlayerFragment();
   renderShedFragment();
   renderSkillsFragment();
   renderFactionsFragment();
@@ -49,11 +38,10 @@ function render() {
 function renderRecap() {
   const recap = G.season_recap;
   if (!recap) return;
-  const card = document.getElementById('action-card');
   const hl = recap.highlights || {};
   const st = recap.standing || {};
   const factions = Object.keys(st).length;
-  card.innerHTML = `<div style="border:1px solid var(--mm-amber);margin-bottom:0.75rem">
+  document.getElementById('slot-recap').innerHTML = `<div style="border:1px solid var(--mm-amber);margin-bottom:0.75rem">
     <div style="border-bottom:1px solid var(--mm-amber);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">${recap.label} — Final Results</div>
     <div style="padding:0.5rem 0.6rem">
       <div style="display:flex;text-align:center;margin-bottom:0.75rem">
@@ -71,16 +59,6 @@ function renderRecap() {
   </div>`;
 }
 
-function renderActionCard() {
-  const card = document.getElementById('action-card');
-  if (G.market_visit || G.prospecting) {
-    card.innerHTML = '<div class="card mb-3"><div class="card-header">Activity in Progress</div><div class="card-body text-center"><div class="mm-skeleton" style="width:60%"></div><div class="mm-skeleton" style="width:40%"></div></div></div>';
-  } else {
-    card.innerHTML = renderIdle();
-  }
-  wireActionButtons();
-}
-
 async function renderProspectingFragment() {
   const resp = await fetch('/prospecting?_format=fragment');
   if (resp.status === 204) {
@@ -89,20 +67,6 @@ async function renderProspectingFragment() {
   }
   const html = await resp.text();
   document.getElementById('slot-action').innerHTML = html;
-}
-
-function renderIdle() {
-  const ap = G.player?.action_points ?? 0;
-  const hasItems = (G.shed?.length ?? 0) > 0;
-  if (ap < 1) {
-    return `<div style="border:1px solid var(--mm-border);margin-bottom:0.75rem"><div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Actions</div><div style="padding:0.5rem 0.6rem;text-align:center"><p style="color:var(--mm-text-dim);margin:0;font-size:0.78rem">No AP remaining today.</p></div></div>`;
-  }
-  return `<div style="border:1px solid var(--mm-border);margin-bottom:0.75rem"><div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Actions</div><div style="padding:0.5rem 0.6rem;text-align:center">
-    <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:center">
-      ${ap >= 2 ? '<button class="mm-btn mm-btn-primary" id="btn-begin">Begin Expedition (2 AP)</button>' : ''}
-      ${hasItems ? '<button class="mm-btn mm-btn-primary" id="btn-market">Visit Market (1 AP)</button>' : '<p style="color:var(--mm-text-dim);font-size:0.78rem;margin:0">No artifacts in shed to sell.</p>'}
-    </div>
-  </div></div>`;
 }
 
 async function renderShedFragment() {
@@ -193,33 +157,18 @@ async function renderLeaderboardFragment() {
   document.getElementById('slot-leaderboard').innerHTML = html;
 }
 
-function wireActionButtons() {
-  document.getElementById('btn-begin')?.addEventListener('click', beginProspecting);
-  document.getElementById('btn-push')?.addEventListener('click', pushArtifact);
-  document.getElementById('btn-stop')?.addEventListener('click', stopProspecting);
-  document.getElementById('btn-market')?.addEventListener('click', beginMarket);
-  document.getElementById('btn-send-away')?.addEventListener('click', sendAway);
-  document.getElementById('btn-accept-counter')?.addEventListener('click', acceptCounter);
-}
-
 async function beginProspecting() {
   const data = await api('/prospecting/begin', { method: 'POST' });
   if (!data.ok) return;
-  if (data.player) Object.assign(G.player, data.player);
   if (data.artifact) G.prospecting = data.artifact;
-  updateStats();
-  renderActionCard();
   if (data.refetch) await refetchFragments(data.refetch);
 }
 
 async function pushArtifact() {
   const data = await api('/prospecting/push', { method: 'POST' });
   if (!data.ok) return;
-  if (data.player) Object.assign(G.player, data.player);
   if (data.artifact) G.prospecting = data.artifact;
   else G.prospecting = null;
-  updateStats();
-  renderActionCard();
   if (data.refetch) await refetchFragments(data.refetch);
   else await loadGame();
 }
@@ -232,10 +181,7 @@ async function stopProspecting() {
 async function beginMarket() {
   const data = await api('/market/begin', { method: 'POST' });
   if (!data.ok) return;
-  if (data.player) Object.assign(G.player, data.player);
   G.market_visit = { customer: data.customer || {} };
-  updateStats();
-  renderActionCard();
   if (data.refetch) await refetchFragments(data.refetch);
   else await loadGame();
 }
@@ -243,8 +189,6 @@ async function beginMarket() {
 async function offerItem(shedItemId) {
   const data = await api('/market/offer', { body: { shed_item_id: shedItemId }, method: 'POST' });
   if (!data.ok) return;
-  if (data.player) Object.assign(G.player, data.player);
-  updateStats();
   if (data.result === 'sold' || data.result === 'customer_left' || data.result === 'sent_away') {
     G.market_visit = null;
     await loadGame();
@@ -264,8 +208,6 @@ async function sendAway() {
 async function acceptCounter() {
   const data = await api('/market/accept_counter', { method: 'POST' });
   if (!data.ok) return;
-  if (data.player) Object.assign(G.player, data.player);
-  updateStats();
   if (data.result === 'sold') {
     G.market_visit = null;
     await loadGame();
@@ -278,17 +220,8 @@ async function acceptCounter() {
 async function purchaseSkill(skillId) {
   const data = await api('/skills/purchase', { body: { skill_id: skillId }, method: 'POST' });
   if (!data.ok) return;
-  if (data.player) Object.assign(G.player, data.player);
-  updateStats();
   if (data.refetch) await refetchFragments(data.refetch);
   else await loadGame();
-}
-
-function updateStats() {
-  const p = G.player || {};
-  document.getElementById('stat-score').textContent = p.score ?? '—';
-  document.getElementById('stat-scrap').textContent = p.scrap ?? '—';
-  document.getElementById('stat-ap').textContent = p.action_points ?? '—';
 }
 
 document.getElementById('delete-account-btn').addEventListener('click', async () => {

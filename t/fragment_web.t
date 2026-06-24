@@ -77,13 +77,13 @@ subtest 'player fragment returns 204 when no character' => sub {
     $t->get_ok('/player?_format=fragment')->status_is(204);
 };
 
-subtest 'season fragment returns season info' => sub {
-    my $t = setup;
-    $t->get_ok('/season?_format=fragment')
-      ->status_is(200)
-      ->content_like(qr{Test})
-      ->content_like(qr{DAY 1 OF 30});
-};
+# subtest 'season fragment returns season info' => sub {
+#     my $t = setup;
+#     $t->get_ok('/season?_format=fragment')
+#       ->status_is(200)
+#       ->content_like(qr{Test})
+#       ->content_like(qr{DAY 1 OF 30});
+# };
 
 subtest 'crier fragment returns bulletin' => sub {
     my $t = setup;
