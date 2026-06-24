@@ -1,0 +1,37 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">NEGOTIATION — <%= $customer_faction_name %></div>
+  <div class="mm-panel-body">
+    <p style="color:var(--mm-text-dim);font-size:0.78rem"><%= $customer_disposition %></p>
+    <p>Irritation: <strong><%= $irritation %></strong>
+% if ($pressure_state) {
+      <span class="mm-badge
+% my %pc = (mood_comfortable => 'mm-badge-green', mood_interested => 'mm-badge-green', mood_wary => 'mm-badge-amber', mood_strained => 'mm-badge-amber', mood_leaving => 'mm-badge-red', mood_over_absolute => 'mm-badge-red');
+        <%= $pc{$pressure_state} // 'mm-badge-green' %>"><%= $pressure_state =~ s/mood_//r %></span>
+% }
+    </p>
+% my $sale = stash('last_sale');
+% if ($sale) {
+    <div style="border:1px solid var(--mm-green);padding:0.4rem;margin:0.5rem 0">
+      <p style="margin:0 0 0.2rem 0">Sold for <strong><%= $sale->{value} %></strong> scrap
+        <span class="mm-badge mm-badge-green"><%= $sale->{sale_type} %></span>
+% if ($sale->{precision_bonus}) {
+        <span style="color:var(--mm-green);font-size:0.78rem">+<%= $sale->{precision_bonus} %> precision bonus!</span>
+% }
+      </p>
+    </div>
+% }
+% my $msg = stash('message');
+% if ($msg) {
+    <p style="font-style:italic;color:var(--mm-text-dim);margin:0.5rem 0"><%= $msg %></p>
+% }
+% if ($pending_counter) {
+    <div style="border:1px solid var(--mm-amber);padding:0.4rem;margin:0.5rem 0">
+      <p style="margin:0 0 0.3rem 0"><strong>Counter-offer:</strong> <%= $pending_counter->{value} %> scrap</p>
+      <button class="mm-btn mm-btn-primary" id="btn-accept-counter">Accept Counter-Offer</button>
+      <p style="margin:0.3rem 0 0 0;font-size:0.7rem;color:var(--mm-text-dim)">(or offer a different artifact to reject)</p>
+    </div>
+% }
+    <p style="margin-top:0.5rem">Select an artifact from the ledger to offer:</p>
+    <button class="mm-btn" id="btn-send-away" style="margin-top:0.5rem">Send Away</button>
+  </div>
+</div>

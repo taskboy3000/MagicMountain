@@ -1,0 +1,70 @@
+#!/bin/bash
+# Smoke-test a game endpoint with full auth.
+# Usage: bin/smoke_test <method> <path> [body]
+#   method: GET or POST
+#   path:   e.g. /prospecting?_format=fragment
+#   body:   JSON string for POST requests (optional)
+#
+# Examples:
+#   bin/smoke_test GET /prospecting?_format=fragment
+#   bin/smoke_test POST /prospecting/begin
+#   bin/smoke_test POST /market/offer '{"shed_item_id":"..."}'
+
+PORT=${PORT:-9000}
+BASE="http://localhost:$PORT"
+COOKIES=$(mktemp)
+trap "rm -f $COOKIES" EXIT
+
+# Unique account per run so leftover state never bleeds between tests
+NAME="smoke_$(date +%s)_$$"
+
+# Login (creates account if new)
+echo "--- Login ($NAME) ---" >&2
+RESP=$(curl -s -c "$COOKIES" -X POST "$BASE/sessions" \
+  -H 'Content-Type: application/json' \
+  -d "{\"displayName\":\"$NAME\"}")
+OK=$(echo "$RESP" | grep -oP '"ok":(true|false|0|1)' | grep -oP 'true|false|0|1' || echo "false")
+if [ "$OK" != "true" ] && [ "$OK" != "1" ]; then
+  echo "Login failed: $RESP" >&2
+  exit 1
+fi
+CSRF=$(echo "$RESP" | grep -oP '"csrf_token":"([^"]+)"' | cut -d'"' -f4)
+echo "CSRF: $CSRF" >&2
+
+# Visit /game to create character
+echo "--- Game page ---" >&2
+curl -s -b "$COOKIES" "$BASE/game" -o /dev/null -w "Status: %{http_code}\n" >&2
+
+METHOD=$1
+PATH_ARG=$2
+BODY=${3:-}
+
+echo "--- Request: $METHOD $PATH_ARG ---" >&2
+
+if [ "$METHOD" = "GET" ]; then
+  STATUS=$(curl -s -b "$COOKIES" -o /tmp/smoke_out.txt -w "%{http_code}" "$BASE$PATH_ARG")
+elif [ "$METHOD" = "POST" ]; then
+  HEADERS=(-H 'Content-Type: application/json')
+  if [ -n "$CSRF" ]; then
+    HEADERS+=(-H "X-CSRF-Token: $CSRF")
+  fi
+  DATA=""
+  if [ -n "$BODY" ]; then
+    DATA="-d $BODY"
+  fi
+  STATUS=$(curl -s -b "$COOKIES" -X POST "$BASE$PATH_ARG" \
+    "${HEADERS[@]}" $DATA -o /tmp/smoke_out.txt -w "%{http_code}")
+else
+  echo "Unknown method: $METHOD" >&2
+  exit 1
+fi
+
+echo "Status: $STATUS" >&2
+echo "--- Response ---"
+cat /tmp/smoke_out.txt
+
+# Validate
+if [ "$STATUS" -ge 500 ]; then
+  echo "*** SERVER ERROR ***" >&2
+  exit 1
+fi

@@ -1,0 +1,19 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">ProspectBoy 3000 — Operator: <%= $player_name %></div>
+  <div class="mm-panel-body">
+    <div class="mm-status">
+      <div class="mm-status-item">
+        <div class="mm-status-label">AP</div>
+        <div class="mm-status-value"><%= $ap %></div>
+      </div>
+      <div class="mm-status-item">
+        <div class="mm-status-label">SCRAP</div>
+        <div class="mm-status-value"><%= $scrap %></div>
+      </div>
+      <div class="mm-status-item">
+        <div class="mm-status-label">SCORE</div>
+        <div class="mm-status-value"><%= $score %></div>
+      </div>
+    </div>
+  </div>
+</div>

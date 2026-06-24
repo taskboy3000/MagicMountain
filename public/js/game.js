@@ -15,6 +15,14 @@ async function api(path, { body, method } = {}) {
 async function loadGame() {
   G = await api('/game');
   render();
+  renderPlayerFragment();
+}
+
+async function renderPlayerFragment() {
+  const resp = await fetch('/player?_format=fragment');
+  if (resp.status === 204) return;
+  const html = await resp.text();
+  document.getElementById('slot-player').innerHTML = html;
 }
 
 function render() {
@@ -28,16 +36,14 @@ function render() {
   document.getElementById('season-info').textContent =
     s.total_days ? `${s.label} — Day ${s.day} of ${s.total_days}` : 'No active season.';
 
-  const msg = G.world_message;
-  document.getElementById('crier-text').textContent =
-    msg || 'The crier surveys the Bazaar. All is quiet.';
-
   renderRecap();
   renderActionCard();
-  renderShed();
-  renderSkills();
-  renderFactions();
-  renderLeaderboard();
+  renderActionFragment();
+  renderCrierFragment();
+  renderShedFragment();
+  renderSkillsFragment();
+  renderFactionsFragment();
+  renderLeaderboardFragment();
 }
 
 function renderRecap() {
@@ -45,167 +51,146 @@ function renderRecap() {
   if (!recap) return;
   const card = document.getElementById('action-card');
   const hl = recap.highlights || {};
-  const sk = recap.skills || {};
   const st = recap.standing || {};
   const factions = Object.keys(st).length;
-  card.innerHTML = `<div class="card mb-3 border-warning">
-    <div class="card-header bg-warning text-dark">${recap.label} — Final Results</div>
-    <div class="card-body">
-      <div class="row text-center mb-3">
-        <div class="col"><h5>Score</h5><span class="fs-3">${recap.final_score}</span></div>
-        <div class="col"><h5>Rank</h5><span class="fs-3">#${recap.rank}</span></div>
-        <div class="col"><h5>Scrap</h5><span class="fs-3">${recap.final_scrap}</span></div>
+  card.innerHTML = `<div style="border:1px solid var(--mm-amber);margin-bottom:0.75rem">
+    <div style="border-bottom:1px solid var(--mm-amber);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">${recap.label} — Final Results</div>
+    <div style="padding:0.5rem 0.6rem">
+      <div style="display:flex;text-align:center;margin-bottom:0.75rem">
+        <div style="flex:1"><h5 style="margin:0 0 0.2rem 0;font-weight:400;font-size:0.9rem">Score</h5><span style="font-size:1.2rem">${recap.final_score}</span></div>
+        <div style="flex:1"><h5 style="margin:0 0 0.2rem 0;font-weight:400;font-size:0.9rem">Rank</h5><span style="font-size:1.2rem">#${recap.rank}</span></div>
+        <div style="flex:1"><h5 style="margin:0 0 0.2rem 0;font-weight:400;font-size:0.9rem">Scrap</h5><span style="font-size:1.2rem">${recap.final_scrap}</span></div>
       </div>
-      <p class="mb-1 text-muted">Artifacts sold: ${hl.total_sales ?? 0}</p>
-      <p class="mb-1 text-muted">Top sale: ${hl.top_sale_value ?? 0} scrap</p>
-      <p class="mb-1 text-muted">Factions traded with: ${factions}</p>
-      ${hl.evolved_artifacts_sold ? `<p class="mb-1 text-muted">Evolved artifacts sold: ${hl.evolved_artifacts_sold}</p>` : ''}
-      <hr>
-      <p class="text-muted mb-0"><em>A new season begins...</em></p>
+      <p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Artifacts sold: ${hl.total_sales ?? 0}</p>
+      <p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Top sale: ${hl.top_sale_value ?? 0} scrap</p>
+      <p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Factions traded with: ${factions}</p>
+      ${hl.evolved_artifacts_sold ? `<p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Evolved artifacts sold: ${hl.evolved_artifacts_sold}</p>` : ''}
+      <hr style="border:none;border-top:1px solid var(--mm-border)">
+      <p style="color:var(--mm-text-dim);font-size:0.78rem;margin:0;font-style:italic"><em>A new season begins...</em></p>
     </div>
   </div>`;
 }
 
 function renderActionCard() {
   const card = document.getElementById('action-card');
-  if (G.market_visit) {
-    card.innerHTML = renderMarketVisit();
-  } else if (G.prospecting) {
-    card.innerHTML = renderProspecting();
+  if (G.market_visit || G.prospecting) {
+    card.innerHTML = '<div class="card mb-3"><div class="card-header">Activity in Progress</div><div class="card-body text-center"><div class="mm-skeleton" style="width:60%"></div><div class="mm-skeleton" style="width:40%"></div></div></div>';
   } else {
     card.innerHTML = renderIdle();
   }
   wireActionButtons();
 }
 
+async function renderProspectingFragment() {
+  const resp = await fetch('/prospecting?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-action').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-action').innerHTML = html;
+}
+
 function renderIdle() {
   const ap = G.player?.action_points ?? 0;
   const hasItems = (G.shed?.length ?? 0) > 0;
   if (ap < 1) {
-    return `<div class="card mb-3"><div class="card-header">Actions</div><div class="card-body text-center"><p class="text-muted mb-0">No AP remaining today.</p></div></div>`;
+    return `<div style="border:1px solid var(--mm-border);margin-bottom:0.75rem"><div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Actions</div><div style="padding:0.5rem 0.6rem;text-align:center"><p style="color:var(--mm-text-dim);margin:0;font-size:0.78rem">No AP remaining today.</p></div></div>`;
   }
-  return `<div class="card mb-3"><div class="card-header">Actions</div><div class="card-body text-center">
-    <div class="d-grid gap-2">
-      ${ap >= 2 ? '<button class="btn btn-success" id="btn-begin">Begin Expedition (2 AP)</button>' : ''}
-      ${hasItems ? '<button class="btn btn-info" id="btn-market">Visit Market (1 AP)</button>' : '<p class="text-muted small mb-0">No artifacts in shed to sell.</p>'}
+  return `<div style="border:1px solid var(--mm-border);margin-bottom:0.75rem"><div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Actions</div><div style="padding:0.5rem 0.6rem;text-align:center">
+    <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:center">
+      ${ap >= 2 ? '<button class="mm-btn mm-btn-primary" id="btn-begin">Begin Expedition (2 AP)</button>' : ''}
+      ${hasItems ? '<button class="mm-btn mm-btn-primary" id="btn-market">Visit Market (1 AP)</button>' : '<p style="color:var(--mm-text-dim);font-size:0.78rem;margin:0">No artifacts in shed to sell.</p>'}
     </div>
   </div></div>`;
 }
 
-function renderProspecting() {
-  const a = G.prospecting;
-  const stageCls = a.stage === 'stable' ? 'bg-success' : a.stage === 'strained' ? 'bg-warning text-dark' : 'bg-danger';
-  return `<div class="card mb-3"><div class="card-header">Prospecting</div><div class="card-body">
-    <p class="mb-1"><strong>${a.id || '—'}</strong></p>
-    ${a.intro ? `<p class="mb-1 text-muted">${a.intro}</p>` : ''}
-    <p class="mb-1">Value: <strong>${a.value ?? '—'}</strong></p>
-    <p class="mb-1">Stage: <span class="badge ${stageCls}">${a.stage || '—'}</span></p>
-    ${a.signal ? `<p class="mb-3 fst-italic">${a.signal}</p>` : ''}
-    <div class="d-grid gap-2 d-md-flex">
-      <button class="btn btn-primary" id="btn-push">Push</button>
-      <button class="btn btn-warning" id="btn-stop">Stop</button>
-    </div>
-  </div></div>`;
-}
-
-function renderMarketVisit() {
-  const m = G.market_visit;
-  const c = m.customer || {};
-  const pc = c.pending_counter;
-  const messageHtml = m.message ? `<p class="mb-2 fst-italic text-muted">${m.message}</p>` : '';
-  const saleTypeLabel = m.sale_type
-    ? `<span class="badge ${m.sale_type === 'match' ? 'bg-success' : m.sale_type === 'counter' ? 'bg-info' : 'bg-secondary'} me-1">${m.sale_type}</span>`
-    : '';
-  const moodBadge = m.pressure_state
-    ? `<span class="badge ${m.pressure_state === 'mood_comfortable' ? 'bg-success' : m.pressure_state === 'mood_interested' ? 'bg-info' : m.pressure_state === 'mood_wary' ? 'bg-warning text-dark' : m.pressure_state === 'mood_strained' ? 'bg-orange text-dark' : 'bg-danger'} ms-1">${m.pressure_state.replace('mood_', '')}</span>`
-    : '';
-  const overBudgetBanner = m.over_budget
-    ? '<div class="alert alert-warning mt-2 p-2 small">That item exceeded the buyer\'s budget. Try a cheaper one.</div>'
-    : '';
-  const counterHtml = pc
-    ? `<div class="alert alert-info mb-2 p-2">
-        <p class="mb-1"><strong>Counter-offer:</strong> ${pc.value} scrap</p>
-        <button class="btn btn-sm btn-success" id="btn-accept-counter">Accept Counter-Offer</button>
-        <p class="mt-2 mb-0 small text-muted">(or offer a different artifact to reject)</p>
-      </div>`
-    : '';
-  return `<div class="card mb-3"><div class="card-header">Market Visit</div><div class="card-body">
-    <p class="mb-1">Customer: <strong>${c.faction_name || '—'}</strong></p>
-    <p class="mb-1 text-muted">${c.disposition || ''}</p>
-    ${m.irritation != null ? `<p class="mb-1 text-muted">Irritation: ${m.irritation} ${moodBadge}</p>` : ''}
-    ${messageHtml}
-    ${saleTypeLabel ? `<p class="mb-1">${saleTypeLabel}</p>` : ''}
-    ${overBudgetBanner}
-    ${counterHtml}
-    <p class="mb-2">Select an artifact to offer:</p>
-    <div class="d-grid mt-2">
-      <button class="btn btn-secondary" id="btn-send-away">Send Away</button>
-    </div>
-  </div></div>`;
-}
-
-function renderShed() {
-  const items = G.shed || [];
-  const container = document.getElementById('shed-items');
-  const empty = document.getElementById('shed-empty');
-  if (items.length === 0) {
-    container.innerHTML = '';
-    empty.style.display = '';
+async function renderShedFragment() {
+  const resp = await fetch('/shed?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-shed').innerHTML = '';
     return;
   }
-  empty.style.display = 'none';
-  container.innerHTML = items.map(item => {
-    const condCls = item.condition === 'fresh' ? 'bg-success' : item.condition === 'settling' ? 'bg-warning text-dark' : 'bg-secondary';
-    const offerBtn = G.market_visit
-      ? `<button class="btn btn-sm btn-outline-primary offer-btn" data-id="${item.id}">Offer</button>`
-      : '';
-    return `<div class="d-flex justify-content-between align-items-center border-bottom py-2">
-      <div>
-        <strong>${item.artifact_id}</strong>
-        <span class="badge ${condCls} ms-2">${item.condition}</span>
-        <small class="text-muted d-block">${item.estimated_value_min}-${item.estimated_value_max} scrap · day ${item.days_in_shed}</small>
-      </div>
-      ${offerBtn}
-    </div>`;
-  }).join('');
-
-  if (G.market_visit) {
-    document.querySelectorAll('.offer-btn').forEach(btn => {
-      btn.addEventListener('click', () => offerItem(btn.dataset.id));
-    });
-  }
+  const html = await resp.text();
+  document.getElementById('slot-shed').innerHTML = html;
 }
 
-function renderSkills() {
-  const p = G.player || {};
-  const scrap = p.scrap ?? 0;
-  const container = document.getElementById('skills-body');
+async function renderMarketFragment() {
+  const resp = await fetch('/market?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-action').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-action').innerHTML = html;
+}
 
-  api('/skills').then(data => {
-    const skills = data.skills || [];
-    container.innerHTML = skills.map(s => {
-      const cur = s.current_level ?? 0;
-      const max = s.max_level ?? 3;
-      const atMax = cur >= max;
-      const nextCost = atMax ? null : (s.levels?.[cur]?.cost ?? null);
-      const canAfford = nextCost != null && scrap >= nextCost;
-      const buyBtn = (!atMax && nextCost != null)
-        ? `<button class="btn btn-sm ${canAfford ? 'btn-primary' : 'btn-outline-secondary'}" data-skill="${s.id}" ${!canAfford ? 'disabled' : ''}>Upgrade (${nextCost} scrap)</button>`
-        : atMax ? '<span class="text-muted small">MAX</span>' : '';
-      return `<div class="d-flex justify-content-between align-items-center border-bottom py-2">
-        <div>
-          <strong>${s.name}</strong>
-          <span class="badge bg-info ms-2">${cur}/${max}</span>
-          <small class="text-muted d-block">${s.description || ''}</small>
-        </div>
-        ${buyBtn}
-      </div>`;
-    }).join('');
+async function renderActionFragment() {
+  let url;
+  if (G.market_visit) url = '/market?_format=fragment';
+  else if (G.prospecting) url = '/prospecting?_format=fragment';
+  else url = '/idle?_format=fragment';
+  const resp = await fetch(url);
+  if (resp.status === 204) {
+    document.getElementById('slot-action').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-action').innerHTML = html;
+}
 
-    container.querySelectorAll('[data-skill]').forEach(btn => {
-      btn.addEventListener('click', () => purchaseSkill(btn.dataset.skill));
-    });
+async function refetchFragments(keys) {
+  const fetches = (keys || []).map(key => {
+    if (key === 'prospecting') return renderProspectingFragment();
+    if (key === 'market') return renderMarketFragment();
+    if (key === 'player') return renderPlayerFragment();
+    if (key === 'shed') return renderShedFragment();
+    if (key === 'crier') return renderCrierFragment();
+    if (key === 'skills') return renderSkillsFragment();
+    if (key === 'factions') return renderFactionsFragment();
+    if (key === 'leaderboard') return renderLeaderboardFragment();
   });
+  await Promise.all(fetches);
+}
+
+async function renderCrierFragment() {
+  const resp = await fetch('/crier?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-crier').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-crier').innerHTML = html;
+}
+
+async function renderSkillsFragment() {
+  const resp = await fetch('/skills?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-skills').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-skills').innerHTML = html;
+}
+
+async function renderFactionsFragment() {
+  const resp = await fetch('/factions?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-factions').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-factions').innerHTML = html;
+}
+
+async function renderLeaderboardFragment() {
+  const resp = await fetch('/leaderboard?_format=fragment');
+  if (resp.status === 204) {
+    document.getElementById('slot-leaderboard').innerHTML = '';
+    return;
+  }
+  const html = await resp.text();
+  document.getElementById('slot-leaderboard').innerHTML = html;
 }
 
 function wireActionButtons() {
@@ -219,22 +204,24 @@ function wireActionButtons() {
 
 async function beginProspecting() {
   const data = await api('/prospecting/begin', { method: 'POST' });
-  if (data.ok) await loadGame();
+  if (!data.ok) return;
+  if (data.player) Object.assign(G.player, data.player);
+  if (data.artifact) G.prospecting = data.artifact;
+  updateStats();
+  renderActionCard();
+  if (data.refetch) await refetchFragments(data.refetch);
 }
 
 async function pushArtifact() {
   const data = await api('/prospecting/push', { method: 'POST' });
-  if (data.ok) {
-    if (data.artifact) {
-      G.prospecting = data.artifact;
-      G.player = data.player;
-      renderActionCard();
-      renderShed();
-      updateStats();
-    } else {
-      await loadGame();
-    }
-  }
+  if (!data.ok) return;
+  if (data.player) Object.assign(G.player, data.player);
+  if (data.artifact) G.prospecting = data.artifact;
+  else G.prospecting = null;
+  updateStats();
+  renderActionCard();
+  if (data.refetch) await refetchFragments(data.refetch);
+  else await loadGame();
 }
 
 async function stopProspecting() {
@@ -244,7 +231,13 @@ async function stopProspecting() {
 
 async function beginMarket() {
   const data = await api('/market/begin', { method: 'POST' });
-  if (data.ok) await loadGame();
+  if (!data.ok) return;
+  if (data.player) Object.assign(G.player, data.player);
+  G.market_visit = { customer: data.customer || {} };
+  updateStats();
+  renderActionCard();
+  if (data.refetch) await refetchFragments(data.refetch);
+  else await loadGame();
 }
 
 async function offerItem(shedItemId) {
@@ -252,92 +245,43 @@ async function offerItem(shedItemId) {
   if (!data.ok) return;
   if (data.player) Object.assign(G.player, data.player);
   updateStats();
-  switch (data.result) {
-    case 'sold':
-      await loadGame();
-      break;
-    case 'sold_more':
-      G.market_visit.irritation = data.irritation;
-      G.market_visit.message = data.message;
-      G.market_visit.sale_type = data.sale_type;
-      if (data.precision_bonus > 0) G.market_visit.message += ` Precision bonus: +${data.precision_bonus} scrap!`;
-      G.market_visit.pressure_state = data.pressure_state;
-      G.market_visit.customer.pending_counter = null;
-      G.market_visit.over_budget = 0;
-      G.shed = G.shed.filter(i => i.id !== shedItemId);
-      renderActionCard();
-      renderShed();
-      break;
-    case 'counter_offer':
-      G.market_visit.customer.pending_counter = { value: data.counter_value, item_id: shedItemId };
-      G.market_visit.irritation = data.irritation;
-      G.market_visit.message = data.message;
-      G.market_visit.pressure_state = null;
-      renderActionCard();
-      break;
-    case 'no_match':
-      G.market_visit.irritation = data.irritation;
-      G.market_visit.message = data.message;
-      G.market_visit.customer.pending_counter = null;
-      renderActionCard();
-      break;
-    case 'over_budget':
-      G.market_visit.irritation = data.irritation;
-      G.market_visit.message = data.message;
-      G.market_visit.customer.pending_counter = null;
-      G.market_visit.over_budget = 1;
-      renderActionCard();
-      break;
-    case 'customer_left':
-      G.market_visit.message = data.message;
-      renderActionCard();
-      setTimeout(() => loadGame(), 3000);
-      break;
-    default:
-      await loadGame();
+  if (data.result === 'sold' || data.result === 'customer_left' || data.result === 'sent_away') {
+    G.market_visit = null;
+    await loadGame();
+    return;
   }
+  if (data.refetch) await refetchFragments(data.refetch);
+  else await loadGame();
 }
 
 async function sendAway() {
   const data = await api('/market/send_away', { method: 'POST' });
-  if (data.ok) await loadGame();
+  if (!data.ok) return;
+  G.market_visit = null;
+  await loadGame();
 }
 
 async function acceptCounter() {
-  const pendingItemId = G.market_visit?.customer?.pending_counter?.item_id;
   const data = await api('/market/accept_counter', { method: 'POST' });
   if (!data.ok) return;
   if (data.player) Object.assign(G.player, data.player);
   updateStats();
-  switch (data.result) {
-    case 'sold':
-      await loadGame();
-      break;
-    case 'sold_more':
-      G.market_visit.irritation = data.irritation;
-      G.market_visit.message = data.message;
-      G.market_visit.sale_type = data.sale_type;
-      if (data.precision_bonus > 0) G.market_visit.message += ` Precision bonus: +${data.precision_bonus} scrap!`;
-      G.market_visit.pressure_state = data.pressure_state;
-      G.market_visit.customer.pending_counter = null;
-      if (pendingItemId) G.shed = G.shed.filter(i => i.id !== pendingItemId);
-      renderActionCard();
-      renderShed();
-      break;
-    case 'over_budget':
-      G.market_visit.irritation = data.irritation;
-      G.market_visit.message = data.message;
-      G.market_visit.customer.pending_counter = null;
-      renderActionCard();
-      break;
-    default:
-      await loadGame();
+  if (data.result === 'sold') {
+    G.market_visit = null;
+    await loadGame();
+    return;
   }
+  if (data.refetch) await refetchFragments(data.refetch);
+  else await loadGame();
 }
 
 async function purchaseSkill(skillId) {
   const data = await api('/skills/purchase', { body: { skill_id: skillId }, method: 'POST' });
-  if (data.ok) await loadGame();
+  if (!data.ok) return;
+  if (data.player) Object.assign(G.player, data.player);
+  updateStats();
+  if (data.refetch) await refetchFragments(data.refetch);
+  else await loadGame();
 }
 
 function updateStats() {
@@ -345,56 +289,6 @@ function updateStats() {
   document.getElementById('stat-score').textContent = p.score ?? '—';
   document.getElementById('stat-scrap').textContent = p.scrap ?? '—';
   document.getElementById('stat-ap').textContent = p.action_points ?? '—';
-}
-
-function renderFactions() {
-  const container = document.getElementById('factions-body');
-  const factions = G.factions || [];
-  const standing = G.player?.standing || {};
-  const sales = G.player?.faction_sales || {};
-  const factionState = G.faction_state || {};
-
-  if (factions.length === 0) {
-    container.innerHTML = '<p class="text-muted text-center mb-0">No faction data available.</p>';
-    return;
-  }
-
-  container.innerHTML = factions.map(f => {
-    const fid = f.id;
-    const st = standing[fid] ?? 0;
-    const sl = sales[fid] ?? 0;
-    const state = factionState[fid] || {};
-    const stars = '\u2605'.repeat(Math.min(st, 5)) + '\u2606'.repeat(Math.max(0, 5 - Math.min(st, 5)));
-    const disp = f.disposition ? `<small class="text-muted d-block">${f.disposition}</small>` : '';
-    return `<div class="d-flex justify-content-between align-items-center border-bottom py-2">
-      <div>
-        <strong>${f.name}</strong>
-        <span class="faction-stars ms-2">${stars}</span>
-        ${disp}
-      </div>
-      <div class="text-end">
-        <span class="badge bg-info me-1">${sl} sold</span>
-        <span class="badge bg-secondary">${state.influence ?? 0} infl.</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderLeaderboard() {
-  const container = document.getElementById('leaderboard-body');
-  api('/leaderboard').then(data => {
-    const entries = data.leaderboard || [];
-    if (entries.length === 0) {
-      container.innerHTML = '<p class="text-muted text-center mb-0">No rankings yet.</p>';
-      return;
-    }
-    container.innerHTML = entries.map(e =>
-      `<div class="d-flex justify-content-between align-items-center border-bottom py-1">
-        <span><strong>#${e.rank}</strong> ${e.name}</span>
-        <span class="text-muted">${e.score}</span>
-      </div>`
-    ).join('');
-  });
 }
 
 document.getElementById('delete-account-btn').addEventListener('click', async () => {
@@ -406,6 +300,29 @@ document.getElementById('delete-account-btn').addEventListener('click', async ()
 document.getElementById('btn-end-season')?.addEventListener('click', async () => {
   const data = await api('/season/end', { method: 'POST' });
   if (data.ok) await loadGame();
+});
+
+// Event delegation for shed offer buttons
+document.getElementById('slot-shed').addEventListener('click', (e) => {
+  const btn = e.target.closest('.offer-btn');
+  if (btn) offerItem(btn.dataset.id);
+});
+
+// Event delegation for action buttons in fragment panels
+document.getElementById('slot-action').addEventListener('click', (e) => {
+  const id = e.target.id;
+  if (id === 'btn-push') pushArtifact();
+  else if (id === 'btn-stop') stopProspecting();
+  else if (id === 'btn-begin') beginProspecting();
+  else if (id === 'btn-market') beginMarket();
+  else if (id === 'btn-send-away') sendAway();
+  else if (id === 'btn-accept-counter') acceptCounter();
+});
+
+// Event delegation for skill purchase buttons
+document.getElementById('slot-skills').addEventListener('click', (e) => {
+  const btn = e.target.closest('.buy-skill-btn');
+  if (btn) purchaseSkill(btn.dataset.skill);
 });
 
 loadGame();

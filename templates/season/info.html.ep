@@ -1,0 +1,6 @@
+<div class="mm-panel">
+  <div class="mm-panel-body">
+    <strong><%= $label %></strong>
+    <span class="mm-badge mm-badge-green">DAY <%= $day %> OF <%= $total %></span>
+  </div>
+</div>

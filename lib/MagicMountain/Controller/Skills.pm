@@ -10,6 +10,12 @@ sub index ($self) {
         $s->{current_level} = $char->getCol('skill_' . $s->{id}) // 0;
     }
 
+    my $format = $self->param('_format');
+    if ($format && $format eq 'fragment') {
+        $self->stash(skills => $skills, scrap => $char->getCol('scrap') // 0);
+        return $self->render('skills/training', layout => undef);
+    }
+
     $self->render(json => { ok => 1, skills => $skills });
 }
 
@@ -34,14 +40,16 @@ sub purchase ($self) {
     $char->setCol($col, $current + 1);
     $char->save;
 
-    $self->render(json => {
-        ok     => 1,
-        player => {
-            action_points => $char->getCol('action_points'),
-            scrap         => $char->getCol('scrap'),
-            score         => $char->getCol('score'),
+    $self->_render_action({
+        view => {
+            ok     => 1,
+            player => {
+                action_points => $char->getCol('action_points'),
+                scrap         => $char->getCol('scrap'),
+                score         => $char->getCol('score'),
+            },
         },
-    });
+    }, 'purchase');
 }
 
 1;

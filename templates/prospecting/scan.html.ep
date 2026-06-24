@@ -1,0 +1,27 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">FIELD SCAN — <%= $artifact_id %></div>
+  <div class="mm-panel-body">
+% my $intro_text = stash('intro');
+% if ($intro_text) {
+    <p style="color:var(--mm-text-dim);font-size:0.78rem"><%= $intro_text %></p>
+% }
+    <p>Value: <strong><%= $value // '—' %></strong></p>
+    <p>Stage: <span class="mm-badge
+% my %sc = (stable => 'mm-badge-green', strained => 'mm-badge-amber', unstable => 'mm-badge-red');
+% my $st = stash('stage');
+      <%= $sc{$st} // 'mm-badge-green' %>"><%= $st || '—' %></span></p>
+% my $inst = stash('instability');
+% my $max_inst = stash('max_instability');
+% if (defined $inst && defined $max_inst) {
+    <p>Instability: <strong><%= $inst %></strong>/<%= $max_inst %></p>
+% }
+% my $sig = stash('signal');
+% if ($sig) {
+    <p style="font-style:italic;color:var(--mm-text-dim);margin-top:0.5rem"><%= $sig %></p>
+% }
+    <div style="display:flex; gap:0.5rem; margin-top:0.5rem">
+      <button class="mm-btn mm-btn-primary" id="btn-push">Push</button>
+      <button class="mm-btn" id="btn-stop">Stop</button>
+    </div>
+  </div>
+</div>

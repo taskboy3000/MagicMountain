@@ -21,6 +21,12 @@ sub index ($self) {
         };
     }
 
+    my $format = $self->param('_format');
+    if ($format && $format eq 'fragment') {
+        $self->stash(entries => \@ranked);
+        return $self->render('leaderboard/rankings', layout => undef);
+    }
+
     $self->render(json => { ok => 1, leaderboard => \@ranked });
 }
 

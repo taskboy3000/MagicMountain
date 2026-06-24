@@ -1,0 +1,25 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">TRAINING RECORDS</div>
+  <div class="mm-panel-body">
+% for my $s (@$skills) {
+%   my $cur = $s->{current_level} // 0;
+%   my $max = $s->{max_level} // 3;
+%   my $at_max = $cur >= $max;
+%   my $next_cost = $at_max ? undef : ($s->{levels}[$cur]{cost} // undef);
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
+      <div>
+        <strong><%= $s->{name} %></strong>
+        <span class="mm-badge"><%= $cur %>/<%= $max %></span>
+        <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $s->{description} || '' %></div>
+      </div>
+      <div>
+% if (!$at_max && defined $next_cost) {
+        <button class="mm-btn mm-btn-primary buy-skill-btn" data-skill="<%= $s->{id} %>" <%= ($scrap >= $next_cost) ? '' : 'disabled' %>>Upgrade (<%= $next_cost %>)</button>
+% } elsif ($at_max) {
+        <span style="color:var(--mm-text-dim);font-size:0.7rem">MAX</span>
+% }
+      </div>
+    </div>
+% }
+  </div>
+</div>

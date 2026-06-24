@@ -1,0 +1,15 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">ACTIONS</div>
+  <div class="mm-panel-body" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+% if ($ap >= 2) {
+    <button class="mm-btn mm-btn-primary" id="btn-begin">Begin Expedition (2 AP)</button>
+% }
+% if ($can_market) {
+    <button class="mm-btn mm-btn-primary" id="btn-market">Visit Market (1 AP)</button>
+% } else {
+%   if ($ap >= 1 && !$has_items) {
+    <span style="color:var(--mm-text-dim);font-size:0.78rem">No artifacts in shed to sell.</span>
+%   }
+% }
+  </div>
+</div>

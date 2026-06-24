@@ -279,6 +279,25 @@ the summary.
   (e.g. `'sold_more'`, `'over_budget'`), read the full set of possible result
   values back to the user before finishing the session so they can confirm the
   API shape before any frontend work starts.
+- **Smoke-test after template/controller changes**: After creating or modifying
+  a template or controller that serves a fragment endpoint, run
+  `bash bin/smoke_test_endpoint GET /<resource>?_format=fragment` before declaring the
+  task done. The script handles login, CSRF, and character creation. A 500
+  response means the template failed to compile. Run `bash bin/smoke_test_endpoint GET /game`
+  after any route or layout change to verify the full page still loads.
+
+  **Expected status codes**: Fragment endpoints return `200` when data is available
+  (an active activity for prospecting/market, any character for idle/player/skills/factions,
+  items in shed for shed, rankings for leaderboard) and `204` when no data is available.
+  A smoke test must verify the status code matches the expected state — a 200 when you
+  expect data or a 204 when you expect none is part of the validation. The script
+  uses a unique account per run so leftover state never bleeds between tests.
+- **Phase workflow**: Every phase that modifies backend behaviour (API responses,
+  fragment templates, activity handlers) or frontend wiring (fragment fetchers,
+  result handlers) must include a smoke-test step. Run `bin/smoke_test_endpoint` on
+  each affected fragment endpoint to confirm the template compiles (no 500), then
+  manually exercise the round-trip via curl for POST actions to confirm refetch keys
+  and inline handlers work.
 - **Coverage**: Run `make cover && make report` before every commit. Coverage
   for all `lib/*.pm` files must stay at or above **85%** (statement coverage).
   If you add new code without tests, coverage drops and the commit should be

@@ -2,6 +2,28 @@ package MagicMountain::Controller::Player;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub show ($self) {
+    my $format = $self->param('_format');
+
+    if ($format && $format eq 'fragment') {
+        my $player_id = $self->current_player;
+        return $self->rendered(204) unless $player_id;
+        my $season = $self->app->active_season;
+        my $season_id = $season ? $season->getCol('id') : undef;
+        $self->app->characters->load;
+        my ($char) = @{ $self->app->characters->find(
+            sub { $_[0]->{account_id} eq $player_id && (!$season_id || $_[0]->{season_id} eq $season_id) }
+        ) };
+        return $self->rendered(204) unless $char;
+        $self->stash(
+            player_name => $char->getCol('name') // '—',
+            ap          => $char->getCol('action_points') // 0,
+            scrap       => $char->getCol('scrap') // 0,
+            score       => $char->getCol('score') // 0,
+        );
+        return $self->render('player/status', layout => undef);
+    }
+
+    # JSON: original shape (account-level)
     my $player_id = $self->current_player;
     return $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401)
         unless $player_id;
@@ -11,7 +33,7 @@ sub show ($self) {
         player => {
             id          => $player_id,
             displayName => $account->getCol('username'),
-        }
+        },
     });
 }
 

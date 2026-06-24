@@ -11,19 +11,23 @@ sub index ($self) {
 
     my $filtered = _apply_filters($all, $self);
 
-    $self->respond_to(
-        json => sub {
-            $self->render(json => {
-                ok    => 1,
-                shed  => [ map { _item_view($_) } @$filtered ],
-                total => scalar @$all,
-                count => scalar @$filtered,
-            });
-        },
-        html => sub {
-            $self->render('shed/index');
-        },
-    );
+    my $format = $self->param('_format');
+    if ($format && $format eq 'fragment') {
+        my $type = $self->_active_activity_type($char);
+        $self->stash(
+            items         => $filtered,
+            market_active => ($type && $type eq 'market') ? 1 : 0,
+            layout        => undef,
+        );
+        return $self->render('shed/ledger', layout => undef);
+    }
+
+    $self->render(json => {
+        ok    => 1,
+        shed  => [ map { _item_view($_) } @$filtered ],
+        total => scalar @$all,
+        count => scalar @$filtered,
+    });
 }
 
 sub _item_view ($item) {

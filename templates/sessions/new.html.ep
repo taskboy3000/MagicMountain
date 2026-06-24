@@ -1,16 +1,17 @@
-<div class="row justify-content-center mt-5">
-  <div class="col-md-6 col-lg-4">
-    <h1 class="text-center mb-4">Magic Mountain</h1>
-    <div class="card">
-      <div class="card-body">
+<div style="display:flex;justify-content:center;padding-top:3rem">
+  <div style="width:100%;max-width:28rem">
+    <div class="mm-panel">
+      <div class="mm-panel-header" style="text-align:center;font-size:1.1rem">MAGIC MOUNTAIN</div>
+      <div class="mm-panel-body">
         <form id="login-form">
-          <div class="mb-3">
-            <label for="display-name" class="form-label">Display Name</label>
-            <input type="text" class="form-control" id="display-name"
-                   placeholder="Enter your name" autofocus required>
+          <div style="margin-bottom:0.8rem">
+            <label for="display-name" style="display:block;color:var(--mm-text-dim);font-size:0.78rem;margin-bottom:0.3rem">DISPLAY NAME</label>
+            <input type="text" id="display-name" class="mm-input"
+                   placeholder="Enter your name" autofocus required
+                   style="width:100%;box-sizing:border-box">
           </div>
-          <div id="error-msg" class="text-danger mb-3" style="display:none"></div>
-          <button type="submit" class="btn btn-primary w-100">Enter the Mountain</button>
+          <div id="error-msg" style="display:none;color:var(--mm-red);font-size:0.78rem;margin-bottom:0.5rem"></div>
+          <button type="submit" class="mm-btn mm-btn-primary" style="width:100%">Enter the Mountain</button>
         </form>
       </div>
     </div>

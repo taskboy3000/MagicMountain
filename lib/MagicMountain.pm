@@ -286,6 +286,9 @@ sub startup ($self) {
         return $data->{factions};
     });
 
+    # Fragment format for resource endpoints (Phase 1)
+    $self->types->type(fragment => 'text/html');
+
     $self->helper(current_player => sub ($c) {
         my $player_id = $c->session('playerId');
         return unless $player_id;
@@ -378,12 +381,21 @@ sub buildRoutes ($self) {
         return 1;
     });
 
+    # Resource endpoints (fragment/JSON via show action)
     $auth->get('/player')->to('player#show')->name('player');
-    $auth->get('/game')->to('game#show')->name('game');
+    $auth->get('/season')->to('season#show');
+    $auth->get('/crier')->to('crier#show');
+    $auth->get('/idle')->to('idle#show');
+    $auth->get('/prospecting')->to('prospecting#show');
+    $auth->get('/market')->to('market#show');
     $auth->get('/shed')->to('shed#index');
     $auth->get('/skills')->to('skills#index');
+    $auth->get('/factions')->to('factions#show');
     $auth->get('/leaderboard')->to('leaderboard#index');
     $auth->get('/leaderboard/factions')->to('leaderboard#factions');
+
+    # Full game page
+    $auth->get('/game')->to('game#show')->name('game');
 
     # Write routes under CSRF check
     $auth_write->delete('/player')->to('player#destroy')->name('delete_player');

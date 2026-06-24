@@ -1,0 +1,15 @@
+<%
+  my $current = shift;
+  my $max     = shift;
+  my $bars    = shift || 10;
+  my $filled  = $max > 0 ? int($current / $max * $bars) : 0;
+  $filled = $bars if $filled > $bars;
+  my $danger_threshold = int($bars * 0.7);
+%>
+<div class="mm-meter">
+% for my $i (1 .. $bars) {
+  <div class="mm-meter-bar<%=
+    $i <= $filled ? ($i > $danger_threshold ? ' danger' : ' filled') : ''
+  %>"></div>
+% }
+</div>

@@ -1,86 +1,95 @@
-<div class="row justify-content-center mt-4">
-  <div class="col-md-8 col-lg-6">
+<div style="max-width:36rem;margin:0 auto">
 
-    <h1 class="text-center mb-3">Magic Mountain</h1>
+  <div id="slot-player"></div>
 
-    <div class="card mb-3">
-      <div class="card-body text-center">
-        <h5 class="card-title mb-0" id="player-name">—</h5>
+  <div id="slot-season"></div>
+
+  <div id="slot-crier"></div>
+
+  <div id="slot-action"></div>
+
+  <div id="slot-shed"></div>
+
+  <div id="slot-skills"></div>
+
+  <div id="slot-factions"></div>
+
+  <div id="slot-leaderboard"></div>
+
+  <!-- Legacy shell — SSR fallback populated by JS on boot -->
+  <div id="legacy-shell" style="display:none">
+    <h1 style="text-align:center;margin-bottom:0.75rem;color:var(--mm-amber-bright);font-weight:400;font-size:1.3rem">Magic Mountain</h1>
+
+    <div style="border:1px solid var(--mm-border);padding:0.5rem 0.6rem;margin-bottom:0.75rem">
+      <div style="text-align:center">
+        <h5 style="margin:0;font-weight:400;font-size:1rem" id="player-name">—</h5>
       </div>
     </div>
 
-    <div class="row mb-3 text-center" id="stats-bar">
-      <div class="col">
-        <div class="card"><div class="card-body py-2">
-          <small class="text-muted">Score</small>
-          <h5 class="mb-0" id="stat-score">—</h5>
-        </div></div>
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;text-align:center" id="stats-bar">
+      <div style="flex:1;border:1px solid var(--mm-border);padding:0.3rem 0.4rem">
+        <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Score</div>
+        <h5 style="margin:0;font-weight:400" id="stat-score">—</h5>
       </div>
-      <div class="col">
-        <div class="card"><div class="card-body py-2">
-          <small class="text-muted">Scrap</small>
-          <h5 class="mb-0" id="stat-scrap">—</h5>
-        </div></div>
+      <div style="flex:1;border:1px solid var(--mm-border);padding:0.3rem 0.4rem">
+        <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Scrap</div>
+        <h5 style="margin:0;font-weight:400" id="stat-scrap">—</h5>
       </div>
-      <div class="col">
-        <div class="card"><div class="card-body py-2">
-          <small class="text-muted">AP</small>
-          <h5 class="mb-0" id="stat-ap">—</h5>
-        </div></div>
+      <div style="flex:1;border:1px solid var(--mm-border);padding:0.3rem 0.4rem">
+        <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">AP</div>
+        <h5 style="margin:0;font-weight:400" id="stat-ap">—</h5>
       </div>
     </div>
 
-    <div class="card mb-3">
-      <div class="card-body text-center py-2">
-        <small class="text-muted">Season</small>
-        <span class="ms-2" id="season-info">—</span>
-      </div>
+    <div style="border:1px solid var(--mm-border);padding:0.3rem 0.4rem;margin-bottom:0.75rem;text-align:center">
+      <span style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Season</span>
+      <span class="ms-2" id="season-info" style="margin-left:0.3rem">—</span>
     </div>
 
-    <div class="alert alert-secondary text-center py-2 mb-3" id="crier-message" role="alert">
-      <em id="crier-text">The crier has not yet spoken today.</em>
+    <div style="border:1px solid var(--mm-border);padding:0.3rem 0.4rem;margin-bottom:0.75rem;text-align:center;font-style:italic" id="crier-message">
+      <span id="crier-text" style="color:var(--mm-text-dim);font-size:0.78rem">The crier has not yet spoken today.</span>
     </div>
 
     <div id="action-card"></div>
 
-    <div class="card mb-3" id="shed-card">
-      <div class="card-header">Shed</div>
-      <div class="card-body" id="shed-body">
-        <p class="text-muted mb-0 text-center" id="shed-empty">No artifacts in storage.</p>
+    <div id="shed-card" style="border:1px solid var(--mm-border);margin-bottom:0.75rem">
+      <div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Shed</div>
+      <div style="padding:0.5rem 0.6rem" id="shed-body">
+        <p style="color:var(--mm-text-dim);text-align:center;margin:0;font-size:0.78rem" id="shed-empty">No artifacts in storage.</p>
         <div id="shed-items"></div>
       </div>
     </div>
 
-    <div class="card mb-3" id="skills-card">
-      <div class="card-header">Skills</div>
-      <div class="card-body" id="skills-body"></div>
+    <div id="skills-card" style="border:1px solid var(--mm-border);margin-bottom:0.75rem">
+      <div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Skills</div>
+      <div style="padding:0.5rem 0.6rem" id="skills-body"></div>
     </div>
 
-    <div class="card mb-3" id="factions-card">
-      <div class="card-header">Factions &amp; Standing</div>
-      <div class="card-body" id="factions-body">
-        <p class="text-muted text-center mb-0">Loading...</p>
+    <div id="factions-card" style="border:1px solid var(--mm-border);margin-bottom:0.75rem">
+      <div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Factions &amp; Standing</div>
+      <div style="padding:0.5rem 0.6rem" id="factions-body">
+        <p style="color:var(--mm-text-dim);text-align:center;margin:0;font-size:0.78rem">Loading...</p>
       </div>
     </div>
 
-    <div class="card mb-3" id="leaderboard-card">
-      <div class="card-header">Leaderboard</div>
-      <div class="card-body" id="leaderboard-body">
-        <p class="text-muted text-center mb-0">Loading...</p>
+    <div id="leaderboard-card" style="border:1px solid var(--mm-border);margin-bottom:0.75rem">
+      <div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Leaderboard</div>
+      <div style="padding:0.5rem 0.6rem" id="leaderboard-body">
+        <p style="color:var(--mm-text-dim);text-align:center;margin:0;font-size:0.78rem">Loading...</p>
       </div>
     </div>
 
-    <div class="text-center mb-3">
-      <a href="/logout" class="btn btn-outline-secondary">Leave the Mountain</a>
+    <div style="text-align:center;margin-bottom:0.75rem">
+      <a href="/logout" style="color:var(--mm-text-dim);font-size:0.78rem">Leave the Mountain</a>
     </div>
-    <div class="text-center">
-      <button id="delete-account-btn" class="btn btn-outline-danger btn-sm">Delete Account</button>
+    <div style="text-align:center">
+      <button id="delete-account-btn" style="font-family:var(--mm-font);font-size:0.7rem;padding:0.2rem 0.6rem;border:1px solid var(--mm-red);background:transparent;color:var(--mm-red);cursor:pointer">Delete Account</button>
     </div>
 % if ($season_is_active) {
-    <div class="card mt-3" id="admin-card">
-      <div class="card-header">Admin</div>
-      <div class="card-body text-center">
-        <button class="btn btn-danger btn-sm" id="btn-end-season"
+    <div id="admin-card" style="border:1px solid var(--mm-border);margin-top:0.75rem">
+      <div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Admin</div>
+      <div style="padding:0.5rem 0.6rem;text-align:center">
+        <button id="btn-end-season" style="font-family:var(--mm-font);font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--mm-red);background:transparent;color:var(--mm-red);cursor:pointer;text-transform:uppercase;letter-spacing:0.05em"
                 onclick="return confirm('End the current season? Characters and shed items will be deleted. This cannot be undone.')">
           End Season
         </button>
@@ -91,3 +100,4 @@
 </div>
 
 <script src="/js/game.js?<%= (stat app->home->child('public/js/game.js'))[9] // 0 %>"></script>
+<script>document.getElementById('legacy-shell').style.display = '';</script>

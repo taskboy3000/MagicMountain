@@ -237,6 +237,10 @@ sub offer ($self, $char, %params) {
     my $shed_item_id = $params{shed_item_id} or die "shed_item_id is required";
     my $customer     = $self->customer or die "no customer";
 
+    # Clear last_message on new offer
+    $customer->{last_message} = undef;
+    $customer->{last_sale} = undef;
+
     # Auto-accept if same item is re-offered with pending counter
     if ($customer->{pending_counter} && $customer->{pending_counter}{item_id} eq $shed_item_id) {
         my $counter_value = $customer->{pending_counter}{value};
@@ -322,6 +326,7 @@ sub offer ($self, $char, %params) {
 
             my $counter_value = int($decayed * $dyn_mult * $counter_pct);
             $customer->{pending_counter} = { value => $counter_value, item_id => $shed_item_id };
+            $customer->{last_message} = undef;
             $self->customer($customer);
             $self->save;
 
@@ -400,6 +405,7 @@ sub offer ($self, $char, %params) {
             irritation    => $customer->{irritation},
             narrative     => $narrative,
         });
+        $customer->{last_message} = $narrative;
         $self->customer($customer);
         $self->save;
         return {
@@ -480,12 +486,14 @@ sub _budget_pressure_state ($self, $customer) {
 sub _over_budget ($self, $char, $item, $value) {
     my $customer = $self->customer;
     $customer->{irritation} += 2;
-    $self->customer($customer);
-    $self->save;
 
     my $narrative = $self->_pick_reaction($customer->{faction_id}, 'over_absolute',
         item_id => $item->getCol('artifact_id'), value => $value,
     ) // sprintf("The buyer shakes their head. 'I don't have that much scrap.'");
+
+    $customer->{last_message} = $narrative;
+    $self->customer($customer);
+    $self->save;
 
     $self->_log_event($char, {
         type          => 'over_budget',
@@ -604,6 +612,13 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
         my $remaining = $self->app->shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
         if (@$remaining) {
             $customer->{pending_counter} = undef;
+            $customer->{last_message} = $mood_text;
+            $customer->{last_sale} = {
+                value           => $value + $bonus,
+                sale_type       => $sale_type,
+                precision_bonus => $bonus,
+                pressure_state  => $pressure->{state},
+            };
             $self->customer($customer);
             $self->save;
             $char->setCol('pending_activity_id', $self->getCol('id'));
