@@ -45,9 +45,9 @@ my $aliceId = $alice->getCol('id');
 
 my $t = Test::Mojo->new('MagicMountain');
 
-subtest 'GET / redirects to /login when unauthenticated' => sub {
+subtest 'GET / redirects to /game' => sub {
     $t->get_ok('/')->status_is(302)
-      ->header_like(Location => qr{/login});
+      ->header_like(Location => qr{/game});
 };
 
 subtest 'session created on login' => sub {
@@ -80,8 +80,8 @@ subtest 'GET /game shows game page when authenticated' => sub {
     $t->get_ok('/game')
       ->status_is(200)
       ->content_like(qr/<!DOCTYPE html>/, 'layout template rendered')
-      ->content_like(qr/id="slot-player"/, 'player slot present')
-      ->content_like(qr/id="slot-action"/, 'action slot present');
+      ->content_like(qr/id="device-frame"/, 'device frame present')
+      ->content_like(qr/id="nav-bar"/, 'nav bar present');
 };
 
 subtest 'touch updates last_active' => sub {
@@ -139,9 +139,10 @@ subtest 'logout destroys session record' => sub {
     ok audit_has($entries, 'logout', $aliceId), 'audit log has logout event';
 };
 
-subtest 'GET /game redirects to /login after logout' => sub {
-    $t->get_ok('/game')->status_is(302)
-      ->header_like(Location => qr{/login});
+subtest 'GET /game shows login form after logout' => sub {
+    $t->get_ok('/game')->status_is(200)
+      ->content_like(qr/ProspectBoy 3000/)
+      ->content_like(qr/SOFTWARE REGISTRATION/);
 };
 
 subtest 'GET /player redirects to /login after logout' => sub {
@@ -155,10 +156,11 @@ subtest 'GET /player with no session redirects to /login' => sub {
        ->header_like(Location => qr{/login});
 };
 
-subtest 'GET /game with no session redirects to /login' => sub {
+subtest 'GET /game with no session shows login form' => sub {
     my $t3 = Test::Mojo->new('MagicMountain');
-    $t3->get_ok('/game')->status_is(302)
-       ->header_like(Location => qr{/login});
+    $t3->get_ok('/game')->status_is(200)
+      ->content_like(qr/ProspectBoy 3000/)
+      ->content_like(qr/SOFTWARE REGISTRATION/);
 };
 
 subtest 'DELETE /player deletes account, character, and session' => sub {

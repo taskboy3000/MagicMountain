@@ -1,0 +1,7 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">ACCOUNT SETTINGS</div>
+  <div class="mm-panel-body" style="text-align:center">
+    <p><a href="/logout" style="color:var(--mm-text-dim)">Leave the Mountain</a></p>
+    <p><button id="delete-account-btn" style="font-family:var(--mm-font);font-size:0.7rem;padding:0.2rem 0.6rem;border:1px solid var(--mm-red);background:transparent;color:var(--mm-red);cursor:pointer">Delete Account</button></p>
+  </div>
+</div>

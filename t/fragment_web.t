@@ -55,10 +55,8 @@ subtest 'player fragment returns status panel' => sub {
 
     $t->get_ok('/player?_format=fragment')
       ->status_is(200)
-      ->content_like(qr{ProspectBoy 3000})
-      ->content_like(qr{AP})
-      ->content_like(qr{SCRAP})
-      ->content_like(qr{SCORE});
+      ->content_like(qr{OPERATOR})
+      ->content_like(qr{player});
 };
 
 subtest 'player fragment returns 204 when no character' => sub {
@@ -92,12 +90,12 @@ subtest 'crier fragment returns bulletin' => sub {
       ->content_like(qr{TOWN CRIER});
 };
 
-subtest 'idle fragment returns action buttons' => sub {
+subtest 'idle fragment returns standby panel' => sub {
     my $t = setup;
     $t->get_ok('/idle?_format=fragment')
       ->status_is(200)
-      ->content_like(qr{ACTIONS})
-      ->content_like(qr{btn-begin});
+      ->content_like(qr{STANDBY})
+      ->content_like(qr{nav bar});
 };
 
 subtest 'prospecting fragment returns 204 when idle' => sub {

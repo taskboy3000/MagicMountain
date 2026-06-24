@@ -1,40 +1,70 @@
-<div style="max-width:36rem;margin:0 auto">
-
-  <div id="slot-player"></div>
-
-  <div id="slot-season"></div>
-
-  <div id="slot-crier"></div>
-
-  <div id="slot-recap"></div>
-
-  <div id="slot-action"></div>
-
-  <div id="slot-shed"></div>
-
-  <div id="slot-skills"></div>
-
-  <div id="slot-factions"></div>
-
-  <div id="slot-leaderboard"></div>
-
-  <div style="text-align:center;margin-bottom:0.75rem">
-    <a href="/logout" style="color:var(--mm-text-dim);font-size:0.78rem">Leave the Mountain</a>
+<div id="device-frame">
+  <div id="device-header">
+    <div id="device-name">ProspectBoy 3000 // LOCAL NODE 07</div>
+    <div id="device-meta">OS v2.1.4  │  REGISTERED TO: <span id="device-owner"><%= $authenticated ? $player_name : '—' %></span></div>
   </div>
-  <div style="text-align:center">
-    <button id="delete-account-btn" style="font-family:var(--mm-font);font-size:0.7rem;padding:0.2rem 0.6rem;border:1px solid var(--mm-red);background:transparent;color:var(--mm-red);cursor:pointer">Delete Account</button>
+
+  <div id="status-strip">
+    <span>DAY <span id="s-day">—</span>/<span id="s-total">—</span></span>
+    <span>AP <span id="s-ap">—</span></span>
+    <span>SCRAP <span id="s-scrap">—</span></span>
+    <span>SCORE <span id="s-score">—</span></span>
   </div>
-% if ($season_is_active) {
-  <div id="admin-card" style="border:1px solid var(--mm-border);margin-top:0.75rem">
-    <div style="border-bottom:1px solid var(--mm-border);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">Admin</div>
-    <div style="padding:0.5rem 0.6rem;text-align:center">
-      <button id="btn-end-season" style="font-family:var(--mm-font);font-size:0.8rem;padding:0.3rem 0.8rem;border:1px solid var(--mm-red);background:transparent;color:var(--mm-red);cursor:pointer;text-transform:uppercase;letter-spacing:0.05em"
-              onclick="return confirm('End the current season? Characters and shed items will be deleted. This cannot be undone.')">
-        End Season
-      </button>
-    </div>
-  </div>
+
+% if ($authenticated) {
+  <div id="nav-bar"></div>
 % }
+
+  <div id="main-area">
+    <div id="panel-primary">
+% if ($authenticated) {
+      <!-- populated by JS -->
+% } else {
+      <div class="mm-panel" style="max-width:20rem;margin:1rem auto">
+        <div class="mm-panel-header">SOFTWARE REGISTRATION</div>
+        <div class="mm-panel-body">
+          <form id="login-form">
+            <div style="margin-bottom:0.5rem">
+              <label for="display-name" style="display:block;color:var(--mm-text-dim);font-size:0.78rem;margin-bottom:0.3rem">OWNER</label>
+              <input type="text" id="display-name" class="mm-input" placeholder="Enter your name" autofocus required style="width:100%;box-sizing:border-box">
+            </div>
+            <div id="error-msg" style="display:none;color:var(--mm-red);font-size:0.78rem;margin-bottom:0.5rem"></div>
+            <button type="submit" class="mm-btn mm-btn-primary" style="width:100%">Enter</button>
+          </form>
+        </div>
+      </div>
+% }
+    </div>
+    <div id="panel-secondary"></div>
+  </div>
+
+  <div id="context-bar"></div>
 </div>
 
+<div id="device-footer"></div>
+
+% if ($authenticated) {
 <script src="/js/game.js?<%= (stat app->home->child('public/js/game.js'))[9] // 0 %>"></script>
+% } else {
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('display-name').value.trim();
+  const errEl = document.getElementById('error-msg');
+  errEl.style.display = 'none';
+  if (!name) return;
+  const resp = await fetch('/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ displayName: name })
+  });
+  const data = await resp.json();
+  if (!data.ok) {
+    errEl.textContent = data.error || 'Login failed';
+    errEl.style.display = 'block';
+    return;
+  }
+  window.location.href = '/game';
+});
+</script>
+% }

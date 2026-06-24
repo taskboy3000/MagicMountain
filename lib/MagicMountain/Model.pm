@@ -8,8 +8,7 @@ use Mojo::Base '-base', '-signatures';
 use Mojo::JSON ('encode_json', 'decode_json');
 use UUID::Tiny (':std');
 
-my %_seq_for;
-my $_save_seq = 0;
+my %_mtime_for;
 
 has 'file' => sub ($self) {
     die("Add a path to the state file");
@@ -81,9 +80,11 @@ sub hasCol ($self, $columnName) {
 # Load all data from $self->file
 sub load ($self) {
     my $key = 0+$self->table;
-    return 1 if defined $_seq_for{$key} && $_seq_for{$key} == $_save_seq;
+    my $stat = -e $self->file ? [stat $self->file] : undef;
+    my $sig = $stat ? "$stat->[9]:$stat->[7]" : '0:0';  # mtime:size
+    return 1 if defined $_mtime_for{$key} && $_mtime_for{$key} eq $sig;
 
-    if (-e $self->file) {
+    if ($stat) {
         my $content = read_file($self->file);
         my $data;
         eval {
@@ -95,7 +96,7 @@ sub load ($self) {
         %{ $self->table } = %{ $data };
     }
 
-    $_seq_for{$key} = $_save_seq;
+    $_mtime_for{$key} = $sig;
     return 1;
 }
 
@@ -105,7 +106,8 @@ sub _saveTable ($self) {
     my $tmpFile = $self->file . "$$.tmp";
     write_file($tmpFile, $json);
     rename $tmpFile, $self->file;
-    $_seq_for{0+$self->table} = ++$_save_seq;
+    my $stat = [stat $self->file];
+    $_mtime_for{0+$self->table} = "$stat->[9]:$stat->[7]";
     return 1;
 }
 
@@ -128,7 +130,9 @@ sub create ($self, %params) {
 # Persist this one $self->data record to $self->file
 sub save ($self) {
     my $key = 0+$self->table;
-    $self->load unless defined $_seq_for{$key} && $_seq_for{$key} == $_save_seq;
+    my $stat = -e $self->file ? [stat $self->file] : undef;
+    my $sig = $stat ? "$stat->[9]:$stat->[7]" : '0:0';
+    $self->load unless defined $_mtime_for{$key} && $_mtime_for{$key} eq $sig;
     return $self->_saveTable unless keys %{ $self->row };
 
     if (!$self->row->{id}) {

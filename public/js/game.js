@@ -12,248 +12,151 @@ async function api(path, { body, method } = {}) {
   return data;
 }
 
+// ── Boot ────────────────────────────────────────────────────────
 async function loadGame() {
   G = await api('/game');
-  render();
-  renderPlayerFragment();
+  populateStatusStrip(G);
+  await applyNav();
 }
 
-async function renderPlayerFragment() {
-  const resp = await fetch('/player?_format=fragment');
-  if (resp.status === 204) return;
-  const html = await resp.text();
-  document.getElementById('slot-player').innerHTML = html;
+function populateStatusStrip(g) {
+  const p = g.player || {};
+  const s = g.season || {};
+  document.getElementById('device-owner').textContent = p.name || '—';
+  document.getElementById('s-day').textContent = s.day ?? '—';
+  document.getElementById('s-total').textContent = s.total_days ?? '—';
+  document.getElementById('s-ap').textContent = p.action_points ?? '—';
+  document.getElementById('s-scrap').textContent = p.scrap ?? '—';
+  document.getElementById('s-score').textContent = p.score ?? '—';
+  document.getElementById('context-bar').textContent = '';
 }
 
-function render() {
-  renderRecap();
-  renderActionFragment();
-  renderPlayerFragment();
-  renderShedFragment();
-  renderSkillsFragment();
-  renderFactionsFragment();
-  renderLeaderboardFragment();
+let CURRENT_VIEW = 'idle';
+
+// ── Nav ──────────────────────────────────────────────────────────
+async function applyNav(requestedView) {
+  const headers = { Accept: 'application/json' };
+  if (requestedView) headers['X-Nav-View'] = requestedView;
+  const resp = await fetch('/nav', { headers });
+  const nav = await resp.json();
+  CURRENT_VIEW = nav.current_view;
+  renderNavBar(nav.tabs);
+  document.getElementById('context-bar').textContent = nav.context || '';
+  await Promise.all([
+    fetchThenRender(nav.primary_fragment_url, 'panel-primary'),
+    fetchThenRender(nav.secondary_fragment_url, 'panel-secondary'),
+  ]);
 }
 
-function renderRecap() {
-  const recap = G.season_recap;
-  if (!recap) return;
-  const hl = recap.highlights || {};
-  const st = recap.standing || {};
-  const factions = Object.keys(st).length;
-  document.getElementById('slot-recap').innerHTML = `<div style="border:1px solid var(--mm-amber);margin-bottom:0.75rem">
-    <div style="border-bottom:1px solid var(--mm-amber);padding:0.4rem 0.6rem;color:var(--mm-amber);font-size:0.8rem;text-transform:uppercase;letter-spacing:0.1em">${recap.label} — Final Results</div>
-    <div style="padding:0.5rem 0.6rem">
-      <div style="display:flex;text-align:center;margin-bottom:0.75rem">
-        <div style="flex:1"><h5 style="margin:0 0 0.2rem 0;font-weight:400;font-size:0.9rem">Score</h5><span style="font-size:1.2rem">${recap.final_score}</span></div>
-        <div style="flex:1"><h5 style="margin:0 0 0.2rem 0;font-weight:400;font-size:0.9rem">Rank</h5><span style="font-size:1.2rem">#${recap.rank}</span></div>
-        <div style="flex:1"><h5 style="margin:0 0 0.2rem 0;font-weight:400;font-size:0.9rem">Scrap</h5><span style="font-size:1.2rem">${recap.final_scrap}</span></div>
-      </div>
-      <p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Artifacts sold: ${hl.total_sales ?? 0}</p>
-      <p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Top sale: ${hl.top_sale_value ?? 0} scrap</p>
-      <p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Factions traded with: ${factions}</p>
-      ${hl.evolved_artifacts_sold ? `<p style="margin:0 0 0.2rem 0;color:var(--mm-text-dim);font-size:0.78rem">Evolved artifacts sold: ${hl.evolved_artifacts_sold}</p>` : ''}
-      <hr style="border:none;border-top:1px solid var(--mm-border)">
-      <p style="color:var(--mm-text-dim);font-size:0.78rem;margin:0;font-style:italic"><em>A new season begins...</em></p>
-    </div>
-  </div>`;
+function renderNavBar(tabs) {
+  const bar = document.getElementById('nav-bar');
+  bar.innerHTML = tabs.map(t =>
+    `<button class="nav-btn${t.active ? ' active' : ' inactive'}" data-view="${t.id}"${t.reason ? ` title="${t.reason}"` : ''}>${t.label}</button>`
+  ).join('');
 }
 
-async function renderProspectingFragment() {
-  const resp = await fetch('/prospecting?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-action').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-action').innerHTML = html;
-}
-
-async function renderShedFragment() {
-  const resp = await fetch('/shed?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-shed').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-shed').innerHTML = html;
-}
-
-async function renderMarketFragment() {
-  const resp = await fetch('/market?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-action').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-action').innerHTML = html;
-}
-
-async function renderActionFragment() {
-  let url;
-  if (G.market_visit) url = '/market?_format=fragment';
-  else if (G.prospecting) url = '/prospecting?_format=fragment';
-  else url = '/idle?_format=fragment';
+async function fetchThenRender(url, targetId) {
+  if (!url) { document.getElementById(targetId).innerHTML = ''; return; }
   const resp = await fetch(url);
-  if (resp.status === 204) {
-    document.getElementById('slot-action').innerHTML = '';
-    return;
-  }
+  if (resp.status === 204) { document.getElementById(targetId).innerHTML = ''; return; }
   const html = await resp.text();
-  document.getElementById('slot-action').innerHTML = html;
+  document.getElementById(targetId).innerHTML = html;
 }
 
-async function refetchFragments(keys) {
-  const fetches = (keys || []).map(key => {
-    if (key === 'prospecting') return renderProspectingFragment();
-    if (key === 'market') return renderMarketFragment();
-    if (key === 'player') return renderPlayerFragment();
-    if (key === 'shed') return renderShedFragment();
-    if (key === 'crier') return renderCrierFragment();
-    if (key === 'skills') return renderSkillsFragment();
-    if (key === 'factions') return renderFactionsFragment();
-    if (key === 'leaderboard') return renderLeaderboardFragment();
-  });
-  await Promise.all(fetches);
-}
-
-async function renderCrierFragment() {
-  const resp = await fetch('/crier?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-crier').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-crier').innerHTML = html;
-}
-
-async function renderSkillsFragment() {
-  const resp = await fetch('/skills?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-skills').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-skills').innerHTML = html;
-}
-
-async function renderFactionsFragment() {
-  const resp = await fetch('/factions?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-factions').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-factions').innerHTML = html;
-}
-
-async function renderLeaderboardFragment() {
-  const resp = await fetch('/leaderboard?_format=fragment');
-  if (resp.status === 204) {
-    document.getElementById('slot-leaderboard').innerHTML = '';
-    return;
-  }
-  const html = await resp.text();
-  document.getElementById('slot-leaderboard').innerHTML = html;
-}
-
+// ── Action handlers ──────────────────────────────────────────────
 async function beginProspecting() {
   const data = await api('/prospecting/begin', { method: 'POST' });
   if (!data.ok) return;
-  if (data.artifact) G.prospecting = data.artifact;
-  if (data.refetch) await refetchFragments(data.refetch);
+  await applyNav();
 }
 
 async function pushArtifact() {
   const data = await api('/prospecting/push', { method: 'POST' });
   if (!data.ok) return;
-  if (data.artifact) G.prospecting = data.artifact;
-  else G.prospecting = null;
-  if (data.refetch) await refetchFragments(data.refetch);
-  else await loadGame();
+  if (data.result === 'collapse' || data.result === 'breakthrough') {
+    G = await api('/game');
+    populateStatusStrip(G);
+  }
+  await applyNav();
 }
 
 async function stopProspecting() {
   const data = await api('/prospecting/stop', { method: 'POST' });
-  if (data.ok) await loadGame();
+  if (data.ok) {
+    G = await api('/game');
+    populateStatusStrip(G);
+    await applyNav();
+  }
 }
 
 async function beginMarket() {
   const data = await api('/market/begin', { method: 'POST' });
   if (!data.ok) return;
-  G.market_visit = { customer: data.customer || {} };
-  if (data.refetch) await refetchFragments(data.refetch);
-  else await loadGame();
+  await applyNav();
 }
 
 async function offerItem(shedItemId) {
   const data = await api('/market/offer', { body: { shed_item_id: shedItemId }, method: 'POST' });
   if (!data.ok) return;
   if (data.result === 'sold' || data.result === 'customer_left' || data.result === 'sent_away') {
-    G.market_visit = null;
-    await loadGame();
-    return;
+    G = await api('/game');
+    populateStatusStrip(G);
   }
-  if (data.refetch) await refetchFragments(data.refetch);
-  else await loadGame();
+  await applyNav();
 }
 
 async function sendAway() {
   const data = await api('/market/send_away', { method: 'POST' });
   if (!data.ok) return;
-  G.market_visit = null;
-  await loadGame();
+  G = await api('/game');
+  populateStatusStrip(G);
+  await applyNav();
 }
 
 async function acceptCounter() {
   const data = await api('/market/accept_counter', { method: 'POST' });
   if (!data.ok) return;
   if (data.result === 'sold') {
-    G.market_visit = null;
-    await loadGame();
-    return;
+    G = await api('/game');
+    populateStatusStrip(G);
   }
-  if (data.refetch) await refetchFragments(data.refetch);
-  else await loadGame();
+  await applyNav();
 }
 
 async function purchaseSkill(skillId) {
   const data = await api('/skills/purchase', { body: { skill_id: skillId }, method: 'POST' });
   if (!data.ok) return;
-  if (data.refetch) await refetchFragments(data.refetch);
-  else await loadGame();
+  G = await api('/game');
+  populateStatusStrip(G);
+  await applyNav();
 }
 
-document.getElementById('delete-account-btn').addEventListener('click', async () => {
-  if (!confirm('Delete your account permanently? This cannot be undone.')) return;
-  const data = await api('/player', { method: 'DELETE' });
-  if (data.ok) window.location.href = '/login';
+// ── Event delegation ─────────────────────────────────────────────
+document.getElementById('nav-bar').addEventListener('click', (e) => {
+  const btn = e.target.closest('.nav-btn');
+  if (!btn || btn.classList.contains('inactive')) return;
+  const view = btn.dataset.view;
+  if (view === 'prospect' && CURRENT_VIEW === 'idle') { beginProspecting(); return; }
+  if (view === 'bazaar' && CURRENT_VIEW === 'idle') { beginMarket(); return; }
+  applyNav(view);
 });
 
-document.getElementById('btn-end-season')?.addEventListener('click', async () => {
-  const data = await api('/season/end', { method: 'POST' });
-  if (data.ok) await loadGame();
-});
-
-// Event delegation for shed offer buttons
-document.getElementById('slot-shed').addEventListener('click', (e) => {
+document.getElementById('panel-secondary').addEventListener('click', (e) => {
   const btn = e.target.closest('.offer-btn');
   if (btn) offerItem(btn.dataset.id);
 });
 
-// Event delegation for action buttons in fragment panels
-document.getElementById('slot-action').addEventListener('click', (e) => {
+document.getElementById('panel-primary').addEventListener('click', (e) => {
   const id = e.target.id;
   if (id === 'btn-push') pushArtifact();
   else if (id === 'btn-stop') stopProspecting();
-  else if (id === 'btn-begin') beginProspecting();
-  else if (id === 'btn-market') beginMarket();
   else if (id === 'btn-send-away') sendAway();
   else if (id === 'btn-accept-counter') acceptCounter();
-});
-
-// Event delegation for skill purchase buttons
-document.getElementById('slot-skills').addEventListener('click', (e) => {
+  if (id === 'delete-account-btn') {
+    if (!confirm('Delete your account permanently? This cannot be undone.')) return;
+    api('/player', { method: 'DELETE' }).then(d => { if (d.ok) window.location.href = '/login'; });
+    return;
+  }
   const btn = e.target.closest('.buy-skill-btn');
   if (btn) purchaseSkill(btn.dataset.skill);
 });

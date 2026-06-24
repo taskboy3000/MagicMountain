@@ -2,7 +2,7 @@ package MagicMountain::Controller::Sessions;
 use Mojo::Base 'MagicMountain::Controller', -signatures;
 
 sub login_form ($self) {
-    $self->render('sessions/new');
+    $self->redirect_to('game');
 }
 
 sub create ($self) {
@@ -95,7 +95,7 @@ sub logout ($self) {
         $self->app->audit_log->log('logout', player_id => $player_id);
     }
     $self->session(expires => 1);
-    $self->redirect_to('login_form');
+    $self->redirect_to('game');
 }
 
 1;

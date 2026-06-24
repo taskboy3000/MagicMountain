@@ -5,6 +5,18 @@ use Mojo::JSON qw(encode_json);
 sub show ($self) {
     my $player_id = $self->current_player;
 
+    # Handle unauthenticated users — render device frame with login form
+    if (!$player_id) {
+        $self->respond_to(
+            json => sub { $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401) },
+            html => sub {
+                $self->stash(authenticated => 0, player_name => '—');
+                $self->render('game/show');
+            },
+        );
+        return;
+    }
+
     my $account = $self->app->accounts->get($player_id);
 
     my $season = $self->app->active_season;
@@ -181,6 +193,7 @@ sub show ($self) {
         },
         html => sub {
             $self->stash(
+                authenticated     => 1,
                 player_name       => $account->getCol('username'),
                 season_label      => $season ? ($season->getCol('label') // 'Season 1') : 'Upcoming',
                 season_day        => $season ? ($season->getCol('day') // 1)             : '—',

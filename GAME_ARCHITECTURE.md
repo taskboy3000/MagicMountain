@@ -1617,7 +1617,18 @@ changes, no manual registration.
 | GET | `/logout` | `Sessions#logout` | Logout (browser, redirects) |
 | GET | `/player` | `Player#show` | Current player JSON |
 | DELETE | `/player` | `Player#destroy` | Delete account |
-| GET | `/game` | `Game#show` | Game state page |
+| GET | `/game` | `Game#show` | Game state page (JSON + HTML) |
+| GET | `/nav` | `Nav#show` | Nav state: tabs, current view, fragment URLs, context bar |
+| GET | `/player` | `Player#show` | Player info (JSON + fragment) |
+| GET | `/crier` | `Crier#show` | Crier bulletin (JSON + fragment) |
+| GET | `/idle` | `Idle#show` | Idle action panel (fragment) |
+| GET | `/prospecting` | `Prospecting#show` | Prospecting scan (JSON + fragment) |
+| GET | `/market` | `Market#show` | Market negotiation (JSON + fragment) |
+| GET | `/shed` | `Shed#index` | Shed ledger (JSON + fragment) |
+| GET | `/skills` | `Skills#index` | Skill tree (JSON + fragment) |
+| GET | `/factions` | `Factions#show` | Faction registry (JSON + fragment) |
+| GET | `/leaderboard` | `Leaderboard#index` | Player rankings (JSON + fragment) |
+| GET | `/leaderboard/factions` | `Leaderboard#factions` | Faction influence time series |
 | POST | `/prospecting/begin` | `Prospecting#begin` | Start prospecting (costs 2 AP) |
 | POST | `/prospecting/push` | `Prospecting#push` | Destabilize artifact |
 | POST | `/prospecting/stop` | `Prospecting#stop` | Halt, create shed entry |
@@ -1625,11 +1636,7 @@ changes, no manual registration.
 | POST | `/market/offer` | `Market#offer` | Offer shed item to customer |
 | POST | `/market/send_away` | `Market#send_away` | End negotiation, no sale |
 | POST | `/market/accept_counter` | `Market#accept_counter` | Accept customer's counter-offer |
-| GET | `/shed` | `Shed#index` | List shed contents |
-| GET | `/skills` | `Skills#index` | List available skills and current levels |
 | POST | `/skills/purchase` | `Skills#purchase` | Buy skill upgrade (costs scrap) |
-| GET | `/leaderboard` | `Leaderboard#index` | Player rankings |
-| GET | `/leaderboard/factions` | `Leaderboard#factions` | Faction influence time series |
 | POST | `/season/end` | `Season#end` | Finalize active season (web UI) |
 
 ### 13.2 Controller Action Contracts
@@ -2019,10 +2026,11 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Routing gateway** | `Controller::Root` | `GET /` redirect |
 | **Login flow** | `Controller::Sessions` | Auto-creates accounts on first login |
 | **Player info** | `Controller::Player` | `GET /player` JSON or 401 |
-| **Game page** | `Controller::Game`, `templates/game/show.html.ep`, `public/js/game.js` | `respond_to` JSON/HTML dispatch; JS-driven SPA fetches `/game` JSON on load; includes shed, skills, leaderboard panels |
+| **Game page** | `Controller::Game`, `Controller::Nav`, `templates/game/show.html.ep`, `public/js/game.js` | Device-frame layout with pinned chrome (header, status strip, nav bar, context bar) and two-panel center area. `GET /nav` drives all panel content via server-provided fragment URLs. JS is purely declarative — no view logic, no URL computation. |
+| **Nav controller** | `Controller::Nav` | `GET /nav` returns current view, tab states (active/inactive + reasons), fragment URLs (primary + secondary per tab), context bar text. Backend-managed UI state. Testable via `t/nav_web.t`. |
 | **Session management** | `Model::Session`, `current_player` helper | Configurable inactivity timeout |
 | **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::create_season`, `Command::advance_day`, `Command::simulate` | Account lifecycle, season management, day rollover, bot simulation |
-| **Layout** | `templates/layouts/default.html.ep` | Bootstrap 5.3 CDN wrapper |
+| **Layout** | `templates/layouts/default.html.ep` | Minimal layout — monospace font stack (`IBM Plex Mono`), custom CSS only (`/css/app.css`). No Bootstrap. |
 | **Day maintenance** | `Maintenance.pm` | IOLoop timer, route gating, `on_maintenance` callback for AP refresh, day increment, decay |
 | **Audit logging** | `Model::AuditLog` | JSONL login/logout/account events |
 | **Activity base class** | `Activity.pm` | State-machine dispatch, column accessors, content loading |
@@ -2040,8 +2048,8 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Bot simulation** | `Command::simulate`, `Bot::PushPolicy`, `Bot::SellPolicy`, `content/bots.yml`, `bin/analyze_sim` | Pluggable push/sell policies, YAML profile definitions, weighted profile distribution, reproducible simulation, analysis script |
 | **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
 | **Season-aware character lookup** | `Controller.pm` base class, `MagicMountain.pm` | `_require_character` filters by active season; `active_season` method (non-memoized, fresh each call) on app class |
-| **JS SPA** | `public/js/game.js` | Extracted from template per unobtrusive JS principle; renders idle/prospecting/market cards, shed inventory, skills, faction standing, leaderboard, season recap from JSON |
-| **Faction standing panel** | `MagicMountain.pm` (`factions_data` helper), `Controller/Game.pm`, `public/js/game.js` (`renderFactions`) | Faction definitions served from YAML; per-faction star rating, sale count, global influence rendered client-side |
+| **JS client** | `public/js/game.js` | Declarative JS: fetches `/game` for boot state, fetches `/nav` for panel layout, renders server-provided fragment URLs into primary/secondary panels. No view logic, no URL computation, no HTML template literals. Event delegation on panel containers for action buttons. |
+| **Fragment rendering** | All resource controllers (`Player`, `Crier`, `Idle`, `Prospecting`, `Market`, `Shed`, `Skills`, `Factions`, `Leaderboard`) | Each controller provides `respond_to json` + `_format=fragment` HTML. JS fetches fragment URLs from `/nav` response and renders via `innerHTML`. No client-side HTML construction. |
 | **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
 | **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
 | **Crier daily progress** | `Crier.pm`, `content/text/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
@@ -2186,3 +2194,13 @@ These questions remain unresolved and should be answered during implementation:
    leaderboard? Score is visible until season end.
 6. **Character-owned history name**: transcript, chronicle, ledger, or
    something else?
+
+---
+
+## 22. UI Design References
+
+| Document | Purpose |
+|----------|---------|
+| `docs/design_bible.md` | Visual design language: palette, typography, ProspectBoy 3000 device fiction, faction iconography, panel language |
+| `docs/nav_state_rules.md` | Nav state model: views, tab active/inactive rules, secondary panel mapping, context bar text |
+| `docs/ui_redesign_plan.md` | Phased implementation plan for the device-frame layout, nav controller, and declarative JS |

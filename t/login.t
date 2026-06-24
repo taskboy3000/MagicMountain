@@ -44,15 +44,14 @@ my $aliceId = $alice->getCol('id');
 
 my $t = Test::Mojo->new('MagicMountain');
 
-subtest 'GET / redirects to /login when unauthenticated' => sub {
+subtest 'GET / redirects to /game (login page is at /game now)' => sub {
     $t->get_ok('/')->status_is(302)
-      ->header_like(Location => qr{/login});
+      ->header_like(Location => qr{/game});
 };
 
-subtest 'GET /login returns login form' => sub {
-    $t->get_ok('/login')->status_is(200)
-      ->content_like(qr/<!DOCTYPE html>/, 'layout template rendered')
-      ->content_like(qr/Magic Mountain/);
+subtest 'GET /login redirects to /game' => sub {
+    $t->get_ok('/login')->status_is(302)
+      ->header_like(Location => qr{/game});
 };
 
 subtest 'POST /sessions with valid name' => sub {
@@ -119,7 +118,7 @@ subtest 'logout redirects to login form' => sub {
     $t2->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
     $t2->get_ok('/logout')
       ->status_is(302)
-      ->header_like(Location => qr{/login});
+      ->header_like(Location => qr{/game});
 };
 
 done_testing;

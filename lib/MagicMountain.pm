@@ -292,6 +292,7 @@ sub startup ($self) {
     $self->helper(current_player => sub ($c) {
         my $player_id = $c->session('playerId');
         return unless $player_id;
+        $c->app->session_store->load;
         my $session = $c->app->session_store->find_by_player_id($player_id);
         return unless $session;
         my $timeout = $c->app->config->{session_timeout_minutes} // 60;
@@ -359,6 +360,9 @@ sub buildRoutes ($self) {
     });
     $rate_limited->post('/sessions')->to('sessions#create')->name('login');
 
+    # Game page — outside auth bridge so unauthenticated users see login form in device frame
+    $no_maintenance->get('/game')->to('game#show')->name('game');
+
     # Authenticated routes (also blocked during maintenance)
     my $auth = $no_maintenance->under('/' => sub ($c) {
         my $player_id = $c->current_player;
@@ -391,11 +395,10 @@ sub buildRoutes ($self) {
     $auth->get('/shed')->to('shed#index');
     $auth->get('/skills')->to('skills#index');
     $auth->get('/factions')->to('factions#show');
+    $auth->get('/account')->to('account#show');
     $auth->get('/leaderboard')->to('leaderboard#index');
     $auth->get('/leaderboard/factions')->to('leaderboard#factions');
-
-    # Full game page
-    $auth->get('/game')->to('game#show')->name('game');
+    $auth->get('/nav')->to('nav#show');
 
     # Write routes under CSRF check
     $auth_write->delete('/player')->to('player#destroy')->name('delete_player');
@@ -407,7 +410,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/offer')->to('market#offer');
     $auth_write->post('/market/send_away')->to('market#send_away');
     $auth_write->post('/market/accept_counter')->to('market#accept_counter');
-    $auth_write->post('/season/end')->to('season#end');
+    # $auth_write->post('/season/end')->to('season#end');
 }
 
 sub active_season ($self) {

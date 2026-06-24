@@ -45,27 +45,28 @@ my $t = Test::Mojo->new('MagicMountain');
 $t->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
 my $csrf = $t->tx->res->json->{csrf_token} // '';
 
-subtest 'end season via web' => sub {
-    $t->post_ok('/season/end' => {'X-CSRF-Token' => $csrf})
-      ->status_is(200)
-      ->json_is('/ok' => 1);
-
-    my $app = $t->app;
-    $app->seasons->load;
-    my $season = $app->seasons->get('s1');
-    is($season->getCol('status'), 'archived', 'season status -> archived');
-    ok(!defined $season->getCol('faction_state'), 'faction_state cleared');
-
-    $app->characters->load;
-    my $remaining = $app->characters->find(sub { $_[0]->{season_id} eq 's1' });
-    is(scalar @$remaining, 0, 'all season characters deleted');
-
-    $app->shed->load;
-    is(scalar keys %{ $app->shed->table }, 0, 'shed emptied');
-
-    $app->season_records->load;
-    my $records = $app->season_records->find(sub { $_[0]->{season_id} eq 's1' });
-    is(scalar @$records, 1, 'one season record created');
-};
+# Web season/end route is commented out (CLI only for now).
+# subtest 'end season via web' => sub {
+#     $t->post_ok('/season/end' => {'X-CSRF-Token' => $csrf})
+#       ->status_is(200)
+#       ->json_is('/ok' => 1);
+# 
+#     my $app = $t->app;
+#     $app->seasons->load;
+#     my $season = $app->seasons->get('s1');
+#     is($season->getCol('status'), 'archived', 'season status -> archived');
+#     ok(!defined $season->getCol('faction_state'), 'faction_state cleared');
+# 
+#     $app->characters->load;
+#     my $remaining = $app->characters->find(sub { $_[0]->{season_id} eq 's1' });
+#     is(scalar @$remaining, 0, 'all season characters deleted');
+# 
+#     $app->shed->load;
+#     is(scalar keys %{ $app->shed->table }, 0, 'shed emptied');
+# 
+#     $app->season_records->load;
+#     my $records = $app->season_records->find(sub { $_[0]->{season_id} eq 's1' });
+#     is(scalar @$records, 1, 'one season record created');
+# };
 
 done_testing;

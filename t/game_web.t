@@ -156,8 +156,8 @@ subtest 'HTML — renders successfully' => sub {
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     $t->get_ok('/game')
       ->status_is(200)
-      ->content_like(qr/Magic Mountain/)
-      ->content_like(qr/player/);
+      ->content_like(qr/ProspectBoy 3000/)
+      ->content_like(qr/REGISTERED TO/);
 };
 
 subtest 'JSON — displays faction_sales' => sub {
