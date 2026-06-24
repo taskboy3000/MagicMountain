@@ -308,6 +308,60 @@ the summary.
   `make check-loyalist` (~15s) to verify each faction can support a viable
   loyalist strategy via simulation. Run these when modifying
   `content/prospecting.yml` or `content/factions.yml`.
+- **DRY (Don't Repeat Yourself)**: Favor generalized, reusable functions over
+  copy-paste-and-tweak. Before adding a new function that closely resembles an
+  existing one, refactor the common logic into a shared helper or parameterize
+  the existing function to handle both cases. Verify the refactoring preserves
+  all prior call sites — tests should pass without changes.
+- **Zero-indirection wrappers**: Never create a function that is a pure
+  pass-through to another function with the same signature. If inlining the
+  call removes no clarity, do it. Trampoline wrappers (`sub foo { bar($_[0]) }`)
+  add churn without value.
+- **Plan file cleanup**: When implementation of a plan doc is complete and committed, delete the plan file. Plan docs are written in separate sessions and have no ongoing value once the work is done — only commit messages and code remain.
+- **Dead code elimination**: Remove unreachable code on sight — orphaned
+  subroutines, unregistered routes, unused JavaScript functions, stale
+  templates, and commented-out blocks. Dead code includes tests that only
+  exist to test dead code; if the code is removed, its tests go with it.
+  Before each commit, run `git diff --stat` and review whether every changed
+  file still has anything referencing the old pattern. If you are uncertain
+  whether something is reachable, search the entire codebase (Perl, JS,
+  templates, tests, config) for the identifier before deciding.
+
+  To suppress a false positive, annotate the line with `# DEAD-SUPPRESS: <reason>`.
+  The `bin/find_dead_code` tool skips any line preceded by this marker.
+- **Self-describing buttons**: Every interactive action button in a fragment
+  template must carry `data-action-url` (the POST endpoint) and `data-method`
+  attributes so the walkthrough can discover available actions by parsing HTML
+  rather than hardcoding endpoint paths. Additional `data-*` attributes (e.g.
+  `data-id` for shed items, `data-skill` for skills) are sent as JSON body
+  parameters. The walkthrough uses Mojo::DOM to discover buttons and follow
+  them — never hardcode an action URL that a button already describes.
+- **Test mode** (`MOJO_MODE=test`): When running in test mode the app
+  automatically enables all feature flags (`market_counter_offers`,
+  `market_multi_item`), disables the rate limiter, and skips the maintenance
+  timer. This allows deterministic walkthrough runs without interference.
+  Set `MM_RAND_SEED` for reproducible random sequences (artifact draws,
+  customer generation, etc.).
+- **Health endpoint**: `GET /health` returns `{"ok":1}` with no auth, no
+  database reads. The walkthrough uses this for server readiness polling rather
+  than relying on a game page fetch.
+- **End-to-end walkthrough automation**: Every feature addition or endpoint
+  change must include or update `bin/walkthrough` — a Perl script using
+  Mojo::UserAgent and Mojo::DOM that launches the app on a background port
+  (set `MM_TEST_PORT` or default 9900), waits for `/health` to respond,
+  then drives the full game loop:
+  - Login → CSRF extraction
+  - Game page load
+  - Nav discovery (reads `/nav` JSON for current view, tabs, fragment URLs)
+  - Fragment fetch (reads HTML buttons with `data-action-url` → follows them)
+  - Prospecting (begin → push × 2 → stop)
+  - Shed verification
+  - Market visit (begin → offer → send_away)
+  - Skill purchase
+  - Logout
+  The walkthrough asserts HTTP status codes (200/204/302), kills the server,
+  and exits non-zero on any failure so it gates pre-commit checks. It must be
+  updated when new fragment actions or nav states are added.
 
 ---
 
