@@ -204,7 +204,6 @@ Each module has strict constraints on what it may and must never hold.
 | Module | May Hold | Must NEVER Hold |
 |--------|----------|-----------------|
 | **Controller::*** | App reference, model accessors (accounts, characters, seasons, shed, skills) | Game logic, phase validation, artifact math, persistence orchestration |
-| **Controller::Season** | App reference, calls Season::finalize | Game logic, persistence |
 | **Activity (base)** | Persisted columns, ephemeral attributes (transitions, app, content), dispatch logic | Game math, artifact knowledge, YAML content interpretation |
 | **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
@@ -216,6 +215,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Model::Season** | File path, column definitions, JSON CRUD, finalize class method | Per-player character data, game logic |
 | **Model::FactionSnapshot** | File path, column definitions, JSON CRUD | Game logic, character data |
 | **Model::Session** | File path, column definitions, expiry logic | Game logic, character data |
+| **Nav** (Controller::Nav) | App reference, fragment URL mapping, tab rules | Game logic, character data |
 | **Skills** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
 | **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
 | **Content** (YAML loader) | Directory path, parsed YAML data | Model persistence, game rules |
@@ -310,6 +310,7 @@ Survives across seasons. Contains no gameplay data.
 | skill_upcycling | integer | 0–3, Upcycling skill level |
 | skill_selling | integer | 0–3, Selling skill level |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
+| current_view | string | Last active view (idle/shed/factions/skills/account/market/prospecting). Managed by Nav controller — synced on every `/nav` response. Activity-only views invalidate when activity ends. |
 | loyalty_visits_since | integer | Consecutive market visits without seeing the player's top faction. Used by loyalty access guarantee (see §6.5 step 1). |
 
 > `turns_remaining` has been replaced by `action_points` / `action_points_max`.
@@ -1391,16 +1392,20 @@ any model.
 
 | Controller | Actions | Purpose |
 |-----------|---------|---------|
-| Root | index | Gateway redirect (/ → /login or /game) |
-| Sessions | login_form, create, destroy, logout | Authentication |
-| Player | show, destroy | Current player JSON; delete account |
- | Game | show | Game state page. Auto-creates character on first visit. After a season ends, first visit shows `season_recap` with final score/rank/highlights and auto-creates a new season + fresh character. |
-| Prospecting | begin, push, stop | Prospecting lifecycle |
-| Market | begin, offer, send_away | Market negotiation lifecycle |
-| Shed | index | List shed contents with condition and estimates |
-| Skills | index, purchase | View available skills, purchase upgrade |
-| Leaderboard | index, factions | Player rankings; faction influence time series |
-| Season | end | Finalize active season (web UI) |
+| Root | index | Gateway redirect (always → /game) |
+| Sessions | login_form, create, destroy, logout | Authentication. `login_form` redirects to `/game`. |
+| Player | show, destroy | Current player JSON/fragment; delete account |
+| Game | show | Game state page. Renders login form inline when unauthenticated. Auto-creates character on first visit. After a season ends, first visit shows `season_recap` and auto-creates a new season + fresh character. |
+| Nav | show | `GET /nav` — returns tabs (active/inactive + reasons), current view, fragment URLs, context bar. Backend-managed UI state. |
+| Idle | show | `GET /idle` — idle action panel (Prospect/Bazaar buttons). Returns 204 when activity active. |
+| Crier | show | `GET /crier` — current season's Town Crier message. Returns 204 when no active season. |
+| Prospecting | begin, push, stop, show | Prospecting lifecycle + `GET /prospecting` fragment/JSON. |
+| Market | begin, offer, send_away, accept_counter, show | Market negotiation lifecycle + `GET /market` fragment/JSON. |
+| Shed | index | List shed contents with condition and estimates. |
+| Skills | index, purchase | View available skills, purchase upgrade. |
+| Factions | show | `GET /factions` — faction registry with standing and influence. Returns 204 when no active season. |
+| Leaderboard | index, factions | Player rankings; faction influence time series. |
+| Account | show | `GET /account` — account settings panel (logout, delete account). Returns 204 when not logged in. |
 
 The old `Artifact` controller is renamed to `Prospecting`. The old `Sale`
 controller is removed (replaced by `Market`). New `Shed` and `Skills`
@@ -1447,12 +1452,13 @@ Display names must be unique.
 - **Logout (API)**: `DELETE /sessions` — destroys session record and
   expires the cookie. Returns JSON.
 - **Logout (browser)**: `GET /logout` — same as above, then redirects
-  to `/login`.
+   to `/game`.
 - **Current player**: `GET /player` — returns current player info if logged
-  in, 401 if not.
-- **Login form**: `GET /login` — renders the session creation form.
-- **Root gateway**: `GET /` — redirects to `/login` (unauthenticated) or
-  `/game` (authenticated).
+   in, 401 if not.
+- **Login form**: Inline in `/game` template (device frame with SOFTWARE REGISTRATION
+   panel). `GET /login` now redirects to `/game`.
+- **Root gateway**: `GET /` — redirects to `/game` (both authenticated and
+   unauthenticated; the game template renders the login form when not logged in).
 
 ---
 
@@ -1608,36 +1614,35 @@ changes, no manual registration.
 
 ### 13.1 Endpoint Table
 
-| Method | Path | Controller#Action | Purpose |
-|--------|------|-------------------|---------|
-| GET | `/` | `Root#index` | Gateway redirect |
-| GET | `/login` | `Sessions#login_form` | Login form |
-| POST | `/sessions` | `Sessions#create` | Login or auto-create player |
-| DELETE | `/sessions` | `Sessions#destroy` | Logout (API, JSON) |
-| GET | `/logout` | `Sessions#logout` | Logout (browser, redirects) |
-| GET | `/player` | `Player#show` | Current player JSON |
-| DELETE | `/player` | `Player#destroy` | Delete account |
-| GET | `/game` | `Game#show` | Game state page (JSON + HTML) |
-| GET | `/nav` | `Nav#show` | Nav state: tabs, current view, fragment URLs, context bar |
-| GET | `/player` | `Player#show` | Player info (JSON + fragment) |
-| GET | `/crier` | `Crier#show` | Crier bulletin (JSON + fragment) |
-| GET | `/idle` | `Idle#show` | Idle action panel (fragment) |
-| GET | `/prospecting` | `Prospecting#show` | Prospecting scan (JSON + fragment) |
-| GET | `/market` | `Market#show` | Market negotiation (JSON + fragment) |
-| GET | `/shed` | `Shed#index` | Shed ledger (JSON + fragment) |
-| GET | `/skills` | `Skills#index` | Skill tree (JSON + fragment) |
-| GET | `/factions` | `Factions#show` | Faction registry (JSON + fragment) |
-| GET | `/leaderboard` | `Leaderboard#index` | Player rankings (JSON + fragment) |
-| GET | `/leaderboard/factions` | `Leaderboard#factions` | Faction influence time series |
-| POST | `/prospecting/begin` | `Prospecting#begin` | Start prospecting (costs 2 AP) |
-| POST | `/prospecting/push` | `Prospecting#push` | Destabilize artifact |
-| POST | `/prospecting/stop` | `Prospecting#stop` | Halt, create shed entry |
-| POST | `/market/begin` | `Market#begin` | Start market visit (costs 1 AP) |
-| POST | `/market/offer` | `Market#offer` | Offer shed item to customer |
-| POST | `/market/send_away` | `Market#send_away` | End negotiation, no sale |
-| POST | `/market/accept_counter` | `Market#accept_counter` | Accept customer's counter-offer |
-| POST | `/skills/purchase` | `Skills#purchase` | Buy skill upgrade (costs scrap) |
-| POST | `/season/end` | `Season#end` | Finalize active season (web UI) |
+| Method | Path | Controller#Action | Format | Purpose |
+|--------|------|-------------------|--------|---------|
+| GET | `/` | `Root#index` | — | Gateway redirect (→ `/game`) |
+| GET | `/login` | `Sessions#login_form` | — | Redirects to `/game` (login form is inline in game page) |
+| POST | `/sessions` | `Sessions#create` | JSON | Login or auto-create player |
+| DELETE | `/sessions` | `Sessions#destroy` | JSON | Logout (API) |
+| GET | `/logout` | `Sessions#logout` | — | Logout (browser, redirects to `/game`) |
+| GET | `/game` | `Game#show` | JSON + HTML | Game state page. Renders login form inline when unauthenticated. |
+| GET | `/nav` | `Nav#show` | JSON | Nav state: tabs, current view, fragment URLs, context bar |
+| GET | `/player` | `Player#show` | JSON + fragment | Current player info |
+| DELETE | `/player` | `Player#destroy` | JSON | Delete account |
+| GET | `/crier` | `Crier#show` | JSON + fragment | Crier bulletin. 204 when no active season. |
+| GET | `/idle` | `Idle#show` | JSON + fragment | Idle action panel (Prospect/Bazaar buttons). 204 when activity active. |
+| GET | `/prospecting` | `Prospecting#show` | JSON + fragment | Prospecting scan |
+| GET | `/market` | `Market#show` | JSON + fragment | Market negotiation |
+| GET | `/shed` | `Shed#index` | JSON + fragment | Shed ledger |
+| GET | `/skills` | `Skills#index` | JSON + fragment | Skill tree |
+| GET | `/factions` | `Factions#show` | JSON + fragment | Faction registry. 204 when no active season. |
+| GET | `/account` | `Account#show` | JSON + fragment | Account settings (logout, delete account). 204 when not logged in. |
+| GET | `/leaderboard` | `Leaderboard#index` | JSON + fragment | Player rankings |
+| GET | `/leaderboard/factions` | `Leaderboard#factions` | JSON | Faction influence time series |
+| POST | `/prospecting/begin` | `Prospecting#begin` | JSON | Start prospecting (costs 2 AP) |
+| POST | `/prospecting/push` | `Prospecting#push` | JSON | Destabilize artifact |
+| POST | `/prospecting/stop` | `Prospecting#stop` | JSON | Halt, create shed entry |
+| POST | `/market/begin` | `Market#begin` | JSON | Start market visit (costs 1 AP) |
+| POST | `/market/offer` | `Market#offer` | JSON | Offer shed item to customer |
+| POST | `/market/send_away` | `Market#send_away` | JSON | End negotiation, no sale |
+| POST | `/market/accept_counter` | `Market#accept_counter` | JSON | Accept customer's counter-offer |
+| POST | `/skills/purchase` | `Skills#purchase` | JSON | Buy skill upgrade (costs scrap) |
 
 ### 13.2 Controller Action Contracts
 
@@ -1673,8 +1678,31 @@ sale (`sold` or `sold_more` in multi-item mode).
 **Market#send_away**: Requires activity `phase == "negotiating"`. Ends
 negotiation without sale. Artifact remains in shed. Activity row deleted.
 
+**Nav#show**: No activity required. Returns JSON with `current_view` (stored
+or activity-forced), `tabs` (id/label/active/reason/fragment_url per tab),
+`primary_fragment_url`, `secondary_view`, `secondary_fragment_url`, and
+`context` text. Accepts optional `X-Nav-View` header to request a view
+transition (server validates tab active state, persists choice to character).
+Serves as the single source of UI state — JS is declarative, never computes
+view logic or URLs.
+
+**Idle#show**: Returns 204 when an activity is in progress. Otherwise returns
+JSON (`can_prospect`, `can_market`, `shed_count`) or the idle actions fragment
+with Prospect/Bazaar buttons.
+
+**Crier#show**: Returns 204 when no active season. Otherwise returns the current
+season's `crier_message` as JSON or the crier bulletin fragment.
+
+**Factions#show**: Returns 204 when no active season. Otherwise returns faction
+registry as JSON (`factions`, `standing`, `faction_sales`, `faction_state`) or
+fragment.
+
+**Account#show**: Returns 204 when not logged in. Otherwise returns account
+settings panel (logout, delete account) as fragment.
+
 **Shed#index**: No activity required. Returns all ShedItems for the character
-with condition, estimated value range, artifact name, and age.
+with condition, estimated value range, artifact name, and age. Supports query
+filtering (condition, artifact_id, behavior, value range) and sorting.
 
 **Skills#index**: Returns skill definitions from YAML plus the character's
 current skill levels.
@@ -2022,14 +2050,14 @@ The new codebase (`lib/`) is a ground-up rebuild.
 
 | Feature | Module(s) | Notes |
 |---------|-----------|-------|
-| **Model persistence layer** | `Model.pm`, `Model::Account`, `Model::Character`, `Model::Season`, `Model::HallOfFame`, `Model::Session`, `Model::AuditLog` | JSON file CRUD, UUID, atomic write-via-temp-file |
+| **Model persistence layer** | `Model.pm`, `Model::Account`, `Model::Character`, `Model::Season`, `Model::Session`, `Model::AuditLog` | JSON file CRUD, UUID, atomic write-via-temp-file |
 | **Routing gateway** | `Controller::Root` | `GET /` redirect |
 | **Login flow** | `Controller::Sessions` | Auto-creates accounts on first login |
 | **Player info** | `Controller::Player` | `GET /player` JSON or 401 |
 | **Game page** | `Controller::Game`, `Controller::Nav`, `templates/game/show.html.ep`, `public/js/game.js` | Device-frame layout with pinned chrome (header, status strip, nav bar, context bar) and two-panel center area. `GET /nav` drives all panel content via server-provided fragment URLs. JS is purely declarative — no view logic, no URL computation. |
 | **Nav controller** | `Controller::Nav` | `GET /nav` returns current view, tab states (active/inactive + reasons), fragment URLs (primary + secondary per tab), context bar text. Backend-managed UI state. Testable via `t/nav_web.t`. |
 | **Session management** | `Model::Session`, `current_player` helper | Configurable inactivity timeout |
-| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::create_season`, `Command::advance_day`, `Command::simulate` | Account lifecycle, season management, day rollover, bot simulation |
+| **CLI commands** | `Command::create_account`, `Command::list_accounts`, `Command::delete_account`, `Command::disable_account`, `Command::create_season`, `Command::end_season`, `Command::advance_day`, `Command::simulate` | Account lifecycle, season management, day rollover, bot simulation |
 | **Layout** | `templates/layouts/default.html.ep` | Minimal layout — monospace font stack (`IBM Plex Mono`), custom CSS only (`/css/app.css`). No Bootstrap. |
 | **Day maintenance** | `Maintenance.pm` | IOLoop timer, route gating, `on_maintenance` callback for AP refresh, day increment, decay |
 | **Audit logging** | `Model::AuditLog` | JSONL login/logout/account events |
@@ -2053,7 +2081,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
 | **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
 | **Crier daily progress** | `Crier.pm`, `content/text/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
-| **Season finalization CLI + web UI** | `Command::end_season.pm`, `Controller::Season.pm`, `Model::Season.pm` (finalize) | 8-step archive: clearance sale (25% of shed value), compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive. Web button calls same `Season::finalize` method. |
+| **Season finalization CLI** | `Command::end_season.pm`, `Model::Season.pm` (finalize) | 8-step archive: clearance sale (25% of shed value), compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive. CLI-only — no web UI button. |
 | **Clearance sale** | `Model::Season.pm` (finalize) | Unsold shed items liquidated at 25% of `decayed_value` during season finalization; awarded as scrap+score before SeasonRecord creation |
 | **Loyalty standing escalation** | `Activity::MarketVisit.pm`, `Model::Character.pm` | Standing delta grows with repeat sales: +2 match / +1 mismatch base, +1 evolved, +1 at 2nd+ sale, +1 at 4th+ sale; loyalty access guarantee redirects customers to top faction after 3 off-faction visits |
 | **SeasonRecord model** | `Model::SeasonRecord.pm` | Post-season archive per character: score, scrap, rank, standing/skills snapshots, story highlights |
@@ -2061,14 +2089,13 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **CSRF protection** | `MagicMountain.pm` (csrf_token helper, auth_write bridge), `Controller/Sessions.pm`, `Game.pm`, `public/js/game.js` | Session-based token returned on login, sent as `X-CSRF-Token` header on all authenticated write requests |
 | **Faction snapshot history** | `Model::FactionSnapshot.pm`, `Maintenance.pm`, `Season.pm` (finalize), `Controller/Leaderboard.pm` (factions) | Daily faction influence persisted during maintenance and season end; `GET /leaderboard/factions` returns per-faction time series |
 | **`nullCol` helper** | `Model.pm` | `delete` a column from row (avoids JSON `null` artifacts from `setCol($col, undef)`) |
-| **Shared mtime cache** | `Model.pm` | Sequence-number-based cache replaces file-mtime-based cache; avoids redundant reloads when multiple saves happen in the same request |
+| **Shared mtime cache** | `Model.pm` | mtime:size file signature cache (`%_mtime_for`); avoids redundant reloads when multiple saves happen in the same request. Cross-process safe in prefork mode — no per-process sequence counter. |
 | **Narrative reactions** | `Activity::MarketVisit.pm`, `content/text/negotiation_reactions.yml` | Per-faction flavor text for match/settle/mismatch/storm_off outcomes; `{item_id}`/`{value}` template substitution; falls back to hardcoded text |
 | **Loyalty price bonus** | `Activity::MarketVisit.pm` (`_apply_loyalty_bonus`) | 1.05× offer multiplier for 3+ sales to the same faction |
 | **Loyalty access guarantee** | `Activity::MarketVisit.pm` (begin), `Model::Character.pm` (`loyalty_visits_since`) | After 3 consecutive market visits to non-top-faction customers, forcibly redirects to player's top faction |
 | **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |
 | **Analysis script** | `bin/analyze_sim` | Reusable transcript analysis: per-bot scores, push/sell counts, match rates |
 | **Rate limiting** | `MagicMountain::RateLimiter.pm`, `MagicMountain.pm` (bridge, helper, config), `Controller/Sessions.pm` (recording) | IP-based + account-name-based rate limiting on login; Retry-After, X-RateLimit-* headers; configurable window/attempts/block |
-| **Hall of Fame model** | `Model::HallOfFame.pm` | Append-only records for seasonal achievements; columns: character_name, score, season_id |
 | **Counter-offers** | `Activity/MarketVisit.pm` (offer/accept_counter), `Controller/Market.pm`, `Bot/SellPolicy.pm` | Optional, gated by `market_counter_offers` config (default off). Customer counters at midpoint price; player may accept or reject. |
 | **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default off). Multiple sales per visit with budget pressure and irritation carryover. |
 | **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (1.30× after idle); configured via defaultConfig and per-faction YAML |
@@ -2178,29 +2205,9 @@ The new codebase (`lib/`) is a ground-up rebuild.
 
 ---
 
-## 21. Open Design Questions (Implementation-Facing)
-
-These questions remain unresolved and should be answered during implementation:
-
-1. **Skill mechanical effects**: What does each level of Prospecting,
-   Upcycling, and Selling actually do numerically? (See 6.6)
-2. **Negotiation math**: Exact formulas for match bonus, irritation gain,
-   settle probability, and offer values. (See 6.5)
-3. **Customer generation**: How are customers selected from the faction pool?
-   Weighted? Random? Standing-influenced?
-4. **Action point count**: Is 15 the right default? Should `action_points_max`
-   be configurable per season?
-5. **Score display**: Should the game state show running score, or only the
-   leaderboard? Score is visible until season end.
-6. **Character-owned history name**: transcript, chronicle, ledger, or
-   something else?
-
----
-
-## 22. UI Design References
+## 21. UI Design References
 
 | Document | Purpose |
 |----------|---------|
 | `docs/design_bible.md` | Visual design language: palette, typography, ProspectBoy 3000 device fiction, faction iconography, panel language |
 | `docs/nav_state_rules.md` | Nav state model: views, tab active/inactive rules, secondary panel mapping, context bar text |
-| `docs/ui_redesign_plan.md` | Phased implementation plan for the device-frame layout, nav controller, and declarative JS |
