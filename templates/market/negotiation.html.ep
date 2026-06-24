@@ -25,13 +25,15 @@
     <p style="font-style:italic;color:var(--mm-text-dim);margin:0.5rem 0"><%= $msg %></p>
 % }
 % if ($pending_counter) {
+%   my @top = grep { $_->{id} eq 'btn-accept-counter' } @$actions;
     <div style="border:1px solid var(--mm-amber);padding:0.4rem;margin:0.5rem 0">
       <p style="margin:0 0 0.3rem 0"><strong>Counter-offer:</strong> <%= $pending_counter->{value} %> scrap</p>
-      <button class="mm-btn mm-btn-primary" id="btn-accept-counter">Accept Counter-Offer</button>
+%= include 'components/action_buttons', actions => \@top
       <p style="margin:0.3rem 0 0 0;font-size:0.7rem;color:var(--mm-text-dim)">(or offer a different artifact to reject)</p>
     </div>
 % }
     <p style="margin-top:0.5rem">Select an artifact from the ledger to offer:</p>
-    <button class="mm-btn" id="btn-send-away" style="margin-top:0.5rem">Send Away</button>
+% my @bottom = grep { $_->{id} eq 'btn-send-away' } @$actions;
+%= include 'components/action_buttons', actions => \@bottom
   </div>
 </div>

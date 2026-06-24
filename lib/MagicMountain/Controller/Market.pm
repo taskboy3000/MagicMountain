@@ -22,6 +22,11 @@ sub show ($self) {
         else                     { $pressure_state = 'mood_over_absolute' }
     }
 
+    my @actions = ({ url => '/market/send_away', method => 'POST', label => 'Send Away', id => 'btn-send-away' });
+    if ($c->{pending_counter}) {
+        push @actions, { url => '/market/accept_counter', method => 'POST', label => 'Accept Counter-Offer', id => 'btn-accept-counter', class => 'mm-btn-primary' };
+    }
+
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(
@@ -33,6 +38,7 @@ sub show ($self) {
             pending_counter       => $c->{pending_counter},
             message               => $c->{last_message},
             last_sale             => $c->{last_sale},
+            actions               => \@actions,
         );
         return $self->render('market/negotiation', layout => undef);
     }
@@ -51,6 +57,7 @@ sub show ($self) {
             irritation     => $c->{irritation} // 0,
             pressure_state => $pressure_state,
         },
+        _self => { actions => \@actions },
     });
 }
 

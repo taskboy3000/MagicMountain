@@ -1,4 +1,3 @@
-let G = {};
 let CSRF_TOKEN = '';
 
 async function api(path, { body, method } = {}) {
@@ -12,10 +11,29 @@ async function api(path, { body, method } = {}) {
   return data;
 }
 
+// ── Generic action handler ──────────────────────────────────────
+async function handleAction(btn) {
+  const actionUrl = btn.dataset.actionUrl;
+  if (!actionUrl) return;
+  if (btn.dataset.confirm && !confirm(btn.dataset.confirm)) return;
+  const method = btn.dataset.method || 'POST';
+  const body = {};
+  for (const key of Object.keys(btn.dataset)) {
+    if (key === 'actionUrl' || key === 'method' || key === 'confirm' || key === 'redirect') continue;
+    body[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = btn.dataset[key];
+  }
+  const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
+  if (!data.ok) return;
+  if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
+  const g = await api('/game');
+  populateStatusStrip(g);
+  await applyNav();
+}
+
 // ── Boot ────────────────────────────────────────────────────────
 async function loadGame() {
-  G = await api('/game');
-  populateStatusStrip(G);
+  const g = await api('/game');
+  populateStatusStrip(g);
   await applyNav();
 }
 
@@ -31,15 +49,12 @@ function populateStatusStrip(g) {
   document.getElementById('context-bar').textContent = '';
 }
 
-let CURRENT_VIEW = 'idle';
-
 // ── Nav ──────────────────────────────────────────────────────────
 async function applyNav(requestedView) {
   const headers = { Accept: 'application/json' };
   if (requestedView) headers['X-Nav-View'] = requestedView;
   const resp = await fetch('/nav', { headers });
   const nav = await resp.json();
-  CURRENT_VIEW = nav.current_view;
   renderNavBar(nav.tabs);
   document.getElementById('context-bar').textContent = nav.context || '';
   await Promise.all([
@@ -50,9 +65,10 @@ async function applyNav(requestedView) {
 
 function renderNavBar(tabs) {
   const bar = document.getElementById('nav-bar');
-  bar.innerHTML = tabs.map(t =>
-    `<button class="nav-btn${t.active ? ' active' : ' inactive'}" data-view="${t.id}"${t.reason ? ` title="${t.reason}"` : ''}>${t.label}</button>`
-  ).join('');
+  bar.innerHTML = tabs.map(t => {
+    const extras = t.action_url ? ` data-action-url="${t.action_url}" data-method="POST"` : '';
+    return `<button class="nav-btn${t.active ? ' active' : ' inactive'}" data-view="${t.id}"${t.reason ? ` title="${t.reason}"` : ''}${extras}>${t.label}</button>`;
+  }).join('');
 }
 
 async function fetchThenRender(url, targetId) {
@@ -63,102 +79,22 @@ async function fetchThenRender(url, targetId) {
   document.getElementById(targetId).innerHTML = html;
 }
 
-// ── Action handlers ──────────────────────────────────────────────
-async function beginProspecting() {
-  const data = await api('/prospecting/begin', { method: 'POST' });
-  if (!data.ok) return;
-  await applyNav();
-}
-
-async function pushArtifact() {
-  const data = await api('/prospecting/push', { method: 'POST' });
-  if (!data.ok) return;
-  if (data.result === 'collapse' || data.result === 'breakthrough') {
-    G = await api('/game');
-    populateStatusStrip(G);
-  }
-  await applyNav();
-}
-
-async function stopProspecting() {
-  const data = await api('/prospecting/stop', { method: 'POST' });
-  if (data.ok) {
-    G = await api('/game');
-    populateStatusStrip(G);
-    await applyNav();
-  }
-}
-
-async function beginMarket() {
-  const data = await api('/market/begin', { method: 'POST' });
-  if (!data.ok) return;
-  await applyNav();
-}
-
-async function offerItem(shedItemId) {
-  const data = await api('/market/offer', { body: { shed_item_id: shedItemId }, method: 'POST' });
-  if (!data.ok) return;
-  if (data.result === 'sold' || data.result === 'customer_left' || data.result === 'sent_away') {
-    G = await api('/game');
-    populateStatusStrip(G);
-  }
-  await applyNav();
-}
-
-async function sendAway() {
-  const data = await api('/market/send_away', { method: 'POST' });
-  if (!data.ok) return;
-  G = await api('/game');
-  populateStatusStrip(G);
-  await applyNav();
-}
-
-async function acceptCounter() {
-  const data = await api('/market/accept_counter', { method: 'POST' });
-  if (!data.ok) return;
-  if (data.result === 'sold') {
-    G = await api('/game');
-    populateStatusStrip(G);
-  }
-  await applyNav();
-}
-
-async function purchaseSkill(skillId) {
-  const data = await api('/skills/purchase', { body: { skill_id: skillId }, method: 'POST' });
-  if (!data.ok) return;
-  G = await api('/game');
-  populateStatusStrip(G);
-  await applyNav();
-}
-
 // ── Event delegation ─────────────────────────────────────────────
-document.getElementById('nav-bar').addEventListener('click', (e) => {
+document.getElementById('nav-bar').addEventListener('click', async (e) => {
   const btn = e.target.closest('.nav-btn');
   if (!btn || btn.classList.contains('inactive')) return;
-  const view = btn.dataset.view;
-  if (view === 'prospect' && CURRENT_VIEW === 'idle') { beginProspecting(); return; }
-  if (view === 'bazaar' && CURRENT_VIEW === 'idle') { beginMarket(); return; }
-  applyNav(view);
+  if (btn.dataset.actionUrl) { await handleAction(btn); return; }
+  applyNav(btn.dataset.view);
 });
 
 document.getElementById('panel-secondary').addEventListener('click', (e) => {
-  const btn = e.target.closest('.offer-btn');
-  if (btn) offerItem(btn.dataset.id);
+  const btn = e.target.closest('[data-action-url]');
+  if (btn) handleAction(btn);
 });
 
 document.getElementById('panel-primary').addEventListener('click', (e) => {
-  const id = e.target.id;
-  if (id === 'btn-push') pushArtifact();
-  else if (id === 'btn-stop') stopProspecting();
-  else if (id === 'btn-send-away') sendAway();
-  else if (id === 'btn-accept-counter') acceptCounter();
-  if (id === 'delete-account-btn') {
-    if (!confirm('Delete your account permanently? This cannot be undone.')) return;
-    api('/player', { method: 'DELETE' }).then(d => { if (d.ok) window.location.href = '/login'; });
-    return;
-  }
-  const btn = e.target.closest('.buy-skill-btn');
-  if (btn) purchaseSkill(btn.dataset.skill);
+  const btn = e.target.closest('[data-action-url]');
+  if (btn) handleAction(btn);
 });
 
 loadGame();

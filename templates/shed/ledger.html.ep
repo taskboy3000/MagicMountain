@@ -20,7 +20,10 @@
           <td><%= $item->getCol('estimated_value_min') // '?' %>-<%= $item->getCol('estimated_value_max') // '?' %></td>
           <td><%= $item->getCol('days_in_shed') // 0 %></td>
 % if ($has_market) {
-          <td><button class="mm-btn offer-btn" data-id="<%= $item->getCol('id') %>">Offer</button></td>
+          <td>
+% my $offer = { url => '/market/offer', method => 'POST', label => 'Offer', class => 'offer-btn', data => { id => $item->getCol('id') } };
+%=           include 'components/action_buttons', actions => [$offer]
+          </td>
 % }
         </tr>
 % }

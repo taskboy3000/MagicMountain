@@ -1,0 +1,306 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+use Mojo::UserAgent;
+use Mojo::DOM;
+use Mojo::JSON qw(encode_json decode_json);
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+use File::Spec;
+use File::Temp qw(tempdir);
+
+my $PORT  = $ENV{MM_TEST_PORT} // 9900;
+my $BASE  = "http://127.0.0.1:$PORT";
+my $ROOT  = abs_path(File::Spec->catfile(dirname(__FILE__), '..'));
+
+my $ua = Mojo::UserAgent->new;
+my %COOKIE;
+my $CSRF;
+
+my $PASS = 0;
+my $FAIL = 0;
+
+sub assert($$) {
+    my ($ok, $label) = @_;
+    if ($ok) { $PASS++ }
+    else     { $FAIL++; warn "  FAIL [$label]\n" }
+}
+
+sub dump_fail {
+    my ($tx, $label) = @_;
+    my $code = $tx->res->code // '???';
+    my $body = $tx->res->body // '';
+    $body = substr($body, 0, 500) . "..." if length $body > 500;
+    warn "  FAIL [$label] HTTP $code\n  Body: $body\n";
+    $FAIL++;
+}
+
+sub do_req {
+    my ($method, $path, $body) = @_;
+    my $url = "$BASE$path";
+    my $tx = $ua->build_tx($method => $url);
+
+    if ($method =~ /^(POST|PUT|DELETE|PATCH)$/ && $CSRF) {
+        $tx->req->headers->header('X-CSRF-Token' => $CSRF);
+    }
+    if (defined $body) {
+        $tx->req->headers->content_type('application/json');
+        $tx->req->body(encode_json($body));
+    }
+    if (my @ck = map { "$_=$COOKIE{$_}" } keys %COOKIE) {
+        $tx->req->headers->header(Cookie => join('; ', @ck));
+    }
+
+    $tx = $ua->start($tx);
+
+    my $sc = $tx->res->headers->set_cookie;
+    if ($sc) {
+        for my $c (ref $sc eq 'ARRAY' ? @$sc : ($sc)) {
+            if ($c =~ /^([^=]+)=([^;]+)/) { $COOKIE{$1} = $2 }
+        }
+    }
+    return $tx;
+}
+
+sub req_ok {
+    my ($method, $path, $body, $label) = @_;
+    my $tx = do_req($method, $path, $body);
+    my $code = $tx->res->code // 0;
+    assert($code == 200, $label);
+    return $tx;
+}
+
+sub req_accept {
+    my ($method, $path, $body, $label) = @_;
+    my $tx = do_req($method, $path, $body);
+    my $code = $tx->res->code // 0;
+    assert($code == 200 || $code == 204 || $code == 302, $label);
+    return $tx;
+}
+
+sub extract_csrf {
+    my ($tx) = @_;
+    my $json = eval { decode_json($tx->res->body) };
+    if ($json && $json->{csrf_token}) {
+        $CSRF = $json->{csrf_token};
+    }
+}
+
+# ── Server start ──────────────────────────────────────────────────
+my $tmpdir = tempdir(CLEANUP => 1);
+my $data_dir = "$tmpdir/data";
+my $cfg_file = "$tmpdir/config.yml";
+mkdir $data_dir;
+
+open my $cfh, '>', $cfg_file or die $!;
+print $cfh <<'YAML';
+secrets:
+  - walkthrough-secret
+market_counter_offers: 1
+market_multi_item: 1
+session_timeout_minutes: 1440
+YAML
+close $cfh;
+
+my $pid = fork;
+die "fork: $!" unless defined $pid;
+
+if ($pid == 0) {
+    $ENV{MM_DATA_DIR}  = $data_dir;
+    $ENV{MM_CFG_FILE}  = $cfg_file;
+    $ENV{MOJO_MODE}    = 'test';
+    $ENV{MM_RAND_SEED} = '42';
+    exec "perl", "-I$ROOT/lib", "$ROOT/script/mountain", "daemon",
+        "--listen", "http://127.0.0.1:$PORT";
+    die "exec failed: $!";
+}
+
+END { kill 15, $pid if $pid; waitpid $pid, 0 if $pid }
+
+# Wait for server
+print STDERR "Waiting for server...";
+my $ready;
+for (1..30) {
+    my $tx = eval { $ua->get("$BASE/health") };
+    if ($tx && $tx->res && defined($tx->res->code) && $tx->res->code == 200) { $ready = 1; print STDERR " ready\n"; last }
+    print STDERR ".";
+    sleep 1;
+}
+print STDERR "\n";
+die "Server did not start within 30 seconds" unless $ready;
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 1: Login
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Login ===\n";
+my $tx = req_ok(POST => '/sessions', { displayName => 'walkthrough_user' }, 'POST /sessions');
+extract_csrf($tx);
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 2: Game page
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Game page ===\n";
+$tx = req_ok(GET => '/game', undef, 'GET /game');
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 3: Nav discovery — walk the available views
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Nav discovery ===\n";
+
+sub click_tab {
+    my ($tab_id) = @_;
+    # Fetch fresh nav to get action_url from backend
+    my $tx = do_req(GET => '/nav');
+    assert($tx->res->code == 200, "nav before tab:$tab_id");
+    my $nav = eval { decode_json($tx->res->body) };
+    return unless $nav;
+    my ($tab) = grep { $_->{id} eq $tab_id } @{ $nav->{tabs} // [] };
+    return unless $tab;
+    if ($tab->{action_url}) {
+        $tx = req_ok(POST => $tab->{action_url}, undef, "POST $tab->{action_url} (tab:$tab_id)");
+        extract_csrf($tx);
+        return;
+    }
+    # Navigate via /nav with X-Nav-View header
+    $tx = $ua->build_tx(GET => "$BASE/nav");
+    $tx->req->headers->header('X-Nav-View' => $tab_id);
+    if (my @ck = map { "$_=$COOKIE{$_}" } keys %COOKIE) {
+        $tx->req->headers->header(Cookie => join('; ', @ck));
+    }
+    $tx = $ua->start($tx);
+    assert($tx->res->code == 200, "nav tab:$tab_id");
+    my $sc = $tx->res->headers->set_cookie;
+    if ($sc) {
+        for my $c (ref $sc eq 'ARRAY' ? @$sc : ($sc)) {
+            if ($c =~ /^([^=]+)=([^;]+)/) { $COOKIE{$1} = $2 }
+        }
+    }
+}
+
+sub fetch_nav {
+    my $tx = do_req(GET => '/nav');
+    return undef unless $tx->res->code == 200;
+    my $nav = eval { decode_json($tx->res->body) };
+    return $nav;
+}
+
+# Fetch initial nav to see idle tabs
+my $nav = fetch_nav();
+assert(defined $nav && $nav->{current_view} eq 'idle', 'nav current_view idle');
+assert(defined $nav && ref $nav->{tabs} eq 'ARRAY', 'nav has tabs');
+
+# Fetch all fragment endpoints (accept 200 or 204)
+print STDERR "--- Fragment endpoints ---\n";
+my @fragments = qw(/player?_format=fragment /crier?_format=fragment /idle?_format=fragment
+    /prospecting?_format=fragment /market?_format=fragment /shed?_format=fragment
+    /skills?_format=fragment /factions?_format=fragment /leaderboard?_format=fragment
+    /leaderboard/factions);
+for my $ep (@fragments) {
+    req_accept(GET => $ep, undef, "GET $ep");
+}
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 4: Prospecting
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Prospecting ===\n";
+
+click_tab('prospect');
+
+# Should see prospecting fragment with action buttons
+my $frag = do_req(GET => '/prospecting?_format=fragment');
+assert($frag->res->code == 200, 'GET /prospecting?_format=fragment (active)');
+my $dom = Mojo::DOM->new($frag->res->body);
+
+# Find action buttons (Push, Stop)
+my @actions = map { +{ url => $_->attr('data-action-url'), method => $_->attr('data-method') } }
+    $dom->find('button[data-action-url]')->each;
+assert(scalar @actions >= 2, 'prospecting fragment has action buttons');
+
+# Push twice
+for my $i (1..2) {
+    $tx = req_ok(POST => '/prospecting/push', undef, "POST /prospecting/push ($i)");
+    extract_csrf($tx);
+}
+
+# Stop
+$tx = req_ok(POST => '/prospecting/stop', undef, 'POST /prospecting/stop');
+extract_csrf($tx);
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 5: Shed (should have item now)
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Shed ===\n";
+my $shed = do_req(GET => '/shed?_format=fragment');
+assert($shed->res->code == 200, 'GET /shed?_format=fragment (after prospecting)');
+
+$dom = Mojo::DOM->new($shed->res->body);
+my @offer_btns = $dom->find('button[data-action-url="/market/offer"]')->each;
+my $shed_item_id;
+if (@offer_btns) {
+    $shed_item_id = $offer_btns[0]->attr('data-id');
+    print STDERR "  Shed item: $shed_item_id\n";
+} else {
+    print STDERR "  No shed items found (may have collapsed)\n";
+}
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 6: Market Visit
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Market Visit ===\n";
+
+click_tab('bazaar');
+
+# Market fragment
+my $market = do_req(GET => '/market?_format=fragment');
+assert($market->res->code == 200, 'GET /market?_format=fragment (active)');
+
+# Offer item if available
+if ($shed_item_id) {
+    $tx = req_ok(POST => '/market/offer', { shed_item_id => $shed_item_id }, 'POST /market/offer');
+    extract_csrf($tx);
+}
+
+# Send away
+$tx = req_ok(POST => '/market/send_away', undef, 'POST /market/send_away');
+extract_csrf($tx);
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 7: Skills
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Skills ===\n";
+
+my $skills = do_req(GET => '/skills?_format=fragment');
+assert($skills->res->code == 200, 'GET /skills?_format=fragment');
+
+$dom = Mojo::DOM->new($skills->res->body);
+my @skill_btns = $dom->find('button[data-action-url="/skills/purchase"]:not([disabled])')->each;
+if (@skill_btns) {
+    my $skill_id = $skill_btns[0]->attr('data-skill');
+    my $tx = req_ok(POST => '/skills/purchase', { skill_id => $skill_id }, "POST /skills/purchase ($skill_id)");
+    extract_csrf($tx);
+} else {
+    print STDERR "  No purchasable skills (insufficient scrap)\n";
+    $PASS++;
+}
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 8: Nav check
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Nav final check ===\n";
+$nav = fetch_nav();
+assert(defined $nav && ref $nav->{tabs} eq 'ARRAY', 'nav returns tabs after all actions');
+
+# ══════════════════════════════════════════════════════════════════
+# SCENE 9: Logout
+# ══════════════════════════════════════════════════════════════════
+print STDERR "=== SCENE: Logout ===\n";
+req_ok(DELETE => '/sessions', undef, 'DELETE /sessions');
+req_ok(GET => '/game', undef, 'GET /game (after logout, unauthenticated)');
+
+# ══════════════════════════════════════════════════════════════════
+# Report
+# ══════════════════════════════════════════════════════════════════
+print STDERR "---\n";
+print STDERR "RESULTS: $PASS passed, $FAIL failed\n";
+exit $FAIL ? 1 : 0;

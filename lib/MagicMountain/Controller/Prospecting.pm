@@ -11,6 +11,11 @@ sub show ($self) {
 
     my $a = $activity->artifact;
 
+    my @actions = (
+        { url => '/prospecting/push', method => 'POST', label => 'Push', id => 'btn-push', class => 'mm-btn-primary' },
+        { url => '/prospecting/stop', method => 'POST', label => 'Stop', id => 'btn-stop' },
+    );
+
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(
@@ -21,6 +26,7 @@ sub show ($self) {
             intro          => $a->{intro},
             instability    => $a->{instability},
             max_instability => $a->{max_instability},
+            actions        => \@actions,
         );
         return $self->render('prospecting/scan', layout => undef);
     }
@@ -34,6 +40,7 @@ sub show ($self) {
             signal => $a->{signal},
             intro  => $a->{intro},
         },
+        _self => { actions => \@actions },
     });
 }
 

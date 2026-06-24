@@ -10,13 +10,25 @@ sub index ($self) {
         $s->{current_level} = $char->getCol('skill_' . $s->{id}) // 0;
     }
 
+    my $scrap = $char->getCol('scrap') // 0;
+    my @all_actions;
+    for my $s (@$skills) {
+        my $cur = $s->{current_level} // 0;
+        my $max = $s->{max_level} // 3;
+        my $at_max = $cur >= $max;
+        my $next_cost = $at_max ? undef : ($s->{levels}[$cur]{cost} // undef);
+        if (!$at_max && defined $next_cost) {
+            push @all_actions, { url => '/skills/purchase', method => 'POST', label => "Upgrade ($next_cost)", data => { skill => $s->{id} }, disabled => ($scrap < $next_cost) };
+        }
+    }
+
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        $self->stash(skills => $skills, scrap => $char->getCol('scrap') // 0);
+        $self->stash(skills => $skills, scrap => $scrap, actions => \@all_actions);
         return $self->render('skills/training', layout => undef);
     }
 
-    $self->render(json => { ok => 1, skills => $skills });
+    $self->render(json => { ok => 1, skills => $skills, _self => { actions => \@all_actions } });
 }
 
 sub purchase ($self) {

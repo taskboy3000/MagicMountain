@@ -152,14 +152,20 @@ sub _build_tabs ($type, $ap, $shed_count) {
     for my $id (@tab_ids) {
         my $entry = { %{ $base->{$id} } };
         if ($id eq 'bazaar' && $entry->{active}) {
-            $entry->{active} = 0, $entry->{reason} = 'No AP remaining'
-                if $ap < 1;
-            $entry->{active} = 0, $entry->{reason} = 'No artifacts in shed'
-                if $ap >= 1 && $shed_count < 1;
+            if ($ap < 1) {
+                $entry->{active} = 0; $entry->{reason} = 'No AP remaining';
+            } elsif ($shed_count < 1) {
+                $entry->{active} = 0; $entry->{reason} = 'No artifacts in shed';
+            } elsif (!$type) {
+                $entry->{action_url} = '/market/begin';
+            }
         }
         if ($id eq 'prospect' && $entry->{active} && !$type) {
-            $entry->{active} = 0, $entry->{reason} = 'Not enough AP (2 required)'
-                if $ap < 2;
+            if ($ap < 2) {
+                $entry->{active} = 0; $entry->{reason} = 'Not enough AP (2 required)';
+            } else {
+                $entry->{action_url} = '/prospecting/begin';
+            }
         }
         my $label = $TAB_LABEL{$id};
         $label .= " ($shed_count)" if $id eq 'shed' && defined $shed_count;
@@ -169,6 +175,7 @@ sub _build_tabs ($type, $ap, $shed_count) {
             active        => $entry->{active},
             reason        => $entry->{reason},
             fragment_url  => $TAB_FRAGMENT_URL{$id},
+            ($entry->{action_url} ? (action_url => $entry->{action_url}) : ()),
         };
     }
     return \@tabs;

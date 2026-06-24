@@ -25,6 +25,7 @@ sub show ($self) {
         can_prospect => $ap >= 2,
         can_market  => $ap >= 1 && $shed_count > 0,
         shed_count  => $shed_count,
+        _self       => { actions => [] },
     });
 }
 

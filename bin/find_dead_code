@@ -1,0 +1,249 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+use JSON;
+use File::Find;
+use File::Slurp qw(read_file);
+use Cwd qw(abs_path);
+
+my $ROOT = shift // '.';
+$ROOT = abs_path($ROOT) // '.';
+
+my %report = (
+    commented_out_routes => [],
+    orphaned_templates   => [],
+    unused_js_functions  => [],
+    maybe_unused_subs    => [],
+);
+
+sub file_lines { [ split "\n", read_file($_[0]) ] }
+
+# ═══════════════════════════════════════════════════════════════════
+# 1. Commented-out routes
+# ═══════════════════════════════════════════════════════════════════
+{
+    my $f = "$ROOT/lib/MagicMountain.pm";
+    if (-f $f) {
+        my @lines = @{ file_lines($f) };
+        for (my $i = 0; $i < @lines; $i++) {
+            if ($lines[$i] =~ /^\s*#\s*(\$(?:r|auth|auth_write|no_maintenance|rate_limited)->)/) {
+                my $prev = $i > 0 ? $lines[$i-1] : '';
+                next if $prev =~ /DEAD-SUPPRESS/ || $lines[$i] =~ /DEAD-SUPPRESS/;
+                push @{ $report{commented_out_routes} }, {
+                    file    => 'lib/MagicMountain.pm',
+                    line    => $i + 1,
+                    content => $lines[$i],
+                };
+            }
+        }
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 2. Orphaned templates
+# ═══════════════════════════════════════════════════════════════════
+{
+    my %templates;
+    find(sub {
+        return unless /\.html\.ep$/;
+        (my $path = $File::Find::name) =~ s{^$ROOT/templates/}{};
+        $templates{$path} = 1;
+    }, "$ROOT/templates");
+
+    # Layout is set via app config, not explicitly rendered — skip it
+    delete $templates{'layouts/default.html.ep'};
+
+    # Collect all render() calls from lib/
+    my %referenced;
+    find(sub {
+        return unless /\.pm$/;
+        my $content = read_file($File::Find::name);
+        while ($content =~ /\brender\s*\(\s*['"]([^'"]+?)['"]/g) {
+            my $ref = $1;
+            $ref =~ s/\.html\.ep$//;
+            $referenced{$ref} = 1;
+        }
+    }, "$ROOT/lib");
+
+    for my $tpl (sort keys %templates) {
+        my $stem = $tpl;
+        $stem =~ s/\.html\.ep$//;
+        next if $referenced{$stem} || $referenced{$tpl};
+        push @{ $report{orphaned_templates} }, "templates/$tpl";
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 3. Unused JS functions
+# ═══════════════════════════════════════════════════════════════════
+{
+    my @js_files;
+    find(sub { push @js_files, $File::Find::name if /\.js$/ }, "$ROOT/public");
+
+    # Collect all non-param JS variable/function definitions
+    my %defs;
+    for my $jsf (@js_files) {
+        my @lines = @{ file_lines($jsf) };
+        for (my $i = 0; $i < @lines; $i++) {
+            next if $lines[$i] =~ /^\s*\/\//;  # skip comments
+            if ($lines[$i] =~ /(?:async\s+)?function\s+(\w+)/) {
+                $defs{$1} //= { file => $jsf, line => $i + 1 };
+            }
+        }
+    }
+
+    # Skip common names that are used by event delegation (click handlers use string IDs)
+    my %skip = map { $_ => 1 } qw(G CSRF_TOKEN);
+
+    for my $name (sort keys %defs) {
+        next if $skip{$name};
+
+        my $def_file = $defs{$name}{file};
+        my $def_line = $defs{$name}{line};
+        my $def_content = read_file($def_file);
+        my $found = 0;
+
+        # Check within defining file (exclude the definition line)
+        my @def_lines = split "\n", $def_content;
+        for (my $i = 0; $i < @def_lines; $i++) {
+            next if $i + 1 == $def_line;
+            if ($def_lines[$i] =~ /\b\Q$name\E(?:\s*\(|\s*[,;)}\])])/) {
+                $found = 1;
+                last;
+            }
+        }
+
+        # Check other JS files
+        unless ($found) {
+            for my $jsf (@js_files) {
+                next if $jsf eq $def_file;
+                my $content = read_file($jsf);
+                if ($content =~ /\b\Q$name\E\b/) { $found = 1; last }
+            }
+        }
+        # Check templates
+        unless ($found) {
+            find(sub {
+                return unless /\.html\.ep$/;
+                my $content = read_file($File::Find::name);
+                if ($content =~ /\b\Q$name\E\b/) { $found = 1 }
+            }, "$ROOT/templates");
+        }
+        unless ($found) {
+            push @{ $report{unused_js_functions} }, {
+                file => $def_file,
+                line => $def_line,
+                name => $name,
+            };
+        }
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 4. Maybe-unused Perl subs
+# ═══════════════════════════════════════════════════════════════════
+{
+    my @perl_files;
+    find(sub { push @perl_files, $File::Find::name if /\.pm$/ }, "$ROOT/lib");
+    push @perl_files, "$ROOT/lib/MagicMountain.pm";
+
+    # Collect sub definitions
+    my %defs;
+    for my $pf (@perl_files) {
+        my @lines = @{ file_lines($pf) };
+        for (my $i = 0; $i < @lines; $i++) {
+            next if $lines[$i] =~ /^\s*#/;
+            next if $lines[$i] =~ /^\s*has\s+/;
+            if ($lines[$i] =~ /^sub\s+(\w+)/) {
+                my $name = $1;
+                $defs{$name} //= [];
+                push @{ $defs{$name} }, { file => $pf, line => $i + 1, def => $lines[$i] };
+            }
+        }
+    }
+
+    # Structural subs invoked by the framework (never called explicitly in code)
+    my %entry_point = map { $_ => 1 } qw(
+        startup register buildRoutes defaultConfig
+        new has DESTROY
+    );
+
+    # Collect routed action names (e.g. login_form, logout, purchase, etc.)
+    my %routed_action_names;
+    {
+        my $f = "$ROOT/lib/MagicMountain.pm";
+        if (-f $f) {
+            my $content = read_file($f);
+            while ($content =~ /to\s*\(\s*['"][^'"]+?#([^'"]+?)['"]\s*\)/g) {
+                $routed_action_names{$1} = 1;
+            }
+        }
+    }
+
+    for my $name (sort keys %defs) {
+        next if $entry_point{$name};
+        # Controller actions are always routed — skip them
+        next if $routed_action_names{$name};
+
+        # For each definition, check if the sub name is called anywhere
+        my @remaining;
+        for my $d (@{ $defs{$name} }) {
+            my $def_file = $d->{file};
+            my $def_content = read_file($def_file);
+            my $found = 0;
+
+            # Count call sites within the defining file (exclude the definition line itself)
+            my $in_file = 0;
+            my @def_lines = split "\n", $def_content;
+            for (my $i = 0; $i < @def_lines; $i++) {
+                next if $i + 1 == $d->{line};  # skip definition line
+                if ($def_lines[$i] =~ /\Q$name\E\s*\(/ || $def_lines[$i] =~ /->\Q$name\E\b/) {
+                    $in_file++;
+                }
+            }
+            $found = 1 if $in_file > 0;
+
+            # Search in all other Perl files
+            unless ($found) {
+                for my $pf (@perl_files) {
+                    next if $pf eq $def_file;
+                    my $content = read_file($pf);
+                    if ($content =~ /\Q$name\E\s*\(/ || $content =~ /->\Q$name\E\b/) {
+                        $found = 1;
+                        last;
+                    }
+                }
+            }
+
+            # Also search scripts and test files
+            unless ($found) {
+                my @extra;
+                find(sub { push @extra, $File::Find::name if /\.(?:pl|t)\z/ }, "$ROOT/script", "$ROOT/t");
+                for my $ef (@extra) {
+                    my $content = read_file($ef);
+                    if ($content =~ /\Q$name\E\s*\(/ || $content =~ /->\Q$name\E\b/) {
+                        $found = 1;
+                        last;
+                    }
+                }
+            }
+
+            push @remaining, $d unless $found;
+        }
+
+        for my $d (@remaining) {
+            push @{ $report{maybe_unused_subs} }, {
+                file => $d->{file},
+                line => $d->{line},
+                name => $name,
+            };
+        }
+    }
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# Output
+# ═══════════════════════════════════════════════════════════════════
+print JSON->new->pretty->canonical->encode(\%report) . "\n";
+exit 0;

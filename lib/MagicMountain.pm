@@ -246,6 +246,17 @@ sub startup ($self) {
     );
 
     push @{ $self->commands->namespaces }, 'MagicMountain::Command';
+    # Seed RNG for deterministic walkthrough runs
+    srand($ENV{MM_RAND_SEED}) if defined $ENV{MM_RAND_SEED};
+
+    # Test mode: force feature flags on, disable rate limiting
+    if ($self->mode eq 'test') {
+        $self->config->{market_counter_offers} = 1;
+        $self->config->{market_multi_item}     = 1;
+        $self->config->{rate_limit_max_attempts}          = 999999;
+        $self->config->{rate_limit_max_attempts_per_name} = 999999;
+    }
+
     $self->app->log->debug("Secrets: " . join(", ", @{ $self->config->{secrets} }));
     $self->secrets([ $self->config->{secrets} ] );
     $self->sessions->cookie_name('mm_session');
@@ -305,20 +316,25 @@ sub startup ($self) {
         return $player_id;
     });
 
-    Mojo::IOLoop->recurring(60 => sub {
-        $self->maintenance->dailyMaintenance;
-    });
+    unless ($self->mode eq 'test') {
+        Mojo::IOLoop->recurring(60 => sub {
+            $self->maintenance->dailyMaintenance;
+        });
 
-    my $cleanup_interval = $self->config->{rate_limit_cleanup_interval};
-    Mojo::IOLoop->recurring($cleanup_interval => sub {
-        $self->rate_limiter->cleanup;
-    }) if $cleanup_interval;
+        my $cleanup_interval = $self->config->{rate_limit_cleanup_interval};
+        Mojo::IOLoop->recurring($cleanup_interval => sub {
+            $self->rate_limiter->cleanup;
+        }) if $cleanup_interval;
+    }
 
     $self->buildRoutes;
 }
 
 sub buildRoutes ($self) {
     my $r = $self->routes;
+
+    # Readiness probe (no auth, no maintenance block, no DB)
+    $r->get('/health')->to(cb => sub ($c) { $c->render(json => { ok => 1 }) })->name('health');
 
     # Public read-only routes (accessible during maintenance)
     $r->get('/')->to('root#index')->name('root');
@@ -387,6 +403,7 @@ sub buildRoutes ($self) {
 
     # Resource endpoints (fragment/JSON via show action)
     $auth->get('/player')->to('player#show')->name('player');
+    # DEAD-SUPPRESS: future season history UI
     # $auth->get('/season')->to('season#show');
     $auth->get('/crier')->to('crier#show');
     $auth->get('/idle')->to('idle#show');
@@ -410,6 +427,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/offer')->to('market#offer');
     $auth_write->post('/market/send_away')->to('market#send_away');
     $auth_write->post('/market/accept_counter')->to('market#accept_counter');
+    # DEAD-SUPPRESS: future season history UI
     # $auth_write->post('/season/end')->to('season#end');
 }
 

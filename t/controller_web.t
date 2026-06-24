@@ -115,4 +115,54 @@ subtest 'skills index returns JSON without _format' => sub {
       ->json_has('/skills');
 };
 
+subtest 'prospecting show includes _self.actions' => sub {
+    my $t = setup_with_char;
+    my $csrf = _csrf($t);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+    $t->get_ok('/prospecting')
+      ->status_is(200)
+      ->json_has('/_self')
+      ->json_has('/_self/actions')
+      ->json_has('/_self/actions/0/url')
+      ->json_has('/_self/actions/0/method')
+      ->json_has('/_self/actions/0/label');
+};
+
+subtest 'market show includes _self.actions' => sub {
+    my $t = setup_with_char;
+    my $csrf = _csrf($t);
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+    $t->get_ok('/market')
+      ->status_is(200)
+      ->json_has('/_self')
+      ->json_has('/_self/actions')
+      ->json_has('/_self/actions/0/url')
+      ->json_has('/_self/actions/0/method')
+      ->json_has('/_self/actions/0/label');
+};
+
+subtest 'idle show includes _self.actions' => sub {
+    my $t = setup_with_char;
+    $t->get_ok('/idle')
+      ->status_is(200)
+      ->json_has('/_self')
+      ->json_has('/_self/actions');
+};
+
+subtest 'account show includes _self.actions' => sub {
+    my $t = setup_with_char;
+    $t->get_ok('/account')
+      ->status_is(200)
+      ->json_has('/_self')
+      ->json_has('/_self/actions');
+};
+
+subtest 'nav tabs include action_url on prospect tab' => sub {
+    my $t = setup_with_char;
+    $t->get_ok('/nav')
+      ->status_is(200)
+      ->json_has('/tabs')
+      ->json_has('/tabs/0/action_url');
+};
+
 done_testing;

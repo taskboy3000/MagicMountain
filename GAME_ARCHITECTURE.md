@@ -1644,7 +1644,50 @@ changes, no manual registration.
 | POST | `/market/accept_counter` | `Market#accept_counter` | JSON | Accept customer's counter-offer |
 | POST | `/skills/purchase` | `Skills#purchase` | JSON | Buy skill upgrade (costs scrap) |
 
-### 13.2 Controller Action Contracts
+### 13.2 Self-Describing Actions Convention
+
+Every JSON response from a view-state endpoint (prospecting, market, shed,
+skills, idle, account) includes a `_self` block with an `actions` array. Each
+action entry describes one available interaction:
+
+```
+{ "_self": { "actions": [
+  { "url": "/prospecting/push", "method": "POST", "label": "Push",
+    "id": "btn-push", "class": "mm-btn-primary" },
+  ...
+]}}
+```
+
+Fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `url` | yes | POST endpoint URL |
+| `method` | yes | HTTP method (typically POST or DELETE) |
+| `label` | yes | Human-readable button text |
+| `id` | no | DOM element id |
+| `class` | no | CSS class string for styling |
+| `confirm` | no | If present, JS shows a confirm() dialog with this text before submitting |
+| `redirect` | no | If present, JS redirects here after success instead of re-fetching /game |
+| `disabled` | no | If true, button is rendered with a disabled attribute |
+| `data` | no | Hash of key-value pairs, each rendered as a `data-*` attribute on the button. Sent as JSON body parameters on click. |
+
+**Client contract**: JS never hardcodes an action URL. It reads `data-action-url`
+from rendered buttons (which come from the component). Any consumer (walkthrough,
+bot, third-party) can discover available actions from the JSON `_self.actions`
+block without parsing HTML.
+
+**Nav tab contract**: The `GET /nav` response includes an `action_url` field on
+tabs that auto-begin an activity (e.g., prospect tab → `/prospecting/begin`).
+When present, the client POSTs to that URL instead of simply switching views.
+This eliminates all hardcoded begin-activity endpoints from the client.
+
+**Template contract**: All action buttons are rendered via the shared component
+`templates/components/action_buttons.html.ep`. Fragment templates hardcode
+neither URLs nor button HTML — they pass an `actions` arrayref to the component
+and let it generate the markup.
+
+### 13.3 Controller Action Contracts
 
 **Prospecting#begin**: Requires `action_points >= 2` and no active activity
 (`pending_activity_id` null). Deducts 2 AP. Draws random artifact from Content
@@ -1711,7 +1754,7 @@ current skill levels.
 and current level < max_level. Deducts scrap. Increments skill level on
 character.
 
-### 13.3 Response Shape for Game State
+### 13.4 Response Shape for Game State
 
 ```json
 {

@@ -20,8 +20,7 @@
     <p style="font-style:italic;color:var(--mm-text-dim);margin-top:0.5rem"><%= $sig %></p>
 % }
     <div style="display:flex; gap:0.5rem; margin-top:0.5rem">
-      <button class="mm-btn mm-btn-primary" id="btn-push">Push</button>
-      <button class="mm-btn" id="btn-stop">Stop</button>
+%= include 'components/action_buttons', actions => $actions
     </div>
   </div>
 </div>

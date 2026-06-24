@@ -23,11 +23,6 @@ sub _factions ($self) {
     return $self->content_data->{factions} // [];
 }
 
-sub _random_faction ($self) {
-    my $factions = $self->_factions;
-    return $factions->[ int(rand(scalar @$factions)) ];
-}
-
 sub _weighted_faction ($self, $char) {
     my $factions = $self->_factions;
     my $standing = $char->getCol('standing') // {};

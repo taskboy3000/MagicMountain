@@ -22,16 +22,20 @@ sub index ($self) {
         return $self->render('shed/ledger', layout => undef);
     }
 
+    my $type = $self->_active_activity_type($char);
+    my $market_active = ($type && $type eq 'market') ? 1 : 0;
+
     $self->render(json => {
         ok    => 1,
-        shed  => [ map { _item_view($_) } @$filtered ],
+        shed  => [ map { _item_view($_, $market_active) } @$filtered ],
         total => scalar @$all,
         count => scalar @$filtered,
+        _self => { actions => [] },
     });
 }
 
-sub _item_view ($item) {
-    return {
+sub _item_view ($item, $market_active = 0) {
+    my $v = {
         id                  => $item->getCol('id'),
         artifact_id         => $item->getCol('artifact_id'),
         condition           => $item->getCol('condition'),
@@ -44,6 +48,11 @@ sub _item_view ($item) {
         stage               => $item->getCol('stage'),
         has_evolved         => $item->getCol('has_evolved') ? 1 : 0,
     };
+    if ($market_active) {
+        $v->{action_url} = '/market/offer';
+        $v->{method}     = 'POST';
+    }
+    return $v;
 }
 
 sub _apply_filters ($items, $c) {
