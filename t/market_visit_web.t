@@ -2,7 +2,6 @@ use Modern::Perl;
 use Test::More;
 use Test::Mojo;
 use File::Temp qw(tempdir);
-use File::Slurp qw(write_file);
 use FindBin;
 use lib ("$FindBin::Bin/../lib");
 
@@ -73,7 +72,6 @@ subtest 'full lifecycle: begin → offer → sale' => sub {
 
     $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200)->json_is('/ok' => 1);
 
-    # Get the shed_item_id from the character's shed
     my $char = $t->app->characters->find(sub { 1 })->[0];
     my $shed_items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
     my $shed_item_id = $shed_items->[0]->getCol('id');
@@ -90,6 +88,231 @@ subtest 'full lifecycle: begin → offer → sale' => sub {
         is($all->[0]->getCol('value_awarded'), $t->tx->res->json->{value},
             'disposition value matches sale value');
     }
+};
+
+subtest 'counter-offer generated on mismatch' => sub {
+    my $t = setup;
+    $t->app->config->{market_counter_offers} = 1;
+    my $csrf = _csrf($t);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $char_id = $char->getCol('id');
+
+    # Add item with 'defense' behavior — no faction desires it
+    my $shed = $t->app->shed;
+    $shed->create(
+        char_id => $char_id, artifact_id => 'defense_item',
+        original_value => 20, decayed_value => 20,
+        condition => 'fresh', days_in_shed => 0,
+        instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['defense'],
+        estimated_value_min => 16, estimated_value_max => 24,
+    )->save;
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });
+    my $shed_item_id = $items->[0]->getCol('id');
+
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf}, json => { shed_item_id => $shed_item_id })
+      ->status_is(200)
+      ->json_is('/result' => 'counter_offer')
+      ->json_has('/counter_value')
+      ->json_has('/irritation')
+      ->json_is('/irritation' => 0);
+};
+
+subtest 'accept_counter sells at counter price' => sub {
+    my $t = setup;
+    $t->app->config->{market_counter_offers} = 1;
+    my $csrf = _csrf($t);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $char_id = $char->getCol('id');
+
+    my $shed = $t->app->shed;
+    $shed->create(
+        char_id => $char_id, artifact_id => 'defense_item',
+        original_value => 20, decayed_value => 20,
+        condition => 'fresh', days_in_shed => 0,
+        instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['defense'],
+        estimated_value_min => 16, estimated_value_max => 24,
+    )->save;
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });
+    my $shed_item_id = $items->[0]->getCol('id');
+
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf}, json => { shed_item_id => $shed_item_id })
+      ->status_is(200)
+      ->json_is('/result' => 'counter_offer');
+
+    my $counter_value = $t->tx->res->json->{counter_value};
+
+    $t->post_ok('/market/accept_counter' => {'X-CSRF-Token' => $csrf})
+      ->status_is(200)
+      ->json_is('/result' => 'sold')
+      ->json_is('/value' => $counter_value);
+
+    my $disc = $t->app->disposition;
+    my $all = $disc->find(sub { 1 });
+    is(scalar @$all, 1, 'disposition record created on counter sale');
+    is($all->[0]->getCol('value_awarded'), $counter_value,
+        'disposition value matches counter value');
+};
+
+subtest 'counter-offer visible in game state' => sub {
+    my $t = setup;
+    $t->app->config->{market_counter_offers} = 1;
+    my $csrf = _csrf($t);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $char_id = $char->getCol('id');
+
+    my $shed = $t->app->shed;
+    $shed->create(
+        char_id => $char_id, artifact_id => 'defense_item',
+        original_value => 20, decayed_value => 20,
+        condition => 'fresh', days_in_shed => 0,
+        instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['defense'],
+        estimated_value_min => 16, estimated_value_max => 24,
+    )->save;
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });
+    my $shed_item_id = $items->[0]->getCol('id');
+
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf}, json => { shed_item_id => $shed_item_id })
+      ->status_is(200)
+      ->json_is('/result' => 'counter_offer');
+
+    $t->get_ok('/game' => {'Accept' => 'application/json'})
+      ->status_is(200)
+      ->json_has('/market_visit/customer/pending_counter')
+      ->json_has('/market_visit/customer/pending_counter/value');
+};
+
+subtest 'multi-item allows multiple sales' => sub {
+    my $t = setup;
+    $t->app->config->{market_multi_item} = 1;
+    my $csrf = _csrf($t);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $char_id = $char->getCol('id');
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    # Get the customer's desired behaviors and create matching items
+    $char = $t->app->characters->find(sub { 1 })->[0];
+    my $act_id = $char->getCol('pending_activity_id');
+    my $activity = $t->app->market->get($act_id);
+    my $customer = $activity->customer;
+    my $match_behavior = $customer->{desired_behaviors}[0];
+
+    my $shed = $t->app->shed;
+    for my $i (1 .. 2) {
+        $shed->create(
+            char_id => $char_id, artifact_id => "match_item_$i",
+            original_value => 20, decayed_value => 20,
+            condition => 'fresh', days_in_shed => 0,
+            instability => 0, stage => 'stable', push_count => 0,
+            has_evolved => 0, behaviors => [$match_behavior],
+            estimated_value_min => 16, estimated_value_max => 24,
+        )->save;
+    }
+
+    my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} =~ /^match_item_/ });
+    my @sorted = sort { $a->getCol('artifact_id') cmp $b->getCol('artifact_id') } @$items;
+
+    # First sale
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf},
+        json => { shed_item_id => $sorted[0]->getCol('id') })
+      ->status_is(200)
+      ->json_is('/result' => 'sold_more')
+      ->json_has('/value')
+      ->json_has('/irritation')
+      ->json_has('/message');
+
+    # Second sale
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf},
+        json => { shed_item_id => $sorted[1]->getCol('id') })
+      ->status_is(200)
+      ->json_is('/result' => 'sold_more')
+      ->json_has('/value');
+
+    # Send away
+    $t->post_ok('/market/send_away' => {'X-CSRF-Token' => $csrf})
+      ->status_is(200)
+      ->json_is('/result' => 'sent_away');
+
+    my $remaining = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} =~ /^match_item_/ });
+    is(scalar @$remaining, 0, 'both match items sold from shed');
+};
+
+subtest 'send_away works' => sub {
+    my $t = setup;
+    my $csrf = _csrf($t);
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    $t->post_ok('/market/send_away' => {'X-CSRF-Token' => $csrf})
+      ->status_is(200)
+      ->json_is('/result' => 'sent_away');
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    is($char->getCol('pending_activity_id'), undef, 'activity cleared after send_away');
+};
+
+subtest 'customer_left when irritation threshold hit' => sub {
+    my $t = setup;
+    $t->app->config->{market_counter_offers} = 0;
+    my $csrf = _csrf($t);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $char_id = $char->getCol('id');
+
+    my $shed = $t->app->shed;
+    $shed->create(
+        char_id => $char_id, artifact_id => 'defense_item',
+        original_value => 20, decayed_value => 20,
+        condition => 'fresh', days_in_shed => 0,
+        instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['defense'],
+        estimated_value_min => 16, estimated_value_max => 24,
+    )->save;
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    # Disable settlement to make mismatches deterministic
+    $char = $t->app->characters->find(sub { 1 })->[0];
+    my $act_id = $char->getCol('pending_activity_id');
+    my $activity = $t->app->market->get($act_id);
+    $activity->customer->{settle_chance} = 0;
+    $activity->save;
+
+    my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });
+    my $shed_item_id = $items->[0]->getCol('id');
+
+    # 4 mismatches = irritation 4 (threshold is 5)
+    for (1 .. 4) {
+        $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf},
+            json => { shed_item_id => $shed_item_id })
+          ->status_is(200)
+          ->json_is('/result' => 'no_match');
+    }
+
+    # 5th mismatch → irritation hits 5 → customer_left
+    $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf},
+        json => { shed_item_id => $shed_item_id })
+      ->status_is(200)
+      ->json_is('/result' => 'customer_left');
+
+    my $char2 = $t->app->characters->find(sub { 1 })->[0];
+    is($char2->getCol('pending_activity_id'), undef, 'activity cleared after customer_left');
 };
 
 done_testing;

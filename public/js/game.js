@@ -80,13 +80,14 @@ function renderActionCard() {
 
 function renderIdle() {
   const ap = G.player?.action_points ?? 0;
+  const hasItems = (G.shed?.length ?? 0) > 0;
   if (ap < 1) {
     return `<div class="card mb-3"><div class="card-header">Actions</div><div class="card-body text-center"><p class="text-muted mb-0">No AP remaining today.</p></div></div>`;
   }
   return `<div class="card mb-3"><div class="card-header">Actions</div><div class="card-body text-center">
     <div class="d-grid gap-2">
       ${ap >= 2 ? '<button class="btn btn-success" id="btn-begin">Begin Expedition (2 AP)</button>' : ''}
-      <button class="btn btn-info" id="btn-market">Visit Market (1 AP)</button>
+      ${hasItems ? '<button class="btn btn-info" id="btn-market">Visit Market (1 AP)</button>' : '<p class="text-muted small mb-0">No artifacts in shed to sell.</p>'}
     </div>
   </div></div>`;
 }
@@ -110,12 +111,33 @@ function renderProspecting() {
 function renderMarketVisit() {
   const m = G.market_visit;
   const c = m.customer || {};
+  const pc = c.pending_counter;
+  const messageHtml = m.message ? `<p class="mb-2 fst-italic text-muted">${m.message}</p>` : '';
+  const saleTypeLabel = m.sale_type
+    ? `<span class="badge ${m.sale_type === 'match' ? 'bg-success' : m.sale_type === 'counter' ? 'bg-info' : 'bg-secondary'} me-1">${m.sale_type}</span>`
+    : '';
+  const moodBadge = m.pressure_state
+    ? `<span class="badge ${m.pressure_state === 'mood_comfortable' ? 'bg-success' : m.pressure_state === 'mood_interested' ? 'bg-info' : m.pressure_state === 'mood_wary' ? 'bg-warning text-dark' : m.pressure_state === 'mood_strained' ? 'bg-orange text-dark' : 'bg-danger'} ms-1">${m.pressure_state.replace('mood_', '')}</span>`
+    : '';
+  const overBudgetBanner = m.over_budget
+    ? '<div class="alert alert-warning mt-2 p-2 small">That item exceeded the buyer\'s budget. Try a cheaper one.</div>'
+    : '';
+  const counterHtml = pc
+    ? `<div class="alert alert-info mb-2 p-2">
+        <p class="mb-1"><strong>Counter-offer:</strong> ${pc.value} scrap</p>
+        <button class="btn btn-sm btn-success" id="btn-accept-counter">Accept Counter-Offer</button>
+        <p class="mt-2 mb-0 small text-muted">(or offer a different artifact to reject)</p>
+      </div>`
+    : '';
   return `<div class="card mb-3"><div class="card-header">Market Visit</div><div class="card-body">
     <p class="mb-1">Customer: <strong>${c.faction_name || '—'}</strong></p>
     <p class="mb-1 text-muted">${c.disposition || ''}</p>
-    ${m.irritation != null ? `<p class="mb-3 text-muted">Irritation: ${m.irritation}</p>` : ''}
+    ${m.irritation != null ? `<p class="mb-1 text-muted">Irritation: ${m.irritation} ${moodBadge}</p>` : ''}
+    ${messageHtml}
+    ${saleTypeLabel ? `<p class="mb-1">${saleTypeLabel}</p>` : ''}
+    ${overBudgetBanner}
+    ${counterHtml}
     <p class="mb-2">Select an artifact to offer:</p>
-    <div id="offer-items"></div>
     <div class="d-grid mt-2">
       <button class="btn btn-secondary" id="btn-send-away">Send Away</button>
     </div>
@@ -192,6 +214,7 @@ function wireActionButtons() {
   document.getElementById('btn-stop')?.addEventListener('click', stopProspecting);
   document.getElementById('btn-market')?.addEventListener('click', beginMarket);
   document.getElementById('btn-send-away')?.addEventListener('click', sendAway);
+  document.getElementById('btn-accept-counter')?.addEventListener('click', acceptCounter);
 }
 
 async function beginProspecting() {
@@ -226,12 +249,90 @@ async function beginMarket() {
 
 async function offerItem(shedItemId) {
   const data = await api('/market/offer', { body: { shed_item_id: shedItemId }, method: 'POST' });
-  if (data.ok) await loadGame();
+  if (!data.ok) return;
+  if (data.player) Object.assign(G.player, data.player);
+  updateStats();
+  switch (data.result) {
+    case 'sold':
+      await loadGame();
+      break;
+    case 'sold_more':
+      G.market_visit.irritation = data.irritation;
+      G.market_visit.message = data.message;
+      G.market_visit.sale_type = data.sale_type;
+      if (data.precision_bonus > 0) G.market_visit.message += ` Precision bonus: +${data.precision_bonus} scrap!`;
+      G.market_visit.pressure_state = data.pressure_state;
+      G.market_visit.customer.pending_counter = null;
+      G.market_visit.over_budget = 0;
+      G.shed = G.shed.filter(i => i.id !== shedItemId);
+      renderActionCard();
+      renderShed();
+      break;
+    case 'counter_offer':
+      G.market_visit.customer.pending_counter = { value: data.counter_value, item_id: shedItemId };
+      G.market_visit.irritation = data.irritation;
+      G.market_visit.message = data.message;
+      G.market_visit.pressure_state = null;
+      renderActionCard();
+      break;
+    case 'no_match':
+      G.market_visit.irritation = data.irritation;
+      G.market_visit.message = data.message;
+      G.market_visit.customer.pending_counter = null;
+      renderActionCard();
+      break;
+    case 'over_budget':
+      G.market_visit.irritation = data.irritation;
+      G.market_visit.message = data.message;
+      G.market_visit.customer.pending_counter = null;
+      G.market_visit.over_budget = 1;
+      renderActionCard();
+      break;
+    case 'customer_left':
+      G.market_visit.message = data.message;
+      renderActionCard();
+      setTimeout(() => loadGame(), 3000);
+      break;
+    default:
+      await loadGame();
+  }
 }
 
 async function sendAway() {
   const data = await api('/market/send_away', { method: 'POST' });
   if (data.ok) await loadGame();
+}
+
+async function acceptCounter() {
+  const pendingItemId = G.market_visit?.customer?.pending_counter?.item_id;
+  const data = await api('/market/accept_counter', { method: 'POST' });
+  if (!data.ok) return;
+  if (data.player) Object.assign(G.player, data.player);
+  updateStats();
+  switch (data.result) {
+    case 'sold':
+      await loadGame();
+      break;
+    case 'sold_more':
+      G.market_visit.irritation = data.irritation;
+      G.market_visit.message = data.message;
+      G.market_visit.sale_type = data.sale_type;
+      if (data.precision_bonus > 0) G.market_visit.message += ` Precision bonus: +${data.precision_bonus} scrap!`;
+      G.market_visit.pressure_state = data.pressure_state;
+      G.market_visit.customer.pending_counter = null;
+      if (pendingItemId) G.shed = G.shed.filter(i => i.id !== pendingItemId);
+      renderActionCard();
+      renderShed();
+      break;
+    case 'over_budget':
+      G.market_visit.irritation = data.irritation;
+      G.market_visit.message = data.message;
+      G.market_visit.customer.pending_counter = null;
+      renderActionCard();
+      break;
+    default:
+      await loadGame();
+  }
 }
 
 async function purchaseSkill(skillId) {

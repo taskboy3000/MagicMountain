@@ -604,12 +604,9 @@ subtest 'multi-item allows multiple sales per visit' => sub {
     is($m->phase, 'negotiating', 'visit remains in negotiating after multi-item sale');
 
     my $r2 = $m->dispatch($char, 'offer', shed_item_id => 'm2');
-    is($r2->{view}{result}, 'sold_more', 'second multi-item sale -> sold_more');
+    is($r2->{view}{result}, 'sold', 'second multi-item sale -> sold (no items left)');
     ok($r2->{view}{value} > 0, 'second sale value positive');
-
-    # Send away to end the visit
-    my $r3 = $m->dispatch($char, 'send_away');
-    is($r3->{view}{result}, 'sent_away', 'send_away ends multi-item visit');
+    ok(!$char->{pending_activity_id}, 'visit ended (no items remain in shed)');
 };
 
 # ── Budget / over_budget ──────────────────────────────────────────────

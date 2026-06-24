@@ -101,13 +101,27 @@ sub show ($self) {
             $activity = $self->app->market->get($id);
             if ($activity && $activity->phase ne 'idle') {
                 my $c = $activity->customer;
+                my $pressure_state;
+                if ($c) {
+                    my $pct = ($c->{spent_so_far} // 0) / ($c->{soft_budget} || 1);
+                    if        ($pct <= 0.50) { $pressure_state = 'mood_comfortable' }
+                    elsif     ($pct <= 0.80) { $pressure_state = 'mood_interested' }
+                    elsif     ($pct <= 1.00) { $pressure_state = 'mood_wary' }
+                    elsif     ($pct <= 1.10) { $pressure_state = 'mood_strained' }
+                    elsif     ($pct <  1.20) { $pressure_state = 'mood_leaving' }
+                    else                     { $pressure_state = 'mood_over_absolute' }
+                }
                 $market_view = {
                     customer => {
-                        faction_id   => $c->{faction_id},
-                        faction_name => $c->{faction_name},
-                        disposition  => $c->{disposition} // 'unknown',
+                        faction_id      => $c->{faction_id},
+                        faction_name    => $c->{faction_name},
+                        disposition     => $c->{disposition} // 'unknown',
+                        ($c->{pending_counter}
+                            ? (pending_counter => $c->{pending_counter})
+                            : ()),
                     },
-                    irritation => $c->{irritation} // 0,
+                    irritation     => $c->{irritation} // 0,
+                    pressure_state => $pressure_state,
                 };
             }
         }

@@ -267,6 +267,14 @@ the summary.
   left in place compounds — it becomes the template for the next change.
 - **No automatic commits**: Never commit without being asked. Only commit when
   the user explicitly instructs it. This prevents surprise history changes.
+- **Frontend-backend sync**: Every backend feature that changes API response
+  shapes or adds new activity results must include a frontend update
+  (`public/js/game.js`) and a web integration test (`t/*_web.t`) that exercises
+  the full round-trip from button click to response rendering. The frontend
+  update must handle all new API result types inline rather than falling back
+  to `loadGame()`. Add the frontend wiring as a task in the same session as
+  the backend change — never ship a backend feature without the corresponding
+  JS handler.
 - **Coverage**: Run `make cover && make report` before every commit. Coverage
   for all `lib/*.pm` files must stay at or above **85%** (statement coverage).
   If you add new code without tests, coverage drops and the commit should be

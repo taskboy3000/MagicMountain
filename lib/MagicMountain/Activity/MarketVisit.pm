@@ -342,6 +342,7 @@ sub offer ($self, $char, %params) {
                     ok            => 1,
                     result        => 'counter_offer',
                     counter_value => $counter_value,
+                    irritation    => $customer->{irritation},
                     message       => $narrative,
                     player        => $self->_player_snapshot($char),
                 },
@@ -405,6 +406,7 @@ sub offer ($self, $char, %params) {
             view => {
                 ok        => 1,
                 result    => 'no_match',
+                irritation => $customer->{irritation},
                 message   => $narrative,
                 player    => $self->_player_snapshot($char),
             },
@@ -498,6 +500,7 @@ sub _over_budget ($self, $char, $item, $value) {
         view => {
             ok      => 1,
             result  => 'over_budget',
+            irritation => $customer->{irritation},
             message => $narrative,
             player  => $self->_player_snapshot($char),
         },
@@ -595,28 +598,34 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
 
     $self->customer($customer);
 
-    # ── Multi-item: stay in negotiating phase ────────────────────
-    if ($self->app->can('config') && $self->app->config->{market_multi_item}) {
-        $customer->{pending_counter} = undef;
-        $self->customer($customer);
-        $self->save;
-        $char->setCol('pending_activity_id', $self->getCol('id'));
-        $char->save;
-        return {
-            view => {
-                ok              => 1,
-                result          => 'sold_more',
-                value           => $value + $bonus,
-                pressure_state  => $pressure->{state},
-                precision_bonus => $bonus,
-                irritation      => $customer->{irritation},
-                message         => $mood_text,
-                player          => $self->_player_snapshot($char),
-            },
-        };
+    # ── Multi-item: stay in negotiating phase if items remain ────
+    my $has_multi = $self->app->can('config') && $self->app->config->{market_multi_item};
+    if ($has_multi) {
+        my $remaining = $self->app->shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
+        if (@$remaining) {
+            $customer->{pending_counter} = undef;
+            $self->customer($customer);
+            $self->save;
+            $char->setCol('pending_activity_id', $self->getCol('id'));
+            $char->save;
+            return {
+                view => {
+                    ok              => 1,
+                    result          => 'sold_more',
+                    value           => $value + $bonus,
+                    sale_type       => $sale_type,
+                    sold_item_id    => $item->getCol('id'),
+                    pressure_state  => $pressure->{state},
+                    precision_bonus => $bonus,
+                    irritation      => $customer->{irritation},
+                    message         => $mood_text,
+                    player          => $self->_player_snapshot($char),
+                },
+            };
+        }
     }
 
-    # ── Single-item: end visit ───────────────────────────────────
+    # ── End visit (single-item mode or no items left) ─────────────
     $self->delete;
     $char->setCol('pending_activity_id', undef);
     $char->save;
@@ -626,6 +635,8 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
             ok              => 1,
             result          => 'sold',
             value           => $value + $bonus,
+            sale_type       => $sale_type,
+            sold_item_id    => $item->getCol('id'),
             pressure_state  => $pressure->{state},
             precision_bonus => $bonus,
             player          => $self->_player_snapshot($char),

@@ -90,4 +90,4 @@
   </div>
 </div>
 
-<script src="/js/game.js"></script>
+<script src="/js/game.js?<%= (stat app->home->child('public/js/game.js'))[9] // 0 %>"></script>
