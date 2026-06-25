@@ -2,6 +2,7 @@ factions:
   - id: syndicate
     name: "The Syndicate"
     disposition: "commercial interests — always buying"
+    icon: icon_syndicate.svg
     short_name: SYND.8TE
     interests: [thermal, storage, food_processing, power]
     base_multiplier: 1.1
@@ -10,6 +11,7 @@ factions:
   - id: libremount
     name: "LibreMount"
     disposition: "survivalist collective — needs the basics"
+    icon: icon_libremount.svg
     short_name: LBR_MT.01
     interests: [thermal, water, sanitation, medical_response, power]
     base_multiplier: 0.9
@@ -18,6 +20,7 @@ factions:
   - id: faculty
     name: "The Faculty"
     disposition: "academic order — catalogues the unknown"
+    icon: icon_faculty.svg
     short_name: FAC.LTY1
     interests: [signal, revelation, field, medical_response]
     base_multiplier: 1.0
@@ -26,6 +29,7 @@ factions:
   - id: purifiers
     name: "The Purifiers"
     disposition: "zealous reformers — contain the old world"
+    icon: icon_purifiers.svg
     short_name: PURIF.RS
     interests: [force, instability, medical_response]
     base_multiplier: 1.2
@@ -34,6 +38,7 @@ factions:
   - id: revelationists
     name: "The Revelationists"
     disposition: "truth seekers — the mountain speaks to them"
+    icon: icon_revelationists.svg
     short_name: RVL_IST.1
     interests: [revelation, signal, field, transformation]
     base_multiplier: 0.8

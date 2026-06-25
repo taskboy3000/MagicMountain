@@ -25,6 +25,7 @@ sub show ($self) {
             my $star_count = $top_sales > 0 ? int(($sale / $top_sales) * $max_stars) : 0;
             push @display, {
                 %$f,
+                icon              => $f->{icon} ? '/images/' . $f->{icon} : undef,
                 display_name      => $is_secondary ? ($f->{short_name} // $f->{name}) : $f->{name},
                 display_name_full => $f->{name},
                 stars_display     => ('★' x $star_count) . ('☆' x ($max_stars - $star_count)),

@@ -5,7 +5,12 @@
 % for my $f (@$factions_data) {
     <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
       <div style="flex:1; min-width:0">
-        <strong title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
+        <div style="display:flex;align-items:center;gap:4px">
+% if ($f->{icon}) {
+          <img src="<%= $f->{icon} %>" alt="" style="width:14px;height:14px;flex-shrink:0">
+% }
+          <strong title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
+        </div>
         <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $f->{disposition} // '' %></div>
       </div>
       <div style="color:var(--mm-amber);white-space:nowrap;margin-left:0.5rem"><%= $f->{stars_display} %></div>

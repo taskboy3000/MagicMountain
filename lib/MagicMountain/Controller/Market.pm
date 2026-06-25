@@ -22,6 +22,17 @@ sub show ($self) {
         else                     { $pressure_state = 'mood_over_absolute' }
     }
 
+    my $customer_icon;
+    if ($c->{faction_id}) {
+        my $factions = $self->app->factions_data // [];
+        for my $f (@$factions) {
+            if ($f->{id} eq $c->{faction_id}) {
+                $customer_icon = $f->{icon} ? '/images/' . $f->{icon} : undef;
+                last;
+            }
+        }
+    }
+
     my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
     if ($c->{pending_counter}) {
         push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => '/market/accept_counter', 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
@@ -33,6 +44,7 @@ sub show ($self) {
         $self->stash(
             customer_faction_id   => $c->{faction_id},
             customer_faction_name => $c->{faction_name},
+            customer_faction_icon => $customer_icon,
             customer_disposition  => $c->{disposition} // 'unknown',
             irritation            => $c->{irritation} // 0,
             pressure_state        => $pressure_state,
