@@ -199,6 +199,8 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 }
 .nav-btn:hover { border-color: var(--mm-amber); color: var(--mm-amber-bright); }
 .nav-btn.active { border-color: var(--mm-amber); color: var(--mm-amber); }
+.nav-btn.current { background: var(--mm-amber); color: #000; border-color: var(--mm-amber); }
+.nav-btn.current:hover { background: var(--mm-amber-bright); }
 .nav-btn.inactive { opacity: 0.35; cursor: default; }
 .nav-btn.inactive:hover { border-color: var(--mm-border); color: var(--mm-text); }
 

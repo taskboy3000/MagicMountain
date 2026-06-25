@@ -3,6 +3,7 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 my %BASE_TAB = (
     idle => {
+        home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
         shed     => { active => 1, reason => undef },
         bazaar   => { active => 1, reason => undef },
@@ -11,6 +12,7 @@ my %BASE_TAB = (
         account  => { active => 1, reason => undef },
     },
     prospecting => {
+        home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
         shed     => { active => 1, reason => undef },
         bazaar   => { active => 0, reason => 'Finish your current expedition first' },
@@ -19,6 +21,7 @@ my %BASE_TAB = (
         account  => { active => 1, reason => undef },
     },
     market => {
+        home     => { active => 1, reason => undef },
         prospect => { active => 0, reason => 'Complete your market visit first' },
         shed     => { active => 1, reason => undef },
         bazaar   => { active => 1, reason => undef },
@@ -29,6 +32,7 @@ my %BASE_TAB = (
 );
 
 my %SECONDARY = (
+    home        => 'shed',
     idle        => 'shed',
     prospecting => 'shed',
     market      => 'shed',
@@ -39,6 +43,7 @@ my %SECONDARY = (
 );
 
 my %FRAGMENT_URL = (
+    home        => '/home?_format=fragment',
     idle        => '/idle?_format=fragment',
     prospecting => '/prospecting?_format=fragment',
     market      => '/market?_format=fragment',
@@ -49,6 +54,7 @@ my %FRAGMENT_URL = (
 );
 
 my %TAB_FRAGMENT_URL = (
+    home     => '/home?_format=fragment',
     prospect => '/prospecting?_format=fragment',
     shed     => '/shed?_format=fragment',
     bazaar   => '/market?_format=fragment',
@@ -58,6 +64,7 @@ my %TAB_FRAGMENT_URL = (
 );
 
 my %TAB_LABEL = (
+    home     => 'HOME',
     prospect => 'PROSPECT',
     shed     => 'SHED',
     bazaar   => 'BAZAAR',
@@ -67,6 +74,7 @@ my %TAB_LABEL = (
 );
 
 my %TAB_TO_VIEW = (
+    home     => 'home',
     shed     => 'shed',
     bazaar   => 'market',
     factions => 'factions',
@@ -99,17 +107,22 @@ sub show ($self) {
         }
     }
     if (!$view) {
-        $view = $char->getCol('current_view') || $type || 'idle';
-        # Activity views (prospecting, market) are invalid without an active activity
+        $view = $char->getCol('current_view') || $type || 'home';
         if (($view eq 'prospecting' || $view eq 'market') && !$type) {
-            $view = $type || 'idle';
+            $view = $type || 'home';
         } elsif ($type && $view ne $type) {
             my ($tab) = grep { $_->{id} eq _tab_id_for($view) } @$tabs;
             $view = $type unless $tab && $tab->{active};
         } else {
             my ($tab) = grep { $_->{id} eq _tab_id_for($view) } @$tabs;
-            $view = $type || 'idle' unless $tab && $tab->{active};
+            $view = $type || 'home' unless $tab && $tab->{active};
         }
+    }
+
+    # Mark current tab
+    my $current_tab = _tab_id_for($view);
+    for my $tab (@$tabs) {
+        $tab->{current} = 1 if $tab->{id} eq $current_tab;
     }
 
     my $secondary = $SECONDARY{$view} // 'shed';
@@ -134,6 +147,7 @@ sub show ($self) {
 
 sub _tab_id_for ($view) {
     my %map = (
+        home        => 'home',
         idle        => 'prospect',
         prospecting => 'prospect',
         market      => 'bazaar',
@@ -142,12 +156,12 @@ sub _tab_id_for ($view) {
         skills      => 'skills',
         account     => 'account',
     );
-    return $map{$view} || 'prospect';
+    return $map{$view} || 'home';
 }
 
 sub _build_tabs ($type, $ap, $shed_count) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
-    my @tab_ids  = qw(prospect shed bazaar factions skills account);
+    my @tab_ids  = qw(home prospect shed bazaar factions skills account);
     my @tabs;
     for my $id (@tab_ids) {
         my $entry = { %{ $base->{$id} } };
@@ -182,7 +196,7 @@ sub _build_tabs ($type, $ap, $shed_count) {
 }
 
 sub _context_text ($self, $char, $view) {
-    if ($view eq 'idle') {
+    if ($view eq 'home' || $view eq 'idle') {
         my $msg = '';
         my $season = $self->app->active_season;
         if ($season) {

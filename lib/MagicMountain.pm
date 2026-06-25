@@ -406,6 +406,7 @@ sub buildRoutes ($self) {
     # DEAD-SUPPRESS: future season history UI
     # $auth->get('/season')->to('season#show');
     $auth->get('/crier')->to('crier#show');
+    $auth->get('/home')->to('home#show');
     $auth->get('/idle')->to('idle#show');
     $auth->get('/prospecting')->to('prospecting#show');
     $auth->get('/market')->to('market#show');

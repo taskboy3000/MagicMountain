@@ -187,12 +187,12 @@ sub fetch_nav {
 
 # Fetch initial nav to see idle tabs
 my $nav = fetch_nav();
-assert(defined $nav && $nav->{current_view} eq 'idle', 'nav current_view idle');
+assert(defined $nav && $nav->{current_view} eq 'home', 'nav current_view home');
 assert(defined $nav && ref $nav->{tabs} eq 'ARRAY', 'nav has tabs');
 
 # Fetch all fragment endpoints (accept 200 or 204)
 print STDERR "--- Fragment endpoints ---\n";
-my @fragments = qw(/player?_format=fragment /crier?_format=fragment /idle?_format=fragment
+my @fragments = qw(/player?_format=fragment /crier?_format=fragment /home?_format=fragment /idle?_format=fragment
     /prospecting?_format=fragment /market?_format=fragment /shed?_format=fragment
     /skills?_format=fragment /factions?_format=fragment /leaderboard?_format=fragment
     /leaderboard/factions);

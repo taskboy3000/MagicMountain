@@ -1,0 +1,24 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">STATION STATUS — DAY <%= $season_day %>/<%= $season_len %></div>
+  <div class="mm-panel-body">
+% if ($crier_msg) {
+    <p style="font-size:0.78rem;color:var(--mm-text-dim);margin-bottom:0.75rem">
+      <strong style="color:var(--mm-amber)">TOWN CRIER:</strong> <%= $crier_msg %></p>
+% }
+% if (@$suggestions) {
+    <p style="font-size:0.72rem;color:var(--mm-text-dim);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.1em">Advisories</p>
+%   for my $s (@$suggestions) {
+    <div style="border:1px solid var(--mm-border);padding:0.4rem;margin-bottom:0.4rem;font-size:0.78rem;<%= $s->{view} ? 'cursor:pointer' : '' %>"
+      <%= $s->{view} ? qq{data-view="$s->{view}"} : '' %>>
+      <span style="color:var(--mm-amber);font-weight:600">[<%= $s->{icon} %>]</span>
+      <%= $s->{text} %>
+    </div>
+%   }
+% } else {
+    <p style="font-size:0.78rem;color:var(--mm-text-dim);text-align:center">No advisories. Select a tab above to begin.</p>
+% }
+    <p style="font-size:0.65rem;color:var(--mm-text-dim);margin-top:0.75rem;text-align:center">
+      AP: <%= $ap %>  │  Scrap: <%= $scrap %>  │  Shed: <%= $shed_count %>
+    </p>
+  </div>
+</div>

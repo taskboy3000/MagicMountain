@@ -67,7 +67,8 @@ function renderNavBar(tabs) {
   const bar = document.getElementById('nav-bar');
   bar.innerHTML = tabs.map(t => {
     const extras = t.action_url ? ` data-action-url="${t.action_url}" data-method="POST"` : '';
-    return `<button class="nav-btn${t.active ? ' active' : ' inactive'}" data-view="${t.id}"${t.reason ? ` title="${t.reason}"` : ''}${extras}>${t.label}</button>`;
+    const cls = `nav-btn${t.active ? ' active' : ' inactive'}${t.current ? ' current' : ''}`;
+    return `<button class="${cls}" data-view="${t.id}"${t.reason ? ` title="${t.reason}"` : ''}${extras}>${t.label}</button>`;
   }).join('');
 }
 

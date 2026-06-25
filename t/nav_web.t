@@ -152,7 +152,7 @@ subtest 'idle state — all tabs active' => sub {
     my $t = setup_idle;
     $t->get_ok('/nav')
       ->status_is(200)
-      ->json_is('/current_view', 'idle')
+      ->json_is('/current_view', 'home')
       ->json_has('/tabs')
       ->json_has('/primary_fragment_url')
       ->json_has('/secondary_fragment_url')
@@ -170,7 +170,7 @@ subtest 'idle no AP — bazaar inactive' => sub {
     my $t = setup_no_ap;
     $t->get_ok('/nav')
       ->status_is(200)
-      ->json_is('/current_view', 'idle');
+      ->json_is('/current_view', 'home');
 
     my $json = $t->tx->res->json;
     my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
@@ -186,7 +186,7 @@ subtest 'idle empty shed — bazaar inactive' => sub {
     my $t = setup_empty_shed;
     $t->get_ok('/nav')
       ->status_is(200)
-      ->json_is('/current_view', 'idle');
+      ->json_is('/current_view', 'home');
 
     my $json = $t->tx->res->json;
     # Shed is empty, AP >= 1 — bazaar inactive due to no items
