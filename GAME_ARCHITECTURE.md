@@ -2254,3 +2254,191 @@ The new codebase (`lib/`) is a ground-up rebuild.
 |----------|---------|
 | `docs/design_bible.md` | Visual design language: palette, typography, ProspectBoy 3000 device fiction, faction iconography, panel language |
 | `docs/nav_state_rules.md` | Nav state model: views, tab active/inactive rules, secondary panel mapping, context bar text |
+
+---
+
+## 22. Directory Layout
+
+```
+magic_mountain/
+├── AGENTS.md                      # Project guide for AI agents
+├── GAME_ARCHITECTURE.md           # Target architecture spec (authoritative)
+├── FUTURES.md                     # Planned work beyond current implementation
+├── Makefile                       # test, cover, indent targets
+├── TUNING.md                      # Balance tuning reference
+├── cpanfile                       # Perl dependencies (Mojolicious, YAML::XS, etc.)
+├── magic_mountain.yml             # App config (secrets, session_timeout_minutes, end_of_day_hour)
+├── opencode.json                  # opencode configuration
+├── package.json                   # Node tooling (JS syntax check)
+│
+├── bin/                           # Utility scripts
+│   ├── analyze                    # Simulation analysis
+│   ├── analyze_sim                # Transcript analysis
+│   ├── check_coverage             # Faction-artifact coverage validation
+│   ├── check_loyalist_balance     # Loyalist strategy viability check
+│   ├── find_dead_code             # Dead code detection
+│   ├── run_many                   # Batch simulation runner
+│   ├── run_sims                   # Simulation runner
+│   ├── setup_ramdisk              # RAM disk setup for sim speed
+│   ├── smoke_test_endpoint        # Endpoint smoke test
+│   └── walkthrough                # End-to-end game loop walkthrough
+│
+├── lib/
+│   ├── MagicMountain.pm              # Mojolicious app: routes, helpers, attributes
+│   └── MagicMountain/
+│       ├── Activity.pm               # Base class for state-machine activities
+│       ├── Controller.pm             # Base controller
+│       ├── Crier.pm                  # Town Crier narrative generation
+│       ├── Maintenance.pm            # In-process daily maintenance timer
+│       ├── Model.pm                  # Base persistence class (JSON file CRUD, UUID, find)
+│       ├── RateLimiter.pm            # IP/account-based rate limiting
+│       ├── ShedManager.pm            # Artifact decay logic
+│       ├── Activity/
+│       │   ├── MarketVisit.pm        # Customer generation, negotiation, sale
+│       │   └── Prospecting.pm        # Artifact draw, push/collapse/breakthrough, stop
+│       ├── Bot/
+│       │   ├── PushPolicy.pm         # Push/stop decision policies
+│       │   └── SellPolicy.pm         # Selling decision policies
+│       ├── Command/
+│       │   ├── advance_day.pm        # CLI: advance-day (manual maintenance trigger)
+│       │   ├── create_account.pm     # CLI: create-account
+│       │   ├── create_season.pm      # CLI: create-season
+│       │   ├── delete_account.pm     # CLI: delete-account
+│       │   ├── disable_account.pm    # CLI: disable-account
+│       │   ├── end_season.pm         # CLI: end-season (finalization)
+│       │   ├── list_accounts.pm      # CLI: list-accounts
+│       │   └── simulate.pm           # CLI: run bot simulation
+│       ├── Controller/
+│       │   ├── Account.pm            # Account settings panel
+│       │   ├── Crier.pm              # Town Crier bulletin
+│       │   ├── Factions.pm           # Faction registry
+│       │   ├── Game.pm               # Game state page
+│       │   ├── Home.pm               # Home dashboard (shed ledger)
+│       │   ├── Idle.pm               # Idle action panel
+│       │   ├── Leaderboard.pm        # Season leaderboard
+│       │   ├── Market.pm             # MarketVisit actions (begin, offer, send_away)
+│       │   ├── Nav.pm                # Navigation state (tabs, views, fragment URLs)
+│       │   ├── Player.pm             # Current player info
+│       │   ├── Prospecting.pm        # Prospecting actions (begin, push, stop)
+│       │   ├── Root.pm               # Gateway redirect (GET /)
+│       │   ├── Sessions.pm           # Login/logout, session management
+│       │   ├── Shed.pm               # Shed inventory listing
+│       │   └── Skills.pm             # Skill purchase endpoint
+│       └── Model/
+│           ├── Account.pm            # Player accounts (username, password)
+│           ├── ArtifactDisposition.pm # Per-sale permanent record
+│           ├── AuditLog.pm           # JSONL event log
+│           ├── Character.pm          # Per-season character (name, score, AP, skills)
+│           ├── FactionSnapshot.pm    # Daily faction history
+│           ├── Season.pm             # Season config and state
+│           ├── SeasonRecord.pm       # Post-season archive
+│           ├── Session.pm            # Server-side session tracking
+│           ├── ShedItem.pm           # Shed artifact inventory row
+│           └── Transcript.pm         # Game event log
+│
+├── templates/
+│   ├── components/
+│   │   └── action_buttons.html.ep    # Shared button rendering component
+│   ├── layouts/
+│   │   └── default.html.ep           # Minimal layout (Normalize.css, IBM Plex Mono)
+│   ├── account/
+│   │   └── settings.html.ep          # Account settings panel
+│   ├── crier/
+│   │   └── bulletin.html.ep          # Town Crier message display
+│   ├── factions/
+│   │   └── registry.html.ep          # Faction registry with standing/influence
+│   ├── game/
+│   │   └── show.html.ep              # Authenticated home page with game state
+│   ├── home/
+│   │   └── dashboard.html.ep         # Home dashboard (station status + shed ledger)
+│   ├── idle/
+│   │   └── actions.html.ep           # Idle action panel (Prospect/Bazaar buttons)
+│   ├── leaderboard/
+│   │   └── rankings.html.ep          # Player rankings table
+│   ├── market/
+│   │   └── negotiation.html.ep       # Market negotiation panel
+│   ├── player/
+│   │   └── status.html.ep            # Player status strip
+│   ├── prospecting/
+│   │   └── scan.html.ep              # Prospecting scan panel
+│   ├── shed/
+│   │   └── ledger.html.ep            # Shed inventory ledger
+│   └── skills/
+│       └── training.html.ep          # Skill training panel
+│
+├── public/
+│   ├── css/
+│   │   └── app.css                   # Custom stylesheet
+│   └── js/
+│       └── game.js                   # Declarative UI orchestration
+│
+├── content/                          # YAML content definitions
+│   ├── bots.yml                      # Bot profile definitions
+│   ├── factions.yml                  # Faction definitions and interests
+│   ├── prospecting.yml               # Artifact specs and weights
+│   ├── skills.yml                    # Skill tree and costs
+│   └── text/                         # Narrative text definitions
+│       ├── commission_triggers.yml   # Commission issuance text
+│       ├── crier.yml                 # Town Crier daily messages
+│       └── negotiation_reactions.yml # Per-faction market flavor text
+│
+├── t/                                # Test suite (39 files)
+│   ├── lib/
+│   │   └── TestCharacter.pm          # Test helper: character factory
+│   ├── activity.t                    # Activity base class tests
+│   ├── activity_prospecting.t        # Prospecting unit tests
+│   ├── bot_simulate.t                # Bot simulation tests
+│   ├── command_advance_day.t         # advance-day CLI tests
+│   ├── controller_web.t              # Controller integration tests
+│   ├── crier.t                       # Crier narrative tests
+│   ├── decay.t                       # Artifact decay tests
+│   ├── end_season.t                  # Season finalization tests
+│   ├── faction_snapshot.t            # Faction snapshot tests
+│   ├── faction_state.t               # Faction state tests
+│   ├── fragment_web.t                # Fragment rendering tests
+│   ├── game_web.t                    # Game page integration tests
+│   ├── js_syntax.t                   # JS syntax validation
+│   ├── leaderboard.t                 # Leaderboard tests
+│   ├── login.t                       # Login flow integration tests
+│   ├── maintenance.t                 # Daily maintenance tests
+│   ├── market_dynamics.t             # Market dynamics tests
+│   ├── market_visit.t                # MarketVisit unit tests
+│   ├── market_visit_web.t            # MarketVisit web integration tests
+│   ├── model.t                       # Base Model class tests
+│   ├── model_account.t               # Account model tests
+│   ├── model_artifact_disposition.t  # ArtifactDisposition tests
+│   ├── model_character.t             # Character model tests
+│   ├── model_character_invariants.t  # Character invariant tests
+│   ├── model_delete.t                # Model delete tests
+│   ├── model_save_table_edit.t       # Model save/edit tests
+│   ├── model_season.t                # Season model tests
+│   ├── model_shed_item.t             # ShedItem model tests
+│   ├── model_validate.t              # Model validation tests
+│   ├── nav_web.t                     # Nav controller tests
+│   ├── prospecting_web.t             # Prospecting web integration tests
+│   ├── rate_limiter.t                # Rate limiter tests
+│   ├── season_end_web.t              # Season end web tests
+│   ├── season_recap.t                # Season recap display tests
+│   ├── session.t                     # Session lifecycle tests
+│   ├── shed.t                        # ShedManager tests
+│   ├── shed_web.t                    # Shed web integration tests
+│   ├── skills_web.t                  # Skills web integration tests
+│   └── transcript.t                  # Transcript tests
+│
+├── data/                             # Runtime JSON persistence
+│   ├── accounts.json
+│   ├── activities.json
+│   ├── audit.jsonl
+│   ├── characters.json
+│   ├── dispositions.json
+│   ├── faction_snapshots.json
+│   ├── season_records.json
+│   ├── seasons.json
+│   ├── sessions.json
+│   ├── shed.json
+│   └── transcript.jsonl
+│
+├── docs/                             # Design documentation
+├── cover_db/                         # Coverage reports (generated)
+└── script/mountain                   # App entry point: perl script/mountain <command>
+```
