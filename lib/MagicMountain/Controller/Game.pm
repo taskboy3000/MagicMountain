@@ -10,7 +10,7 @@ sub show ($self) {
         $self->respond_to(
             json => sub { $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401) },
             html => sub {
-                $self->stash(authenticated => 0, player_name => '—');
+                $self->stash(authenticated => 0, player_name => '—', node_number => '—');
                 $self->render('game/show');
             },
         );
@@ -18,6 +18,9 @@ sub show ($self) {
     }
 
     my $account = $self->app->accounts->get($player_id);
+    $self->app->session_store->load;
+    my $sess = $self->app->session_store->find_by_player_id($player_id);
+    my $node_number = $sess ? $sess->getCol('node_number') // '07' : '07';
 
     my $season = $self->app->active_season;
 
@@ -194,6 +197,7 @@ sub show ($self) {
         html => sub {
             $self->stash(
                 authenticated     => 1,
+                node_number       => $node_number,
                 player_name       => $account->getCol('username'),
                 season_label      => $season ? ($season->getCol('label') // 'Season 1') : 'Upcoming',
                 season_day        => $season ? ($season->getCol('day') // 1)             : '—',

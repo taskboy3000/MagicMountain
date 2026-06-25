@@ -45,9 +45,11 @@ sub create ($self) {
     if ($existing) {
         $existing->touch;
     } else {
+        my $node = sprintf '%02d', int(rand(9)) + 1;
         my $session = $self->app->session_store->create(
             player_id   => $player_id,
             last_active => time,
+            node_number => $node,
         );
         $session->save;
     }

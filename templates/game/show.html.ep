@@ -1,6 +1,6 @@
 <div id="device-frame">
   <div id="device-header">
-    <div id="device-name">ProspectBoy 3000 // LOCAL NODE 07</div>
+    <div id="device-name">ProspectBoy 3000 // LOCAL NODE <%= $node_number %></div>
     <div id="device-meta">OS v2.1.4  │  REGISTERED TO: <span id="device-owner"><%= $authenticated ? $player_name : '—' %></span></div>
   </div>
 

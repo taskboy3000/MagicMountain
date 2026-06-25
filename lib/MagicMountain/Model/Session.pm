@@ -4,7 +4,7 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'player_id', 'last_active' ];
+    return [ @$cols, 'player_id', 'last_active', 'node_number' ];
 };
 
 sub find_by_player_id ($self, $player_id) {
