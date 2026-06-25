@@ -1,0 +1,8 @@
+advisories:
+  shed_available: "Shed inventory detected. {shed_count} item(s) awaiting disposition."
+  ap_available: "Mountain intake: recover something valuable, unstable, or both."
+  idle: "No salvage logged. This unit recommends acquiring questionable property at next cycle."
+  no_ap: "Action points depleted. Unit standby until next maintenance cycle."
+  no_ap_with_shed: "{shed_count} item(s) in storage awaiting next maintenance cycle for sale."
+  season_end: "Season terminal approaching. Liquidate all holdings."
+  faction_hunger: "{fs_name} detected without recent intake. Premium prices anticipated."

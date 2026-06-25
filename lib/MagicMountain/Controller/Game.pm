@@ -1,6 +1,7 @@
 package MagicMountain::Controller::Game;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 use Mojo::JSON qw(encode_json);
+use YAML::XS qw(LoadFile);
 
 sub show ($self) {
     my $player_id = $self->current_player;
@@ -10,7 +11,7 @@ sub show ($self) {
         $self->respond_to(
             json => sub { $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401) },
             html => sub {
-                $self->stash(authenticated => 0, player_name => '—', node_number => '—');
+                $self->stash(authenticated => 0, player_name => '—', node_number => '—', unit_status => '');
                 $self->render('game/show');
             },
         );
@@ -192,6 +193,7 @@ sub show ($self) {
                 factions      => $self->factions_data,
                 faction_state => $season ? $season->getCol('faction_state') : undef,
                 ($season_recap ? (season_recap => $season_recap) : ()),
+                unit_status => $self->_unit_status,
             });
         },
         html => sub {
@@ -209,10 +211,17 @@ sub show ($self) {
                 action_points_max => $row->{action_points_max} // 15,
                 active_phase      => $activity ? $activity->phase : undef,
                 artifact_json     => $prospecting_view ? encode_json($prospecting_view) : 'null',
+                unit_status       => $self->_unit_status,
             );
             $self->render('game/show');
         },
     );
+}
+
+sub _unit_status ($self) {
+    state $data = LoadFile($self->app->home . '/content/text/system_messages.yml');
+    my $messages = $data->{unit_status} or return '';
+    return $messages->[rand @$messages];
 }
 
 1;

@@ -46,6 +46,7 @@ function populateStatusStrip(g) {
   document.getElementById('s-ap').textContent = p.action_points ?? '—';
   document.getElementById('s-scrap').textContent = p.scrap ?? '—';
   document.getElementById('s-score').textContent = p.score ?? '—';
+  document.getElementById('unit-status').textContent = g.unit_status ?? '';
   document.getElementById('context-bar').textContent = '';
 }
 

@@ -1,5 +1,6 @@
 package MagicMountain::Controller::Home;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
+use YAML::XS qw(LoadFile);
 
 sub show ($self) {
     my $char = $self->_require_character or return;
@@ -18,7 +19,9 @@ sub show ($self) {
     my $type = $self->_active_activity_type($char);
     my $market_active = ($type && $type eq 'market') ? 1 : 0;
 
-    my @suggestions = _build_suggestions($ap, $scrap, $shed_count, $season_day, $season_len, $season, $char);
+    state $advisories_data = LoadFile($self->app->home . '/content/text/advisories.yml');
+    my $advisories = $advisories_data->{advisories} // {};
+    my @suggestions = _build_suggestions($ap, $scrap, $shed_count, $season_day, $season_len, $season, $char, $advisories);
 
     my $crier = $season ? $season->getCol('crier_message') : undef;
 
@@ -59,14 +62,18 @@ sub show ($self) {
     });
 }
 
-sub _build_suggestions ($ap, $scrap, $shed_count, $day, $len, $season, $char) {
+sub _interpolate ($text, $params) {
+    $text =~ s!\{(\w+)\}!$params->{$1} // "{$1}"!ge;
+    return $text;
+}
+
+sub _build_suggestions ($ap, $scrap, $shed_count, $day, $len, $season, $char, $advisories) {
     my @suggestions;
 
     if ($shed_count > 0 && $ap >= 1) {
         push @suggestions, {
             icon => 'OFFER',
-            text => "You have $shed_count artifact" . ($shed_count > 1 ? 's' : '')
-                . " in the shed ready to sell. Visit the Bazaar.",
+            text => _interpolate($advisories->{shed_available} // '', { shed_count => $shed_count }),
             view => 'bazaar',
         };
     }
@@ -74,7 +81,7 @@ sub _build_suggestions ($ap, $scrap, $shed_count, $day, $len, $season, $char) {
     if ($ap >= 2) {
         push @suggestions, {
             icon => 'DRILL',
-            text => "You have $ap AP remaining — the mountain is calling. Begin a prospecting expedition.",
+            text => _interpolate($advisories->{ap_available} // '', { ap => $ap }),
             view => 'prospect',
         };
     }
@@ -82,14 +89,13 @@ sub _build_suggestions ($ap, $scrap, $shed_count, $day, $len, $season, $char) {
     if ($shed_count == 0 && $ap < 2) {
         push @suggestions, {
             icon => 'WAIT',
-            text => "Not enough AP to prospect and nothing in the shed. AP refreshes at the next day cycle.",
+            text => _interpolate($advisories->{idle} // '', { ap => $ap, shed_count => $shed_count }),
             view => undef,
         };
     } elsif ($shed_count > 0 && $ap < 1) {
         push @suggestions, {
             icon => 'CLOCK',
-            text => "No AP remaining, but you have $shed_count artifact"
-                . ($shed_count > 1 ? 's' : '') . " in the shed. Return after the next maintenance window.",
+            text => _interpolate($advisories->{no_ap_with_shed} // $advisories->{no_ap} // '', { shed_count => $shed_count }),
             view => undef,
         };
     }
@@ -97,7 +103,7 @@ sub _build_suggestions ($ap, $scrap, $shed_count, $day, $len, $season, $char) {
     if ($day > $len - 5) {
         push @suggestions, {
             icon => 'ALERT',
-            text => "Day $day of $len — the season is winding down. Sell your artifacts before it ends!",
+            text => _interpolate($advisories->{season_end} // '', { day => $day, len => $len }),
             view => 'shed',
         };
     }
@@ -110,8 +116,10 @@ sub _build_suggestions ($ap, $scrap, $shed_count, $day, $len, $season, $char) {
             next unless $fs->{days_since_purchase} && $fs->{days_since_purchase} >= 3;
             push @suggestions, {
                 icon => 'PREMIUM',
-                text => "The " . ($fs->{name} // ucfirst($fid))
-                    . " hasn't bought in $fs->{days_since_purchase} days — they'll pay a premium!",
+                text => _interpolate($advisories->{faction_hunger} // '', {
+                    fs_name => $fs->{name} // ucfirst($fid),
+                    fs_days => $fs->{days_since_purchase},
+                }),
                 view => 'bazaar',
             };
         }

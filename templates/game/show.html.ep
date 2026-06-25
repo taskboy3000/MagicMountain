@@ -9,6 +9,7 @@
     <span>AP <span id="s-ap">—</span></span>
     <span>SCRAP <span id="s-scrap">—</span></span>
     <span>SCORE <span id="s-score">—</span></span>
+    <span id="unit-status" style="color:var(--mm-text-dim);font-size:0.72rem"><%= $unit_status // '' %></span>
   </div>
 
 % if ($authenticated) {
