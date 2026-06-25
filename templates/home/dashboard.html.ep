@@ -17,8 +17,6 @@
 % } else {
     <p style="font-size:0.78rem;color:var(--mm-text-dim);text-align:center">No advisories. Select a tab above to begin.</p>
 % }
-    <p style="font-size:0.65rem;color:var(--mm-text-dim);margin-top:0.75rem;text-align:center">
-      AP: <%= $ap %>  │  Scrap: <%= $scrap %>  │  Shed: <%= $shed_count %>
-    </p>
+
   </div>
 </div>
