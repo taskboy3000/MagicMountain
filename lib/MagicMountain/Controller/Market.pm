@@ -11,6 +11,14 @@ sub show ($self) {
 
     my $c = $activity->customer;
 
+    # Clear transient UI state so stale sale/message cards don't persist
+    if ($c) {
+        $c->{last_sale} = undef;
+        $c->{last_message} = undef;
+        $activity->customer($c);
+        $activity->save;
+    }
+
     my $pressure_state;
     if ($c) {
         my $pct = ($c->{spent_so_far} // 0) / ($c->{soft_budget} || 1);
