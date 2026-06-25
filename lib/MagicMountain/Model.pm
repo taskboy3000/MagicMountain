@@ -556,7 +556,7 @@ The C<file> path is typically set from the application config:
 
 L<MagicMountain::Model::Account>, L<MagicMountain::Model::Character>,
 L<MagicMountain::Model::Season>, L<MagicMountain::Model::Session>,
-L<MagicMountain::Model::HallOfFame>, L<MagicMountain::Model::AuditLog>
+L<MagicMountain::Model::AuditLog>
 
 =head1 AUTHOR
 

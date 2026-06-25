@@ -206,7 +206,7 @@ subtest 'prospecting — bazaar inactive' => sub {
     my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
     ok !$bazaar->{active}, 'bazaar inactive during prospecting';
     is $bazaar->{reason}, 'Finish your current expedition first', 'correct reason';
-    is $json->{secondary_view}, 'shed', 'secondary is shed during prospecting';
+    is $json->{secondary_view}, 'factions', 'secondary is factions during prospecting';
 };
 
 subtest 'market visit — prospect inactive' => sub {

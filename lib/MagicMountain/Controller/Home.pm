@@ -10,9 +10,13 @@ sub show ($self) {
     my $season_day = $season ? $season->getCol('day') // 1 : 1;
     my $season_len = $season ? $season->getCol('length') // 30 : 30;
 
-    my $shed_count = scalar @{ $self->app->shed->find(
+    my $all_shed = $self->app->shed->find(
         sub { $_[0]->{char_id} eq $char->getCol('id') }
-    ) };
+    );
+    my $shed_count = scalar @$all_shed;
+
+    my $type = $self->_active_activity_type($char);
+    my $market_active = ($type && $type eq 'market') ? 1 : 0;
 
     my @suggestions = _build_suggestions($ap, $scrap, $shed_count, $season_day, $season_len, $season, $char);
 
@@ -21,13 +25,15 @@ sub show ($self) {
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(
-            suggestions  => \@suggestions,
-            season_day   => $season_day,
-            season_len   => $season_len,
-            ap           => $ap,
-            scrap        => $scrap,
-            shed_count   => $shed_count,
-            crier_msg    => $crier,
+            suggestions    => \@suggestions,
+            season_day     => $season_day,
+            season_len     => $season_len,
+            ap             => $ap,
+            scrap          => $scrap,
+            shed_count     => $shed_count,
+            shed_items     => $all_shed,
+            market_active  => $market_active,
+            crier_msg      => $crier,
         );
         return $self->render('home/dashboard', layout => undef);
     }

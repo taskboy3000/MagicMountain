@@ -269,11 +269,11 @@ written.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| player_id | UUID | Primary key |
+| id | UUID | Primary key |
 | username | string | Unique, user-chosen display name. Used as login credential. |
 | password | string or null | Optional password hash. Currently null (name-only auth for alpha). |
 | disabled | boolean | If true, account is locked (login rejected). Used for moderation. |
-| created_at | timestamp | Account creation time |
+| createdAt | timestamp | Account creation time |
 
 Survives across seasons. Contains no gameplay data.
 
@@ -281,13 +281,12 @@ Survives across seasons. Contains no gameplay data.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| season_id | UUID | Primary key |
+| id | UUID | Primary key |
 | label | string | Human-readable (e.g., "Season 1") |
 | status | enum | upcoming / active / archived |
 | day | integer | Current season day (starts at 1) |
 | length | integer | Total days in this season |
-| started_at | timestamp | When season went active |
-| ended_at | timestamp | When season was finalized |
+| end_of_day_hour | integer | Hour (0–23) when maintenance fires for day rollover |
 | faction_state | map | Per-faction influence, artifacts_received, intake_by_trait, and name |
 | crier_message | string or null | Most recent Town Crier narrative text, generated during maintenance |
 | crier_snapshot | map or null | Copy of faction_state from previous day, used for crier diffing |
@@ -296,7 +295,8 @@ Survives across seasons. Contains no gameplay data.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| player_id | UUID | FK to PlayerAccount |
+| id | UUID | Primary key |
+| account_id | UUID | FK to PlayerAccount |
 | season_id | UUID | FK to Season |
 | name | string | Snapshot of name at season start |
 | score | integer | Cumulative leaderboard value from sales. NEVER decreases |

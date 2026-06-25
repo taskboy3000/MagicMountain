@@ -20,3 +20,40 @@
 
   </div>
 </div>
+
+<div class="mm-panel">
+  <div class="mm-panel-header">SALVAGE LEDGER</div>
+  <div class="mm-panel-body">
+% my $items = $shed_items;
+% if (@$items) {
+    <table class="mm-ledger">
+      <thead><tr>
+        <th>Item</th><th>Cond</th><th>Value</th><th>Days</th>
+% if ($market_active) {
+        <th></th>
+% }
+      </tr></thead>
+      <tbody>
+% for my $item (@$items) {
+        <tr>
+          <td><%= $item->getCol('artifact_id') %></td>
+          <td><span class="mm-badge
+% my %cc = (fresh => 'mm-badge-green', settling => 'mm-badge-amber', fading => 'mm-badge-red');
+            <%= $cc{$item->getCol('condition')} // 'mm-badge-green' %>"><%= $item->getCol('condition') %></span></td>
+          <td><%= $item->getCol('estimated_value_min') // '?' %>-<%= $item->getCol('estimated_value_max') // '?' %></td>
+          <td><%= $item->getCol('days_in_shed') // 0 %></td>
+% if ($market_active) {
+          <td>
+% my $offer = { label => 'Offer', attrs => { 'data-action-url' => '/market/offer', 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item->getCol('id') } };
+%=           include 'components/action_buttons', actions => [$offer]
+          </td>
+% }
+        </tr>
+% }
+      </tbody>
+    </table>
+% } else {
+    <p style="color:var(--mm-text-dim);text-align:center">No artifacts in storage.</p>
+% }
+  </div>
+</div>

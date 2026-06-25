@@ -5,7 +5,6 @@ my %BASE_TAB = (
     idle => {
         home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
-        shed     => { active => 1, reason => undef },
         bazaar   => { active => 1, reason => undef },
         factions => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
@@ -14,7 +13,6 @@ my %BASE_TAB = (
     prospecting => {
         home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
-        shed     => { active => 1, reason => undef },
         bazaar   => { active => 0, reason => 'Finish your current expedition first' },
         factions => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
@@ -23,7 +21,6 @@ my %BASE_TAB = (
     market => {
         home     => { active => 1, reason => undef },
         prospect => { active => 0, reason => 'Complete your market visit first' },
-        shed     => { active => 1, reason => undef },
         bazaar   => { active => 1, reason => undef },
         factions => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
@@ -32,11 +29,10 @@ my %BASE_TAB = (
 );
 
 my %SECONDARY = (
-    home        => 'shed',
-    idle        => 'shed',
-    prospecting => 'shed',
+    home        => 'factions',
+    idle        => 'factions',
+    prospecting => 'factions',
     market      => 'shed',
-    shed        => 'factions',
     factions    => 'leaderboard',
     skills      => 'leaderboard',
     account     => 'leaderboard',
@@ -56,7 +52,6 @@ my %FRAGMENT_URL = (
 my %TAB_FRAGMENT_URL = (
     home     => '/home?_format=fragment',
     prospect => '/prospecting?_format=fragment',
-    shed     => '/shed?_format=fragment',
     bazaar   => '/market?_format=fragment',
     factions => '/factions?_format=fragment',
     skills   => '/skills?_format=fragment',
@@ -66,7 +61,6 @@ my %TAB_FRAGMENT_URL = (
 my %TAB_LABEL = (
     home     => 'HOME',
     prospect => 'PROSPECT',
-    shed     => 'SHED',
     bazaar   => 'BAZAAR',
     factions => 'FACTIONS',
     skills   => 'SKILLS',
@@ -75,7 +69,6 @@ my %TAB_LABEL = (
 
 my %TAB_TO_VIEW = (
     home     => 'home',
-    shed     => 'shed',
     bazaar   => 'market',
     factions => 'factions',
     skills   => 'skills',
@@ -129,7 +122,7 @@ sub show ($self) {
         $tab->{current} = 1 if $tab->{id} eq $current_tab;
     }
 
-    my $secondary = $SECONDARY{$view} // 'shed';
+    my $secondary = $SECONDARY{$view} // 'factions';
     my $context = $self->_context_text($char, $view);
 
     # Sync stored view if it changed
@@ -155,7 +148,6 @@ sub _tab_id_for ($view) {
         idle        => 'prospect',
         prospecting => 'prospect',
         market      => 'bazaar',
-        shed        => 'shed',
         factions    => 'factions',
         skills      => 'skills',
         account     => 'account',
@@ -165,7 +157,7 @@ sub _tab_id_for ($view) {
 
 sub _build_tabs ($type, $ap, $shed_count) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
-    my @tab_ids  = qw(home prospect shed bazaar factions skills account);
+    my @tab_ids  = qw(home prospect bazaar factions skills account);
     my @tabs;
     for my $id (@tab_ids) {
         my $entry = { %{ $base->{$id} } };
@@ -185,11 +177,9 @@ sub _build_tabs ($type, $ap, $shed_count) {
                 $entry->{action_url} = '/prospecting/begin';
             }
         }
-        my $label = $TAB_LABEL{$id};
-        $label .= " ($shed_count)" if $id eq 'shed' && defined $shed_count;
         push @tabs, {
             id            => $id,
-            label         => $label,
+            label         => $TAB_LABEL{$id},
             active        => $entry->{active},
             reason        => $entry->{reason},
             fragment_url  => $TAB_FRAGMENT_URL{$id},

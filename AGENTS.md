@@ -19,6 +19,16 @@ This is a ground-up reimplementation following the architecture spec in
 
 ---
 
+Design Principles
+
+1. Prefer data over branching. When choosing between a data structure (tables, hashes, YAML, registries, dispatch maps) and if/elsif chains, prefer the data-driven design.
+2. Every layer has one responsibility. Business logic belongs in the domain model; templates render data; JavaScript orchestrates UI events; persistence stores state.
+3. Represent decisions as data, not code. Dispatch tables, transition tables, and configuration are preferred over hard-coded control flow because they are easier to inspect, test, and extend.
+4. Design for deterministic verification. Favor architectures that can be validated by tests, static analysis, simulations, coverage, and other automated tooling.
+5. Eliminate duplication by improving the model. If a feature requires repeated branching or special cases, first ask whether the underlying data model is missing an abstraction.
+
+---
+
 ## Directory Layout
 
 ```
@@ -27,94 +37,182 @@ magic_mountain/
 ├── GAME_ARCHITECTURE.md           # Target architecture spec (authoritative)
 ├── FUTURES.md                     # Planned work beyond current implementation
 ├── Makefile                       # test, cover, indent targets
+├── TUNING.md                      # Balance tuning reference
 ├── cpanfile                       # Perl dependencies (Mojolicious, YAML::XS, etc.)
 ├── magic_mountain.yml             # App config (secrets, session_timeout_minutes, end_of_day_hour)
+├── opencode.json                  # opencode configuration
+├── package.json                   # Node tooling (JS syntax check)
+│
+├── bin/                           # Utility scripts
+│   ├── analyze                    # Simulation analysis
+│   ├── analyze_sim                # Transcript analysis
+│   ├── check_coverage             # Faction-artifact coverage validation
+│   ├── check_loyalist_balance     # Loyalist strategy viability check
+│   ├── find_dead_code             # Dead code detection
+│   ├── run_many                   # Batch simulation runner
+│   ├── run_sims                   # Simulation runner
+│   ├── setup_ramdisk              # RAM disk setup for sim speed
+│   ├── smoke_test_endpoint        # Endpoint smoke test
+│   └── walkthrough                # End-to-end game loop walkthrough
 │
 ├── lib/
 │   ├── MagicMountain.pm              # Mojolicious app: routes, helpers, attributes
 │   └── MagicMountain/
-│       ├── Controller.pm                # Base controller
-│       ├── Controller/Root.pm           # Gateway redirect (GET / → /login or /game)
-│       ├── Controller/Sessions.pm       # Login/logout, session management
-│       ├── Controller/Player.pm         # Current player info (GET /player)
-│       ├── Controller/Game.pm           # Game state page (GET /game)
-│       ├── Controller/Prospecting.pm    # Prospecting actions (begin, push, stop)
-│       ├── Controller/Market.pm         # MarketVisit actions (begin, offer, send_away)
-│       ├── Controller/Shed.pm           # Shed inventory listing
-│       ├── Controller/Skills.pm         # Skill purchase endpoint
-│       ├── Controller/Leaderboard.pm    # Season leaderboard
-│       ├── Model.pm                     # Base persistence class (JSON file CRUD, UUID, find)
-│       ├── Model/Account.pm             # Player accounts (username, password)
-│       ├── Model/AuditLog.pm            # JSONL event log
-│       ├── Model/Character.pm           # Per-season character (name, score, AP, skills)
-│       ├── Model/Season.pm              # Season config and state
-│       ├── Model/Session.pm             # Server-side session tracking
-│       ├── Model/HallOfFame.pm          # Hall of Fame entries
-│       ├── Model/ShedItem.pm            # Shed artifact inventory row
-│       ├── Model/ArtifactDisposition.pm # Per-sale permanent record
-│       ├── Model/Transcript.pm          # Game event log
-│       ├── Model/SeasonRecord.pm        # Post-season archive
-│       ├── Activity.pm                  # Base class for state-machine activities
-│       ├── Activity/Prospecting.pm      # Artifact draw, push/collapse/breakthrough, stop
-│       ├── Activity/MarketVisit.pm      # Customer generation, negotiation, sale
-│       ├── Maintenance.pm               # In-process daily maintenance timer
-│       ├── ShedManager.pm               # Artifact decay logic
-│       ├── Crier.pm                     # Town Crier narrative generation
-│       └── Command/
-│           ├── create_account.pm        # CLI: create-account
-│           ├── delete_account.pm        # CLI: delete-account
-│           ├── disable_account.pm       # CLI: disable-account
-│           ├── list_accounts.pm         # CLI: list-accounts
-│           ├── advance_day.pm           # CLI: advance-day (manual maintenance trigger)
-│           ├── create_season.pm         # CLI: create-season
-│           ├── end_season.pm            # CLI: end-season (finalization)
-│           └── simulate.pm              # CLI: run bot simulation
+│       ├── Activity.pm               # Base class for state-machine activities
+│       ├── Controller.pm             # Base controller
+│       ├── Crier.pm                  # Town Crier narrative generation
+│       ├── Maintenance.pm            # In-process daily maintenance timer
+│       ├── Model.pm                  # Base persistence class (JSON file CRUD, UUID, find)
+│       ├── RateLimiter.pm            # IP/account-based rate limiting
+│       ├── ShedManager.pm            # Artifact decay logic
+│       ├── Activity/
+│       │   ├── MarketVisit.pm        # Customer generation, negotiation, sale
+│       │   └── Prospecting.pm        # Artifact draw, push/collapse/breakthrough, stop
+│       ├── Bot/
+│       │   ├── PushPolicy.pm         # Push/stop decision policies
+│       │   └── SellPolicy.pm         # Selling decision policies
+│       ├── Command/
+│       │   ├── advance_day.pm        # CLI: advance-day (manual maintenance trigger)
+│       │   ├── create_account.pm     # CLI: create-account
+│       │   ├── create_season.pm      # CLI: create-season
+│       │   ├── delete_account.pm     # CLI: delete-account
+│       │   ├── disable_account.pm    # CLI: disable-account
+│       │   ├── end_season.pm         # CLI: end-season (finalization)
+│       │   ├── list_accounts.pm      # CLI: list-accounts
+│       │   └── simulate.pm           # CLI: run bot simulation
+│       ├── Controller/
+│       │   ├── Account.pm            # Account settings panel
+│       │   ├── Crier.pm              # Town Crier bulletin
+│       │   ├── Factions.pm           # Faction registry
+│       │   ├── Game.pm               # Game state page
+│       │   ├── Home.pm               # Home dashboard (shed ledger)
+│       │   ├── Idle.pm               # Idle action panel
+│       │   ├── Leaderboard.pm        # Season leaderboard
+│       │   ├── Market.pm             # MarketVisit actions (begin, offer, send_away)
+│       │   ├── Nav.pm                # Navigation state (tabs, views, fragment URLs)
+│       │   ├── Player.pm             # Current player info
+│       │   ├── Prospecting.pm        # Prospecting actions (begin, push, stop)
+│       │   ├── Root.pm               # Gateway redirect (GET /)
+│       │   ├── Sessions.pm           # Login/logout, session management
+│       │   ├── Shed.pm               # Shed inventory listing
+│       │   └── Skills.pm             # Skill purchase endpoint
+│       └── Model/
+│           ├── Account.pm            # Player accounts (username, password)
+│           ├── ArtifactDisposition.pm # Per-sale permanent record
+│           ├── AuditLog.pm           # JSONL event log
+│           ├── Character.pm          # Per-season character (name, score, AP, skills)
+│           ├── FactionSnapshot.pm    # Daily faction history
+│           ├── Season.pm             # Season config and state
+│           ├── SeasonRecord.pm       # Post-season archive
+│           ├── Session.pm            # Server-side session tracking
+│           ├── ShedItem.pm           # Shed artifact inventory row
+│           └── Transcript.pm         # Game event log
 │
 ├── templates/
-│   ├── layouts/default.html.ep    # Bootstrap 5 layout wrapper
-│   ├── sessions/new.html.ep       # Login form
-│   └── game/show.html.ep          # Authenticated home page with game state
+│   ├── components/
+│   │   └── action_buttons.html.ep    # Shared button rendering component
+│   ├── layouts/
+│   │   └── default.html.ep           # Minimal layout (Normalize.css, IBM Plex Mono)
+│   ├── account/
+│   │   └── settings.html.ep          # Account settings panel
+│   ├── crier/
+│   │   └── bulletin.html.ep          # Town Crier message display
+│   ├── factions/
+│   │   └── registry.html.ep          # Faction registry with standing/influence
+│   ├── game/
+│   │   └── show.html.ep              # Authenticated home page with game state
+│   ├── home/
+│   │   └── dashboard.html.ep         # Home dashboard (station status + shed ledger)
+│   ├── idle/
+│   │   └── actions.html.ep           # Idle action panel (Prospect/Bazaar buttons)
+│   ├── leaderboard/
+│   │   └── rankings.html.ep          # Player rankings table
+│   ├── market/
+│   │   └── negotiation.html.ep       # Market negotiation panel
+│   ├── player/
+│   │   └── status.html.ep            # Player status strip
+│   ├── prospecting/
+│   │   └── scan.html.ep              # Prospecting scan panel
+│   ├── shed/
+│   │   └── ledger.html.ep            # Shed inventory ledger
+│   └── skills/
+│       └── training.html.ep          # Skill training panel
 │
-├── public/css/                    # Frontend assets (placeholder)
-├── public/js/                     # Frontend assets (placeholder)
+├── public/
+│   ├── css/
+│   │   └── app.css                   # Custom stylesheet
+│   └── js/
+│       └── game.js                   # Declarative UI orchestration
 │
-├── content/                       # YAML content definitions
-│   ├── prospecting.yml            # Artifact specs and weights
-│   ├── factions.yml               # Faction definitions and interests
-│   └── skills.yml                 # Skill tree and costs
+├── content/                          # YAML content definitions
+│   ├── bots.yml                      # Bot profile definitions
+│   ├── factions.yml                  # Faction definitions and interests
+│   ├── prospecting.yml               # Artifact specs and weights
+│   ├── skills.yml                    # Skill tree and costs
+│   └── text/                         # Narrative text definitions
+│       ├── commission_triggers.yml   # Commission issuance text
+│       ├── crier.yml                 # Town Crier daily messages
+│       └── negotiation_reactions.yml # Per-faction market flavor text
 │
-├── t/                             # Test suite (29 files, 253 tests)
-│   ├── model.t                    # Base Model class tests
-│   ├── model_account.t            # Account model tests
-│   ├── model_character.t          # Character model tests
-│   ├── model_character_invariants.t
-│   ├── model_season.t             # Season model tests
-│   ├── model_shed_item.t
-│   ├── model_artifact_disposition.t
-│   ├── model_hall_of_fame.t       # Hall of Fame model tests
-│   ├── model_delete.t
-│   ├── model_validate.t
-│   ├── model_save_table_edit.t
-│   ├── session.t                  # Session lifecycle tests
-│   ├── login.t                    # Login flow integration tests
-│   ├── activity.t                 # Activity base class tests
-│   ├── activity_prospecting.t     # Prospecting unit tests
-│   ├── market_visit.t             # MarketVisit unit tests
-│   ├── prospecting_web.t          # Prospecting web integration tests
-│   ├── market_visit_web.t         # MarketVisit web integration tests
-│   ├── shed.t                     # ShedManager tests
-│   ├── decay.t                    # Artifact decay tests
-│   ├── crier.t                    # Crier narrative tests
-│   ├── maintenance.t              # Daily maintenance tests
-│   ├── transcript.t               # Transcript tests
-│   ├── faction_state.t            # Faction state tests
-│   ├── leaderboard.t              # Leaderboard tests
-│   ├── end_season.t               # Season finalization tests
-│   ├── season_recap.t             # Season recap display tests
-│   ├── bot_simulate.t             # Bot simulation tests
-│   └── command_advance_day.t      # advance-day CLI tests
+├── t/                                # Test suite (39 files)
+│   ├── lib/
+│   │   └── TestCharacter.pm          # Test helper: character factory
+│   ├── activity.t                    # Activity base class tests
+│   ├── activity_prospecting.t        # Prospecting unit tests
+│   ├── bot_simulate.t                # Bot simulation tests
+│   ├── command_advance_day.t         # advance-day CLI tests
+│   ├── controller_web.t              # Controller integration tests
+│   ├── crier.t                       # Crier narrative tests
+│   ├── decay.t                       # Artifact decay tests
+│   ├── end_season.t                  # Season finalization tests
+│   ├── faction_snapshot.t            # Faction snapshot tests
+│   ├── faction_state.t               # Faction state tests
+│   ├── fragment_web.t                # Fragment rendering tests
+│   ├── game_web.t                    # Game page integration tests
+│   ├── js_syntax.t                   # JS syntax validation
+│   ├── leaderboard.t                 # Leaderboard tests
+│   ├── login.t                       # Login flow integration tests
+│   ├── maintenance.t                 # Daily maintenance tests
+│   ├── market_dynamics.t             # Market dynamics tests
+│   ├── market_visit.t                # MarketVisit unit tests
+│   ├── market_visit_web.t            # MarketVisit web integration tests
+│   ├── model.t                       # Base Model class tests
+│   ├── model_account.t               # Account model tests
+│   ├── model_artifact_disposition.t  # ArtifactDisposition tests
+│   ├── model_character.t             # Character model tests
+│   ├── model_character_invariants.t  # Character invariant tests
+│   ├── model_delete.t                # Model delete tests
+│   ├── model_save_table_edit.t       # Model save/edit tests
+│   ├── model_season.t                # Season model tests
+│   ├── model_shed_item.t             # ShedItem model tests
+│   ├── model_validate.t              # Model validation tests
+│   ├── nav_web.t                     # Nav controller tests
+│   ├── prospecting_web.t             # Prospecting web integration tests
+│   ├── rate_limiter.t                # Rate limiter tests
+│   ├── season_end_web.t              # Season end web tests
+│   ├── season_recap.t                # Season recap display tests
+│   ├── session.t                     # Session lifecycle tests
+│   ├── shed.t                        # ShedManager tests
+│   ├── shed_web.t                    # Shed web integration tests
+│   ├── skills_web.t                  # Skills web integration tests
+│   └── transcript.t                  # Transcript tests
 │
-└── script/mountain                # App entry point: perl script/mountain <command>
+├── data/                             # Runtime JSON persistence
+│   ├── accounts.json
+│   ├── activities.json
+│   ├── audit.jsonl
+│   ├── characters.json
+│   ├── dispositions.json
+│   ├── faction_snapshots.json
+│   ├── season_records.json
+│   ├── seasons.json
+│   ├── sessions.json
+│   ├── shed.json
+│   └── transcript.jsonl
+│
+├── docs/                             # Design documentation
+├── cover_db/                         # Coverage reports (generated)
+└── script/mountain                   # App entry point: perl script/mountain <command>
 ```
 
 ---
@@ -148,13 +246,13 @@ See `FUTURES.md` for detailed categorization. Summary:
 | Game activities (Prospecting, Market) | **Done** |
 | Daily maintenance | **Done** |
 | Factions + Crier | **Done** |
-| Season finalization | **Done** (CLI only, no web UI) |
-| Bot simulation | **Done** (single hardcoded strategy) |
+| Season finalization | **Done** (CLI only; web route defined but disabled) |
+| Bot simulation | **Done** (pluggable policy system with YAML profiles) |
 | Commission system (§7.3) | Not implemented |
 | Market dynamics (§6.7) | **Done** |
 | MarketVisit Enhancements (§6.5) | **Done** (counter-offers + multi-item, both gated by config, default off) |
 | MariaDB migration | Deferred — JSON persistence writes entire table on every `save()`. This caps simulations at ~500 total bot-days for reasonable runtime. See FUTURES.md for details. |
-| CSRF / rate limiting / password auth | Deferred for alpha |
+| CSRF / rate limiting / password auth | **Done** (CSRF + rate limiting implemented; password auth deferred) |
 
 ---
 
@@ -167,7 +265,7 @@ perl -Ilib script/mountain daemon
 # CLI commands
 perl -Ilib script/mountain create-account --name alice
 perl -Ilib script/mountain list-accounts
-perl -Ilib script/mountain simulate --players 10 --days 5
+perl -Ilib script/mountain simulate --count 10 --days 5
 perl -Ilib script/mountain end-season
 ```
 
@@ -232,7 +330,7 @@ the summary.
 | Web framework | Mojolicious 9.40+ (Perl) |
 | Persistence | JSON files with atomic write-via-temp-file + flock |
 | Config | YAML (`magic_mountain.yml`, `content/*.yml`) |
-| Frontend | Bootstrap 5.3 CDN, vanilla JS |
+| Frontend | Normalize.css, IBM Plex Mono, custom CSS, vanilla JS |
 | Testing | Test::More, Test::Mojo |
 | Perl | 5.28+ with signatures (`-signatures`) |
 
@@ -447,15 +545,14 @@ philosophy, mechanics, and writing guidance, along with
 
 ---
 
-## Next Session
+## Completed
 
-- **Consider merging SHED into HOME**: The SHED tab is a thin view — mostly item
-  counts and condition. The offer buttons already appear on shed items during a
-  market visit (rendered in the secondary panel). Could move the full salvage
-  ledger into the HOME screen as a second card below STATION STATUS, and remove
-  SHED as a top-level nav item. The shed count on the SHED tab label would need
-  a new home (maybe the HOME advisories or status strip). Discuss before
-  implementing.
+- **SHED merged into HOME**: The salvage ledger table was moved into the HOME
+  screen as a second card below STATION STATUS. SHED was removed as a top-level
+  nav tab. The `/shed` endpoint still exists for the secondary panel during
+  market visits (offer button rendering). The secondary panel defaults to
+  FACTIONS for idle/home/prospecting views. Shed count badge on the nav tab
+  was removed (redundant with the inline ledger on HOME).
 
 ---
 
