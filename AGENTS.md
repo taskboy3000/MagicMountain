@@ -411,6 +411,26 @@ what action a button performs.
 - `applyNav` fetches `/nav`, reads `primary_fragment_url`, fetches that URL,
   and sets `innerHTML`. It never computes a URL, never inspects game state.
 
+**data- attribute to POST body convention**: Every `data-*` attribute on an
+action button (except `data-action-url`, `data-method`, `data-confirm`,
+`data-redirect`) is sent as a JSON body parameter. The attribute name is
+the parameter key:
+
+  - `data-shed-item-id="abc"` → `body.shed_item_id = "abc"`
+  - `data-skill="prospecting"` → `body.skill_id = "prospecting"`  *(wait, no — see below)*
+
+The JS conversion: `btn.dataset` provides camelCase keys (`shedItemId`),
+which `handleAction` converts to snake_case via
+`key.replace(/([A-Z])/g, '_$1').toLowerCase()`.
+
+  - `data-shed-item-id` → `dataset.shedItemId` → `body.shed_item_id`
+  - `data-skill` → `dataset.skill` → `body.skill` *(no camelCase, no change)*
+
+**Rule**: The `data-` attribute name MUST match the server-side parameter name
+after camelCase-to-snake_case conversion. Use `data-shed-item-id` (not
+`data-id`) when the server expects `shed_item_id`. The walkthrough must use
+the same conversion when building POST bodies from button attributes.
+
 **Violation example** (do not replicate): A template that hardcodes
 `data-action-url="/skills/purchase"` or checks `if ($shed_count > 0)` to
 decide rendering. That logic and URL belongs in the Perl backend where it

@@ -12,8 +12,8 @@ sub show ($self) {
     my $a = $activity->artifact;
 
     my @actions = (
-        { url => '/prospecting/push', method => 'POST', label => 'Push', id => 'btn-push', class => 'mm-btn-primary' },
-        { url => '/prospecting/stop', method => 'POST', label => 'Stop', id => 'btn-stop' },
+        { label => 'Push', attrs => { 'data-action-url' => '/prospecting/push', 'data-method' => 'POST', id => 'btn-push', class => 'mm-btn mm-btn-primary' } },
+        { label => 'Stop', attrs => { 'data-action-url' => '/prospecting/stop', 'data-method' => 'POST', id => 'btn-stop', class => 'mm-btn' } },
     );
 
     my $format = $self->param('_format');

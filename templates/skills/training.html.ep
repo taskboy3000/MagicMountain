@@ -14,7 +14,8 @@
       </div>
       <div>
 % if (!$at_max && defined $next_cost) {
-%   my $purchase = { url => '/skills/purchase', method => 'POST', label => "Upgrade ($next_cost)", class => 'mm-btn-primary buy-skill-btn', data => { skill => $s->{id} }, disabled => ($scrap < $next_cost) };
+%   my $disabled = $scrap < $next_cost;
+%   my $purchase = { label => "Upgrade ($next_cost)", attrs => { 'data-action-url' => '/skills/purchase', 'data-method' => 'POST', class => 'mm-btn mm-btn-primary buy-skill-btn', 'data-skill-id' => $s->{id}, ($disabled ? (disabled => undef) : ()) } };
 %=    include 'components/action_buttons', actions => [$purchase]
 % } elsif ($at_max) {
         <span style="color:var(--mm-text-dim);font-size:0.7rem">MAX</span>

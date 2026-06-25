@@ -18,7 +18,8 @@ sub index ($self) {
         my $at_max = $cur >= $max;
         my $next_cost = $at_max ? undef : ($s->{levels}[$cur]{cost} // undef);
         if (!$at_max && defined $next_cost) {
-            push @all_actions, { url => '/skills/purchase', method => 'POST', label => "Upgrade ($next_cost)", data => { skill => $s->{id} }, disabled => ($scrap < $next_cost) };
+            my $disabled = $scrap < $next_cost;
+            push @all_actions, { label => "Upgrade ($next_cost)", attrs => { 'data-action-url' => '/skills/purchase', 'data-method' => 'POST', class => 'mm-btn mm-btn-primary buy-skill-btn', 'data-skill-id' => $s->{id}, ($disabled ? (disabled => undef) : ()) } };
         }
     }
 

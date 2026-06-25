@@ -123,8 +123,7 @@ subtest 'prospecting show includes _self.actions' => sub {
       ->status_is(200)
       ->json_has('/_self')
       ->json_has('/_self/actions')
-      ->json_has('/_self/actions/0/url')
-      ->json_has('/_self/actions/0/method')
+      ->json_has('/_self/actions/0/attrs')
       ->json_has('/_self/actions/0/label');
 };
 
@@ -136,8 +135,7 @@ subtest 'market show includes _self.actions' => sub {
       ->status_is(200)
       ->json_has('/_self')
       ->json_has('/_self/actions')
-      ->json_has('/_self/actions/0/url')
-      ->json_has('/_self/actions/0/method')
+      ->json_has('/_self/actions/0/attrs')
       ->json_has('/_self/actions/0/label');
 };
 

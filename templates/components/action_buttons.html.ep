@@ -1,9 +1,12 @@
 % for my $a (@$actions) {
-%   my $attrs = qq{data-action-url="$a->{url}" data-method="$a->{method}"};
-%   $attrs .= qq{ id="$a->{id}"} if $a->{id};
-%   $attrs .= qq{ data-confirm="$a->{confirm}"} if $a->{confirm};
-%   $attrs .= qq{ data-redirect="$a->{redirect}"} if $a->{redirect};
-%   $attrs .= qq{ disabled} if $a->{disabled};
-%   $attrs .= qq{ data-$_="$a->{data}{$_}"} for keys %{ $a->{data} // {} };
-  <button class="mm-btn <%= $a->{class} || '' %>"<%= $attrs %>><%= $a->{label} %></button>
+  <button
+%   for my $k (sort keys %{ $a->{attrs} // {} }) {
+%     my $v = $a->{attrs}{$k};
+%     if (defined $v) {
+    <%= $k %>="<%= $v %>"
+%     } else {
+    <%= $k %>
+%     }
+%   }
+  ><%= $a->{label} %></button>
 % }

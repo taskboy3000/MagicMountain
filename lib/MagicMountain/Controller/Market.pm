@@ -22,9 +22,9 @@ sub show ($self) {
         else                     { $pressure_state = 'mood_over_absolute' }
     }
 
-    my @actions = ({ url => '/market/send_away', method => 'POST', label => 'Send Away', id => 'btn-send-away' });
+    my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
     if ($c->{pending_counter}) {
-        push @actions, { url => '/market/accept_counter', method => 'POST', label => 'Accept Counter-Offer', id => 'btn-accept-counter', class => 'mm-btn-primary' };
+        push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => '/market/accept_counter', 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
     }
 
     my $format = $self->param('_format');

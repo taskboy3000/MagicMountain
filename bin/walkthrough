@@ -79,6 +79,22 @@ sub req_accept {
     return $tx;
 }
 
+sub body_from_button {
+    my ($btn) = @_;
+    my %body;
+    for my $attr ($btn->attrs->each) {
+        my $name = $attr->[0];
+        next unless $name =~ /^data-/;
+        (my $key = $name) =~ s/^data-//;
+        $key =~ s/-([a-z])/\u$1/g;
+        next if $key eq 'actionUrl' || $key eq 'method' || $key eq 'confirm' || $key eq 'redirect';
+        $key =~ s/([A-Z])/_$1/g;
+        $key = lc $key;
+        $body{$key} = $attr->[1];
+    }
+    return \%body;
+}
+
 sub extract_csrf {
     my ($tx) = @_;
     my $json = eval { decode_json($tx->res->body) };
@@ -236,10 +252,10 @@ assert($shed->res->code == 200, 'GET /shed?_format=fragment (after prospecting)'
 
 $dom = Mojo::DOM->new($shed->res->body);
 my @offer_btns = $dom->find('button[data-action-url="/market/offer"]')->each;
-my $shed_item_id;
+my $offer_body;
 if (@offer_btns) {
-    $shed_item_id = $offer_btns[0]->attr('data-id');
-    print STDERR "  Shed item: $shed_item_id\n";
+    $offer_body = body_from_button($offer_btns[0]);
+    print STDERR "  Offer body: " . (encode_json($offer_body)) . "\n";
 } else {
     print STDERR "  No shed items found (may have collapsed)\n";
 }
@@ -256,8 +272,8 @@ my $market = do_req(GET => '/market?_format=fragment');
 assert($market->res->code == 200, 'GET /market?_format=fragment (active)');
 
 # Offer item if available
-if ($shed_item_id) {
-    $tx = req_ok(POST => '/market/offer', { shed_item_id => $shed_item_id }, 'POST /market/offer');
+if ($offer_body) {
+    $tx = req_ok(POST => '/market/offer', $offer_body, 'POST /market/offer');
     extract_csrf($tx);
 }
 
@@ -276,8 +292,8 @@ assert($skills->res->code == 200, 'GET /skills?_format=fragment');
 $dom = Mojo::DOM->new($skills->res->body);
 my @skill_btns = $dom->find('button[data-action-url="/skills/purchase"]:not([disabled])')->each;
 if (@skill_btns) {
-    my $skill_id = $skill_btns[0]->attr('data-skill');
-    my $tx = req_ok(POST => '/skills/purchase', { skill_id => $skill_id }, "POST /skills/purchase ($skill_id)");
+    my $body = body_from_button($skill_btns[0]);
+    my $tx = req_ok(POST => '/skills/purchase', $body, "POST /skills/purchase");
     extract_csrf($tx);
 } else {
     print STDERR "  No purchasable skills (insufficient scrap)\n";

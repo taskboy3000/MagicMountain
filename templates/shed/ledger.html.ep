@@ -21,7 +21,7 @@
           <td><%= $item->getCol('days_in_shed') // 0 %></td>
 % if ($has_market) {
           <td>
-% my $offer = { url => '/market/offer', method => 'POST', label => 'Offer', class => 'offer-btn', data => { id => $item->getCol('id') } };
+% my $offer = { label => 'Offer', attrs => { 'data-action-url' => '/market/offer', 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item->getCol('id') } };
 %=           include 'components/action_buttons', actions => [$offer]
           </td>
 % }
