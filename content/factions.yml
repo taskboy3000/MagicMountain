@@ -1,6 +1,7 @@
 factions:
   - id: syndicate
     name: "The Syndicate"
+    disposition: "commercial interests — always buying"
     short_name: SYND.8TE
     interests: [thermal, storage, food_processing, power]
     base_multiplier: 1.1
@@ -8,6 +9,7 @@ factions:
     desperation_days: 3
   - id: libremount
     name: "LibreMount"
+    disposition: "survivalist collective — needs the basics"
     short_name: LBR_MT.01
     interests: [thermal, water, sanitation, medical_response, power]
     base_multiplier: 0.9
@@ -15,6 +17,7 @@ factions:
     desperation_days: 2
   - id: faculty
     name: "The Faculty"
+    disposition: "academic order — catalogues the unknown"
     short_name: FAC.LTY1
     interests: [signal, revelation, field, medical_response]
     base_multiplier: 1.0
@@ -22,6 +25,7 @@ factions:
     desperation_days: 3
   - id: purifiers
     name: "The Purifiers"
+    disposition: "zealous reformers — contain the old world"
     short_name: PURIF.RS
     interests: [force, instability, medical_response]
     base_multiplier: 1.2
@@ -29,6 +33,7 @@ factions:
     desperation_days: 4
   - id: revelationists
     name: "The Revelationists"
+    disposition: "truth seekers — the mountain speaks to them"
     short_name: RVL_IST.1
     interests: [revelation, signal, field, transformation]
     base_multiplier: 0.8

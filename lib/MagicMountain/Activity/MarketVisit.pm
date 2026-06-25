@@ -179,6 +179,7 @@ sub begin ($self, $char, %params) {
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
+        disposition         => $faction->{disposition},
         desired_behaviors   => $self->_pick_behaviors($faction),
         base_multiplier     => ($faction->{base_multiplier} // 1.0) + $mult_bonus,
         offer_value         => undef,

@@ -2,24 +2,13 @@
   <div class="mm-panel-header">FACTION REGISTRY</div>
   <div class="mm-panel-body">
 % my $factions_data = stash('factions') // [];
-% my $standing_data = stash('standing') // {};
-% my $sales_data = stash('faction_sales') // {};
-% my $fs_data = stash('faction_state') // {};
 % for my $f (@$factions_data) {
-%   my $fid = $f->{id};
-%   my $st = $standing_data->{$fid} // 0;
-%   my $sl = $sales_data->{$fid} // 0;
-%   my $fs = $fs_data->{$fid} // {};
-    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
-      <div class="mm-truncate">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
+      <div style="flex:1; min-width:0">
         <strong title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
-        <span style="color:var(--mm-amber);font-size:0.85em"><%= ('★' x $st) . ('☆' x (5 - $st)) %></span>
         <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $f->{disposition} // '' %></div>
       </div>
-      <div style="text-align:right">
-        <span class="mm-badge mm-badge-green"><%= $sl %> sold</span>
-        <span class="mm-badge"><%= $fs->{influence} // 0 %> infl.</span>
-      </div>
+      <div style="color:var(--mm-amber);white-space:nowrap;margin-left:0.5rem"><%= $f->{stars_display} %></div>
     </div>
 % }
   </div>

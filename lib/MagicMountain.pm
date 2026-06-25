@@ -49,6 +49,7 @@ has defaultConfig => sub ($self) {
         market_desperation_bonus        => 1.30,
         market_counter_offers           => 1,
         market_multi_item               => 1,
+        faction_max_stars               => 5,
     }
 };
 
@@ -420,6 +421,7 @@ sub buildRoutes ($self) {
     $auth->get('/nav')->to('nav#show');
 
     # Write routes under CSRF check
+    # DEAD-SUPPRESS: endpoint kept for future re-enable; UI button removed per user request
     $auth_write->delete('/player')->to('player#destroy')->name('delete_player');
     $auth_write->post('/skills/purchase')->to('skills#purchase');
     $auth_write->post('/prospecting/begin')->to('prospecting#begin');

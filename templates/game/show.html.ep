@@ -5,7 +5,7 @@
   </div>
 
   <div id="status-strip">
-    <span>DAY <span id="s-day">—</span>/<span id="s-total">—</span></span>
+    <span>SEASON DAY <span id="s-day">—</span> OF <span id="s-total">—</span></span>
     <span>AP <span id="s-ap">—</span></span>
     <span>SCRAP <span id="s-scrap">—</span></span>
     <span>SCORE <span id="s-score">—</span></span>
