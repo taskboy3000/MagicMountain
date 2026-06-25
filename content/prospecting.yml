@@ -1,4 +1,5 @@
 - id: thermal_box_001
+  short_name: THERMAL.BX
   behaviors: [thermal, power]
   weight: 10
   base_value: 5
@@ -42,6 +43,7 @@
     - It cracks down the middle and goes cold. A wisp of tarnished smoke rises.
 
 - id: void_core_001
+  short_name: VOIDCOR.E1
   behaviors: [instability, field]
   weight: 8
   base_value: 6
@@ -85,6 +87,7 @@
     - It folds in on itself, vanishing with a crack of displaced air.
 
 - id: crystal_chime_001
+  short_name: XSTR_CH.IM
   behaviors: [signal, field]
   weight: 5
   base_value: 8
@@ -128,6 +131,7 @@
     - A harmonic scream echoes and fades. Your hands are empty.
 
 - id: aqueous_receiver_001
+  short_name: AQUA_RC.V1
   behaviors: [water, medical_response]
   weight: 7
   base_value: 5
@@ -171,6 +175,7 @@
     - The fluid crystallizes instantly, then shatters into powder.
 
 - id: cold_storage_001
+  short_name: COLD_STR.G1
   behaviors: [storage, food_processing]
   weight: 6
   base_value: 6
@@ -214,6 +219,7 @@
     - An explosion of ice and metallic shards. Nothing remains but frost.
 
 - id: revelation_lens_001
+  short_name: RVL_LNS.001
   behaviors: [revelation, transformation]
   weight: 5
   base_value: 8
@@ -257,6 +263,7 @@
     - The lens dims and goes dark. Whatever it showed is lost forever.
 
 - id: force_resonator_001
+  short_name: FRC_RSN.01
   behaviors: [force, instability]
   weight: 7
   base_value: 5
@@ -300,6 +307,7 @@
     - A violent pulse of force flattens the surrounding area. The ring is gone.
 
 - id: memory_fabric_001
+  short_name: MEM_FAB.01
   behaviors: [storage, transformation]
   weight: 4
   base_value: 10
@@ -343,6 +351,7 @@
     - With a soft pop, the cloth tears and its images scatter like startled birds.
 
 - id: biotelemeter_001
+  short_name: BIOTEL.01
   behaviors: [medical_response, signal]
   weight: 6
   base_value: 6
@@ -386,6 +395,7 @@
     - It goes silent and cold. The absence of its hum is louder than the hum was.
 
 - id: sanitation_coil_001
+  short_name: SAN_COL.01
   behaviors: [sanitation, water]
   weight: 5
   base_value: 5

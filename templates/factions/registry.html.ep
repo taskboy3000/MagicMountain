@@ -11,8 +11,8 @@
 %   my $sl = $sales_data->{$fid} // 0;
 %   my $fs = $fs_data->{$fid} // {};
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
-      <div>
-        <strong><%= $f->{name} %></strong>
+      <div class="mm-truncate">
+        <strong title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
         <span style="color:var(--mm-amber);font-size:0.85em"><%= ('★' x $st) . ('☆' x (5 - $st)) %></span>
         <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $f->{disposition} // '' %></div>
       </div>

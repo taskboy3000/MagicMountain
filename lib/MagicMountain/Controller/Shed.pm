@@ -14,8 +14,10 @@ sub index ($self) {
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         my $type = $self->_active_activity_type($char);
+        my $is_secondary = ($self->param('panel') || '') eq 'secondary';
+        my $items = _enriched_items($filtered, $is_secondary, $self);
         $self->stash(
-            items         => $filtered,
+            items         => $items,
             market_active => ($type && $type eq 'market') ? 1 : 0,
             layout        => undef,
         );
@@ -53,6 +55,30 @@ sub _item_view ($item, $market_active = 0) {
         $v->{method}     = 'POST';
     }
     return $v;
+}
+
+sub _artifact_short_names ($c) {
+    my $specs = $c->app->prospecting->content_data // [];
+    return +{ map { $_->{id} => ($_->{short_name} // $_->{id}) } @$specs };
+}
+
+sub _enriched_items ($items, $is_secondary, $c) {
+    my $short = $is_secondary ? _artifact_short_names($c) : undef;
+    my @out;
+    for my $item (@$items) {
+        my $aid = $item->getCol('artifact_id');
+        push @out, {
+            id         => $item->getCol('id'),
+            label      => $is_secondary ? ($short->{$aid} // $aid) : $aid,
+            label_full => $aid,
+            condition  => $item->getCol('condition'),
+            value_min  => $item->getCol('estimated_value_min'),
+            value_max  => $item->getCol('estimated_value_max'),
+            days       => $item->getCol('days_in_shed'),
+            behaviors  => $item->getCol('behaviors'),
+        };
+    }
+    return \@out;
 }
 
 sub _apply_filters ($items, $c) {

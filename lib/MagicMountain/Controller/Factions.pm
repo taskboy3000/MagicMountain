@@ -13,8 +13,17 @@ sub show ($self) {
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
+        my $is_secondary = ($self->param('panel') || '') eq 'secondary';
+        my @display;
+        for my $f (@$factions) {
+            push @display, {
+                %$f,
+                display_name      => $is_secondary ? ($f->{short_name} // $f->{name}) : $f->{name},
+                display_name_full => $f->{name},
+            };
+        }
         $self->stash(
-            factions      => $factions,
+            factions      => \@display,
             standing      => $standing,
             faction_sales => $sales,
             faction_state => $fs,

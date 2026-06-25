@@ -1,7 +1,6 @@
 <div class="mm-panel">
   <div class="mm-panel-header">ACCOUNT SETTINGS</div>
   <div class="mm-panel-body" style="text-align:center">
-    <p><a href="/logout" style="color:var(--mm-text-dim)">Leave the Mountain</a></p>
     <p><%= include 'components/action_buttons', actions => $actions %></p>
   </div>
 </div>

@@ -77,20 +77,24 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 .mm-status-label { font-size: 0.65rem; color: var(--mm-text-dim); text-transform: uppercase; }
 .mm-status-value { font-size: 1rem; color: var(--mm-amber-bright); }
 
+/* ── Truncation utility ────────────────────────────────────────── */
+.mm-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* ── Ledger (shed rows) ───────────────────────────────────────── */
 .mm-ledger { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.mm-ledger-wrap { overflow-x: auto; }
 .mm-ledger td, .mm-ledger th {
   padding: 0.3rem 0.4rem;
   border-bottom: 1px solid var(--mm-border);
   font-size: 0.78rem;
 }
 .mm-ledger th { color: var(--mm-text-dim); text-transform: uppercase; text-align: left; }
-.mm-ledger td:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 8rem;
-}
+.mm-ledger td:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Badge ────────────────────────────────────────────────────── */
 .mm-badge {

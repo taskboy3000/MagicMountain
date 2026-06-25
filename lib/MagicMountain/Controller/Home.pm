@@ -24,16 +24,30 @@ sub show ($self) {
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
+        my @shed_rows;
+        for my $item (@$all_shed) {
+            my $aid = $item->getCol('artifact_id');
+            push @shed_rows, {
+                id         => $item->getCol('id'),
+                label      => $aid,
+                label_full => $aid,
+                condition  => $item->getCol('condition'),
+                value_min  => $item->getCol('estimated_value_min'),
+                value_max  => $item->getCol('estimated_value_max'),
+                days       => $item->getCol('days_in_shed'),
+                behaviors  => $item->getCol('behaviors'),
+            };
+        }
         $self->stash(
-            suggestions    => \@suggestions,
-            season_day     => $season_day,
-            season_len     => $season_len,
-            ap             => $ap,
-            scrap          => $scrap,
-            shed_count     => $shed_count,
-            shed_items     => $all_shed,
-            market_active  => $market_active,
-            crier_msg      => $crier,
+            suggestions   => \@suggestions,
+            season_day    => $season_day,
+            season_len    => $season_len,
+            ap            => $ap,
+            scrap         => $scrap,
+            shed_count    => $shed_count,
+            shed_items    => \@shed_rows,
+            market_active => $market_active,
+            crier_msg     => $crier,
         );
         return $self->render('home/dashboard', layout => undef);
     }

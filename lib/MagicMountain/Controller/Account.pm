@@ -5,7 +5,10 @@ sub show ($self) {
     my $player_id = $self->current_player;
     return $self->rendered(204) unless $player_id;
 
-    my @actions = ({ label => 'Delete Account', attrs => { 'data-action-url' => '/player', 'data-method' => 'DELETE', id => 'delete-account-btn', class => 'mm-btn mm-btn-danger', 'data-confirm' => 'Delete your account permanently? This cannot be undone.', 'data-redirect' => '/login' } });
+    my @actions = (
+        { label => 'Delete Account', attrs => { 'data-action-url' => '/player', 'data-method' => 'DELETE', id => 'delete-account-btn', class => 'mm-btn mm-btn-danger', 'data-confirm' => 'Delete your account permanently? This cannot be undone.', 'data-redirect' => '/login' } },
+        { label => 'Leave the Mountain', attrs => { 'data-action-url' => '/sessions', 'data-method' => 'DELETE', id => 'logout-btn', class => 'mm-btn', 'data-redirect' => '/game' } },
+    );
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {

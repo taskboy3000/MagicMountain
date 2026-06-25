@@ -132,11 +132,13 @@ sub show ($self) {
         $char->save;
     }
 
+    my $secondary_url = $FRAGMENT_URL{$secondary} . '&panel=secondary';
+
     $self->render(json => {
         current_view           => $view,
         primary_fragment_url   => $FRAGMENT_URL{$view},
         secondary_view         => $secondary,
-        secondary_fragment_url => $FRAGMENT_URL{$secondary},
+        secondary_fragment_url => $secondary_url,
         tabs                   => $tabs,
         context                => $context,
     });
@@ -189,6 +191,14 @@ sub _build_tabs ($type, $ap, $shed_count) {
     return \@tabs;
 }
 
+sub _faction_short_name ($self, $faction_id) {
+    my $factions = $self->app->factions_data // [];
+    for my $f (@$factions) {
+        return $f->{short_name} // $f->{name} if $f->{id} eq $faction_id;
+    }
+    return $faction_id;
+}
+
 sub _context_text ($self, $char, $view) {
     if ($view eq 'home' || $view eq 'idle') {
         my $msg = '';
@@ -221,8 +231,9 @@ sub _context_text ($self, $char, $view) {
         elsif ($pct <= 1.00) { $state = 'WARY' }
         elsif ($pct <  1.20) { $state = 'STRAINED' }
         else                 { $state = 'OVER LIMIT' }
+        my $short = $self->_faction_short_name($c->{faction_id});
         return sprintf "BUYER: %s  \x{7c}  IRRITATION %d  \x{7c}  MOOD: %s",
-            $c->{faction_name} // '?', $c->{irritation} // 0, $state;
+            $short, $c->{irritation} // 0, $state;
     }
     return '';
 }
