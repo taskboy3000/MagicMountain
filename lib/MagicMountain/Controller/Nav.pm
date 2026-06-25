@@ -108,14 +108,18 @@ sub show ($self) {
     }
     if (!$view) {
         $view = $char->getCol('current_view') || $type || 'home';
+        # Stored activity view with no activity → go home
         if (($view eq 'prospecting' || $view eq 'market') && !$type) {
-            $view = $type || 'home';
-        } elsif ($type && $view ne $type) {
+            $view = 'home';
+        }
+        # Active activity overrides stored view
+        if ($type && $view ne $type) {
+            $view = $type;
+        }
+        # View maps to inactive tab → fall back
+        if (!$type) {
             my ($tab) = grep { $_->{id} eq _tab_id_for($view) } @$tabs;
-            $view = $type unless $tab && $tab->{active};
-        } else {
-            my ($tab) = grep { $_->{id} eq _tab_id_for($view) } @$tabs;
-            $view = $type || 'home' unless $tab && $tab->{active};
+            $view = 'home' unless $tab && $tab->{active};
         }
     }
 
