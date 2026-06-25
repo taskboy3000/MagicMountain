@@ -4,13 +4,15 @@
     <div id="device-meta">OS v2.1.4  │  REGISTERED TO: <span id="device-owner"><%= $authenticated ? $player_name : '—' %></span></div>
   </div>
 
+% if ($authenticated) {
   <div id="status-strip">
     <span>SEASON DAY <span id="s-day">—</span> OF <span id="s-total">—</span></span>
     <span>AP <span id="s-ap">—</span></span>
     <span>SCRAP <span id="s-scrap">—</span></span>
     <span>SCORE <span id="s-score">—</span></span>
-    <span id="unit-status" style="color:var(--mm-text-dim);font-size:0.72rem"><%= $unit_status // '' %></span>
+    <span style="color:var(--mm-bg);background:var(--mm-text);font-size:0.72rem;grid-column:1/-1;padding:0.08rem 0.6rem;letter-spacing:0.1em;text-align:left">&#9655; <span id="unit-status"><%= $unit_status %></span></span>
   </div>
+% }
 
 % if ($authenticated) {
   <div id="nav-bar"></div>
