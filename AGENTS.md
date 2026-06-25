@@ -447,6 +447,18 @@ philosophy, mechanics, and writing guidance, along with
 
 ---
 
+## Next Session
+
+- **Consider merging SHED into HOME**: The SHED tab is a thin view — mostly item
+  counts and condition. The offer buttons already appear on shed items during a
+  market visit (rendered in the secondary panel). Could move the full salvage
+  ledger into the HOME screen as a second card below STATION STATUS, and remove
+  SHED as a top-level nav item. The shed count on the SHED tab label would need
+  a new home (maybe the HOME advisories or status strip). Discuss before
+  implementing.
+
+---
+
 ## Source of Truth
 
 | Concern | Authority |
