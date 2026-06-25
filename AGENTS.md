@@ -359,9 +359,62 @@ the summary.
   - Market visit (begin → offer → send_away)
   - Skill purchase
   - Logout
-  The walkthrough asserts HTTP status codes (200/204/302), kills the server,
-  and exits non-zero on any failure so it gates pre-commit checks. It must be
-  updated when new fragment actions or nav states are added.
+   The walkthrough asserts HTTP status codes (200/204/302), kills the server,
+   and exits non-zero on any failure so it gates pre-commit checks. It must be
+   updated when new fragment actions or nav states are added.
+
+### Boundary Layers
+
+The application enforces strict boundaries between three layers. No layer leaks
+game logic or policy into another.
+
+**Perl backend** — owns all decisions, all game logic, all URLs, all state.
+Builds data structures (`actions`, `attrs`, tabs, `_self.actions`, etc.) and
+passes them to templates or serializes them as JSON. This is the only layer
+where game rules exist.
+
+- Controllers never hardcode a string in JS or wait for a template renderer.
+- The action entry format wraps all HTML attributes in an `attrs` hash. Keys are
+  exact HTML attribute names; values are attribute values. A value of `undef`
+  renders as a boolean attribute (key only, no `="..."`). Example:
+
+  ```perl
+  { label => 'Push',
+    attrs => { 'data-action-url' => '/prospecting/push',
+               'data-method'     => 'POST',
+               id                => 'btn-push',
+               class             => 'mm-btn mm-btn-primary' } }
+  ```
+
+**Templates** — pure iterators. Receive a data structure, walk it, render it.
+Never hardcode a URL, never decide what to show based on game state, never
+contain conditional logic that encodes game policy.
+
+- `components/action_buttons.html.ep` iterates `$a->{attrs}` keys blindly. It
+  knows nothing about `data-action-url`, `data-method`, or any other attribute
+  name — it writes the key as the attribute name and the value through `<%= %>`
+  for safe HTML escaping.
+- Fragment templates pass an `actions` arrayref to the component. They do not
+  construct raw `<button>` HTML with hardcoded URLs.
+- The nav template iterates whatever tab entries the backend sends. It does not
+  know which tab is active, what views exist, or what any fragment URL means.
+
+**JavaScript** — declarative pipeline. Fetch JSON from backend (`/game`,
+`/nav`), set `innerHTML` from fragment responses, delegate clicks via
+`data-*` attributes. Never compute a URL, never construct HTML, never know
+what action a button performs.
+
+- `handleAction` reads `btn.dataset.actionUrl` and `btn.dataset.method`
+  blindly. It never references `/prospecting/push` or any other endpoint.
+- `renderNavBar` iterates whatever tabs the nav response provides. It never
+  knows which tabs exist or what views they map to.
+- `applyNav` fetches `/nav`, reads `primary_fragment_url`, fetches that URL,
+  and sets `innerHTML`. It never computes a URL, never inspects game state.
+
+**Violation example** (do not replicate): A template that hardcodes
+`data-action-url="/skills/purchase"` or checks `if ($shed_count > 0)` to
+decide rendering. That logic and URL belongs in the Perl backend where it
+can be tested.
 
 ---
 
