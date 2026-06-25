@@ -78,9 +78,21 @@ sub create ($self) {
     });
 }
 
+sub _clear_nav_state ($self, $player_id) {
+    return unless $player_id;
+    $self->app->characters->load;
+    my ($char) = @{ $self->app->characters->find(
+        sub { $_[0]->{account_id} eq $player_id }
+    ) };
+    return unless $char;
+    $char->nullCol('current_view');
+    $char->save;
+}
+
 sub destroy ($self) {
     my $player_id = $self->session('playerId');
     if ($player_id) {
+        $self->_clear_nav_state($player_id);
         $self->app->session_store->delete_by_player_id($player_id);
         $self->app->audit_log->log('logout', player_id => $player_id);
     }
@@ -91,6 +103,7 @@ sub destroy ($self) {
 sub logout ($self) {
     my $player_id = $self->session('playerId');
     if ($player_id) {
+        $self->_clear_nav_state($player_id);
         $self->app->session_store->delete_by_player_id($player_id);
         $self->app->audit_log->log('logout', player_id => $player_id);
     }
