@@ -153,6 +153,89 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   flex-direction: column;
 }
 
+/* ── Terminal frame ──────────────────────────────────────────── */
+#terminal-frame {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(140,100,60,0.7) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 90%, rgba(160,110,65,0.6) 0%, transparent 40%),
+    radial-gradient(ellipse at 5% 70%, rgba(120,90,55,0.55) 0%, transparent 35%),
+    radial-gradient(ellipse at 95% 25%, rgba(170,140,80,0.5) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, rgba(190,170,130,0.4) 0%, transparent 55%),
+    #d4c9a8;
+  border-radius: 14px;
+  padding: 32px 18px 18px;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+}
+
+/* Rubber feet */
+#terminal-frame::before,
+#terminal-frame::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  width: 18px;
+  height: 6px;
+  background: #222;
+  border-radius: 0 0 3px 3px;
+}
+#terminal-frame::before { left: 30px; }
+#terminal-frame::after  { right: 30px; }
+#terminal-frame > #device-frame {
+  background: var(--mm-bg);
+  border-radius: 4px;
+}
+
+/* Top vent slits */
+.vents {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 8px;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+.vents span {
+  display: block;
+  width: 6px;
+  height: 8px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 1px;
+}
+
+/* Property tag */
+.property-tag {
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  background: rgba(255,255,255,0.85);
+  border: 1px solid #3b5998;
+  border-radius: 1px;
+  padding: 1px 3px;
+  font-family: monospace;
+  font-size: 6px;
+  line-height: 1.1;
+  color: #3b5998;
+  z-index: 2;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.property-tag .barcode {
+  display: flex;
+  gap: 0.5px;
+  margin-top: 0.5px;
+}
+.property-tag .barcode span {
+  display: block;
+  height: 7px;
+  background: #111;
+}
+
 #device-header {
   border-bottom: 1px solid var(--mm-border);
   padding: 0.3rem 0.6rem;

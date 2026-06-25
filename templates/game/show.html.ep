@@ -1,3 +1,10 @@
+<div id="terminal-frame">
+<div class="vents"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+<div class="property-tag">
+  <div>PROPERTY ID:</div>
+  <div>PB3K-0042</div>
+  <div class="barcode"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+</div>
 <div id="device-frame">
   <div id="device-header">
     <div id="device-name">ProspectBoy 3000 // LOCAL NODE <%= $node_number %></div>
@@ -42,6 +49,7 @@
   </div>
 
   <div id="context-bar"></div>
+</div>
 </div>
 
 <div id="device-footer"></div>
