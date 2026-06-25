@@ -25,7 +25,7 @@
     <p style="font-style:italic;color:var(--mm-text-dim);margin:0.5rem 0"><%= $msg %></p>
 % }
 % if ($pending_counter) {
-%   my @top = grep { $_->{attrs}{id} eq 'btn-accept-counter' } @$actions;
+%   my @top = grep { $_->{attrs}{id} eq 'btn-accept-counter' || $_->{attrs}{id} eq 'btn-stand-pat' } @$actions;
     <div style="border:1px solid var(--mm-amber);padding:0.4rem;margin:0.5rem 0">
       <p style="margin:0 0 0.3rem 0"><strong>Counter-offer:</strong> <%= $pending_counter->{value} %> scrap</p>
 %= include 'components/action_buttons', actions => \@top

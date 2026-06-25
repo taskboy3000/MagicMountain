@@ -6,7 +6,7 @@ use YAML::XS qw(LoadFile);
 # ── Transition table ────────────────────────────────────────────────
 
 has transitions => sub {
-    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter'] }
+    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter', 'stand_pat'] }
 };
 
 # ── Construction ──────────────────────────────────────────────────
@@ -450,6 +450,116 @@ sub accept_counter ($self, $char, %params) {
     return $self->_do_sale($char, $item, $counter_value, 'counter');
 }
 
+# ── stand_pat ─────────────────────────────────────────────────────────
+
+sub stand_pat ($self, $char, %params) {
+    my $customer = $self->customer or die "no customer";
+    my $pc       = $customer->{pending_counter} or die "no pending counter";
+
+    my $item = $self->app->shed->get($pc->{item_id});
+    die "shed item not found" unless $item;
+    die "shed item belongs to another character"
+        unless $item->getCol('char_id') eq $char->getCol('id');
+
+    my $decayed   = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
+    my $season    = $self->app->active_season;
+    my $dyn_mult  = $season
+        ? $self->_dynamic_multiplier($season, $customer->{faction_id}, $item->getCol('behaviors') // [])
+        : ($customer->{base_multiplier} // 1.0);
+    my $stand_price = int($decayed * $dyn_mult);
+
+    my $sell     = $char->getCol('skill_selling') // 0;
+    my $standing = $char->getCol('standing') // {};
+    my $stand_pct = $standing->{$customer->{faction_id}} // 0;
+
+    my $chance = 0.30 + ($sell * 0.15) + ($stand_pct * 0.02);
+    $chance = 0.85 if $chance > 0.85;
+
+    if (rand() < $chance) {
+        $customer->{pending_counter} = undef;
+        $customer->{last_message} = sprintf("%s relents and accepts your price of %d scrap.",
+            $customer->{faction_name}, $stand_price);
+        $self->customer($customer);
+        $self->save;
+
+        $self->_log_event($char, {
+            type          => 'stand_pat',
+            shed_item_id  => $pc->{item_id},
+            faction_id    => $customer->{faction_id},
+            offered_value => $stand_price,
+            narrative     => sprintf("%s holds firm for %d scrap from %s — customer accepts.",
+                $char->getCol('name'), $stand_price, $customer->{faction_name}),
+        });
+
+        return $self->_do_sale($char, $item, $stand_price, 'stand_pat');
+    }
+
+    $customer->{irritation}++;
+    $customer->{pending_counter} = $pc;
+    $customer->{last_message} = sprintf("%s refuses your demand and looks annoyed.",
+        $customer->{faction_name});
+
+    if ($customer->{irritation} >= $customer->{irritation_threshold}) {
+        my $narrative = $self->_pick_reaction($customer->{faction_id}, 'storm_off',
+            item_id => $item->getCol('artifact_id'), value => $stand_price,
+        ) // sprintf("%s storms off in frustration.", $customer->{faction_name});
+        $self->_log_event($char, {
+            type          => 'stand_pat',
+            shed_item_id  => $pc->{item_id},
+            faction_id    => $customer->{faction_id},
+            match         => 0,
+            offered_value => $stand_price,
+            accepted      => 0,
+            irritation    => $customer->{irritation},
+            narrative     => $narrative,
+        });
+        $char->setCol('result', {
+            outcome      => 'customer_left',
+            icon         => 'ALERT',
+            outcome_text => 'Customer Stormed Off',
+            message      => $narrative,
+            item_name    => $item->getCol('artifact_id'),
+        });
+        $char->setCol('current_view', 'result');
+        $self->phase('idle');
+        $self->customer(undef);
+        $self->delete;
+        $char->setCol('pending_activity_id', undef);
+        $char->save;
+        return {
+            view => {
+                ok      => 1,
+                result  => 'customer_left',
+                message => $narrative,
+                player  => $self->_player_snapshot($char),
+            },
+        };
+    }
+
+    $self->customer($customer);
+    $self->save;
+
+    $self->_log_event($char, {
+        type          => 'stand_pat_fail',
+        shed_item_id  => $pc->{item_id},
+        faction_id    => $customer->{faction_id},
+        offered_value => $stand_price,
+        irritation    => $customer->{irritation},
+        narrative     => sprintf("%s refuses stand-pat demand for %d scrap from %s.",
+            $char->getCol('name'), $stand_price, $customer->{faction_name}),
+    });
+
+    return {
+        view => {
+            ok        => 1,
+            result    => 'stand_pat_refused',
+            irritation => $customer->{irritation},
+            message   => $customer->{last_message},
+            player    => $self->_player_snapshot($char),
+        },
+    };
+}
+
 # ── send_away ─────────────────────────────────────────────────────────
 
 sub send_away ($self, $char, %params) {
@@ -564,7 +674,7 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
     if ($sale_type eq 'match') {
         $delta = $over_soft ? 1 : 2;
     } else {
-        $delta = $sale_type eq 'counter' ? 1 : 0;
+        $delta = ($sale_type eq 'counter' || $sale_type eq 'stand_pat') ? 1 : 0;
     }
     $delta++ if $item->getCol('has_evolved');
     $delta++ if $total_to_faction >= 2;

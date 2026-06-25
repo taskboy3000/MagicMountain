@@ -25,6 +25,7 @@ sub show ($self) {
     my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
     if ($c->{pending_counter}) {
         push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => '/market/accept_counter', 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
+        push @actions, { label => 'Stand Pat', attrs => { 'data-action-url' => '/market/stand_pat', 'data-method' => 'POST', id => 'btn-stand-pat', class => 'mm-btn' } };
     }
 
     my $format = $self->param('_format');
@@ -88,5 +89,6 @@ sub begin          ($self) { $self->_activity_action('begin') }
 sub offer          ($self) { $self->_activity_action('offer', %{ $self->req->json }) }
 sub send_away      ($self) { $self->_activity_action('send_away') }
 sub accept_counter ($self) { $self->_activity_action('accept_counter') }
+sub stand_pat      ($self) { $self->_activity_action('stand_pat') }
 
 1;
