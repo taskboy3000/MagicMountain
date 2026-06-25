@@ -1,0 +1,13 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">RESULT</div>
+  <div class="mm-panel-body">
+    <p><strong><%= $result->{icon} %></strong> <%= $result->{outcome_text} %></p>
+    <p><%= $result->{item_name} %></p>
+% if (defined $result->{value}) {
+    <p><%= $result->{value} %> scrap</p>
+% }
+    <p><%= $result->{message} %></p>
+    <button class="mm-btn mm-btn-primary" data-action-url="/result/dismiss"
+            data-method="POST">Continue</button>
+  </div>
+</div>

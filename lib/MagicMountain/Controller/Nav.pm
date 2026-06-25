@@ -32,6 +32,7 @@ my %SECONDARY = (
     home        => 'factions',
     idle        => 'factions',
     prospecting => 'factions',
+    result      => 'factions',
     market      => 'shed',
     factions    => 'leaderboard',
     skills      => 'leaderboard',
@@ -43,9 +44,11 @@ my %FRAGMENT_URL = (
     idle        => '/idle?_format=fragment',
     prospecting => '/prospecting?_format=fragment',
     market      => '/market?_format=fragment',
+    result      => '/result?_format=fragment',
     shed        => '/shed?_format=fragment',
     factions    => '/factions?_format=fragment',
     skills      => '/skills?_format=fragment',
+    leaderboard => '/leaderboard?_format=fragment',
     account     => '/account?_format=fragment',
 );
 
@@ -148,6 +151,7 @@ sub _tab_id_for ($view) {
     my %map = (
         home        => 'home',
         idle        => 'prospect',
+        result      => 'home',
         prospecting => 'prospect',
         market      => 'bazaar',
         factions    => 'factions',

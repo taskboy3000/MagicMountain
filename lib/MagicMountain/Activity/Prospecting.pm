@@ -345,6 +345,14 @@ sub stop ($self, $char, %params) {
 sub _do_collapse ($self, $char, $artifact) {
     my $message = $self->_pick_collapse($artifact);
 
+    $char->setCol('result', {
+        outcome      => 'collapse',
+        icon         => 'ALERT',
+        outcome_text => 'Artifact Collapsed',
+        message      => $message,
+        item_name    => $artifact->{id},
+    });
+    $char->setCol('current_view', 'result');
     $self->phase('idle');
     $self->artifact(undef);
     $self->delete;
@@ -384,6 +392,15 @@ sub _do_breakthrough ($self, $char, $artifact) {
     $char->setCol('scrap', $char->getCol('scrap') + $new_value);
     $char->setCol('score', $char->getCol('score') + $new_value);
 
+    $char->setCol('result', {
+        outcome      => 'breakthrough',
+        icon         => 'PREMIUM',
+        outcome_text => 'Breakthrough!',
+        value        => $new_value,
+        message      => 'A sudden breakthrough! The artifact reveals unexpected potential.',
+        item_name    => $artifact->{id},
+    });
+    $char->setCol('current_view', 'result');
     $self->phase('idle');
     $self->artifact(undef);
     $self->delete;

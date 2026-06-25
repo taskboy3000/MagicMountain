@@ -372,6 +372,14 @@ sub offer ($self, $char, %params) {
                 irritation    => $customer->{irritation},
                 narrative     => $narrative,
             });
+            $char->setCol('result', {
+                outcome      => 'customer_left',
+                icon         => 'ALERT',
+                outcome_text => 'Customer Stormed Off',
+                message      => $narrative,
+                item_name    => $item->getCol('artifact_id'),
+            });
+            $char->setCol('current_view', 'result');
             $self->phase('idle');
             $self->customer(undef);
             $self->delete;
@@ -445,6 +453,13 @@ sub accept_counter ($self, $char, %params) {
 # ── send_away ─────────────────────────────────────────────────────────
 
 sub send_away ($self, $char, %params) {
+    $char->setCol('result', {
+        outcome      => 'sent_away',
+        icon         => 'WAIT',
+        outcome_text => 'No Sale',
+        message      => 'You send the customer away.',
+    });
+    $char->setCol('current_view', 'result');
     $self->phase('idle');
     $self->customer(undef);
     $self->delete;
@@ -636,6 +651,15 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
     }
 
     # ── End visit (single-item mode or no items left) ─────────────
+    $char->setCol('result', {
+        outcome      => 'sold',
+        icon         => 'SCRAP',
+        outcome_text => 'Sold!',
+        value        => $value + $bonus,
+        message      => sprintf('Sold to %s for %d scrap.', $customer->{faction_name}, $value + $bonus),
+        item_name    => $item->getCol('artifact_id'),
+    });
+    $char->setCol('current_view', 'result');
     $self->delete;
     $char->setCol('pending_activity_id', undef);
     $char->save;

@@ -130,7 +130,6 @@ subtest 'counter-offer generated on mismatch' => sub {
 
 subtest 'accept_counter sells at counter price' => sub {
     my $t = setup;
-    $t->app->config->{market_counter_offers} = 1;
     my $csrf = _csrf($t);
 
     my $char = $t->app->characters->find(sub { 1 })->[0];
@@ -165,7 +164,7 @@ subtest 'accept_counter sells at counter price' => sub {
 
     $t->post_ok('/market/accept_counter' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
-      ->json_is('/result' => 'sold')
+      ->json_like('/result' => qr/^sold/, 'result starts with sold')
       ->json_is('/value' => $counter_value);
 
     my $disc = $t->app->disposition;

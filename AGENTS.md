@@ -98,6 +98,7 @@ make cover && make report                                      # coverage (85%+ 
 - **DRY**: Favor generalized, reusable functions over copy-paste.
 - **Zero-indirection wrappers**: Never create a function that is a pure
   pass-through to another with the same signature.
+- **Plan file creation**: Plan files should by named 'docs/plan_$THING_TO_BE_DONE.md'
 - **Plan file cleanup**: Delete plan docs after implementation is committed.
 
 ---

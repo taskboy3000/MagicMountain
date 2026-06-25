@@ -47,8 +47,8 @@ has defaultConfig => sub ($self) {
         market_max_saturation_discount  => 0.50,
         market_post_appetite_penalty    => 0.50,
         market_desperation_bonus        => 1.30,
-        market_counter_offers           => 0,
-        market_multi_item               => 0,
+        market_counter_offers           => 1,
+        market_multi_item               => 1,
     }
 };
 
@@ -416,6 +416,7 @@ sub buildRoutes ($self) {
     $auth->get('/account')->to('account#show');
     $auth->get('/leaderboard')->to('leaderboard#index');
     $auth->get('/leaderboard/factions')->to('leaderboard#factions');
+    $auth->get('/result')->to('result#show')->name('result_show');
     $auth->get('/nav')->to('nav#show');
 
     # Write routes under CSRF check
@@ -428,6 +429,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/offer')->to('market#offer');
     $auth_write->post('/market/send_away')->to('market#send_away');
     $auth_write->post('/market/accept_counter')->to('market#accept_counter');
+    $auth_write->post('/result/dismiss')->to('result#dismiss')->name('result_dismiss');
     # DEAD-SUPPRESS: future season history UI
     # $auth_write->post('/season/end')->to('season#end');
 }
