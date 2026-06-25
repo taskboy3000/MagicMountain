@@ -222,7 +222,7 @@ sub push ($self, $char, %params) {
     my $ratio           = $artifact->{instability} / $artifact->{max_instability};
     my $collapse_chance = ($ratio ** 3) * 0.95;
     $collapse_chance    = 1.0  if $collapse_chance > 1.0;
-    $collapse_chance    = 0.05 if $collapse_chance < 0.05;
+
 
     if (rand() < $collapse_chance) {
         return $self->_do_collapse($char, $artifact);
