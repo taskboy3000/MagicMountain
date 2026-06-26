@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">TRAINING RECORDS</div>
+  <div class="mm-panel-header">CERT STORE</div>
   <div class="mm-panel-body">
 % for my $s (@$skills) {
 %   my $cur = $s->{current_level} // 0;

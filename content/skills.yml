@@ -1,45 +1,45 @@
 skills:
   - id: prospecting
-    name: Prospecting
-    description: "Find better artifacts and richer yields"
+    name: GEO-SENSE
+    description: "Survey analysis module. Enhances artifact detection sensitivity."
     max_level: 3
     levels:
       - level: 1
         cost: 100
-        description: "Better leads"
+        description: "signal-filter v1 — noise reduction, target isolation"
       - level: 2
         cost: 250
-        description: "Richer veins"
+        description: "deep-scan protocol — prioritizes high-yield signatures"
       - level: 3
         cost: 500
-        description: "Eye for the unusual"
+        description: "predictive litho-analysis — anomaly classification engine"
 
   - id: upcycling
-    name: Upcycling
-    description: "Push artifacts further with greater control"
+    name: DEFRAG
+    description: "Push protocol optimizer. Regulates artifact destabilization."
     max_level: 3
     levels:
       - level: 1
         cost: 100
-        description: "Firm touch"
+        description: "damping routine v1 — reduces instability growth"
       - level: 2
         cost: 250
-        description: "Steady hand"
+        description: "adaptive gain control — improves value yield per cycle"
       - level: 3
         cost: 500
-        description: "Master's feel"
+        description: "resonance predictor — breakthrough probability enhancement"
 
   - id: selling
-    name: Selling
-    description: "Read customers and close better deals"
+    name: UP-CEL
+    description: "Negotiation coprocessor. Augments market interface."
     max_level: 3
     levels:
       - level: 1
         cost: 100
-        description: "Better haggling"
+        description: "value projection module — narrows appraisal variance"
       - level: 2
         cost: 250
-        description: "Customer reader"
+        description: "stress analysis — detects buyer irritation thresholds"
       - level: 3
         cost: 500
-        description: "Dealmaker"
+        description: "persuasion algorithm — improves offer multipliers"

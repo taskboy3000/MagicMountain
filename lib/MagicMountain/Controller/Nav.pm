@@ -41,7 +41,7 @@ my %TAB_LABEL = (
     prospect => 'PROSPECT',
     bazaar   => 'BAZAAR',
     factions => 'FACTIONS',
-    skills   => 'SKILLS',
+    skills   => 'CERTS',
     account  => 'ACCOUNT',
 );
 

@@ -216,7 +216,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Model::FactionSnapshot** | File path, column definitions, JSON CRUD | Game logic, character data |
 | **Model::Session** | File path, column definitions, expiry logic | Game logic, character data |
 | **Nav** (Controller::Nav) | App reference, fragment URL mapping, tab rules | Game logic, character data |
-| **Skills** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
+| **Skills** / **CERTS** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
 | **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
 | **ValueTier** (pure function) | Static threshold/label table | App reference, game state, model objects |
 | **Artifact** (view model) | Artifact data hash, `value_label`, `icon_url`, `stage_badge_css` | Game logic, persistence |

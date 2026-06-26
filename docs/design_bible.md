@@ -399,7 +399,7 @@ Common elements:
 │ CENTER: Current activity / Mountain / Market Visit          │
 │ RIGHT: Shed summary / Faction pulse / Leaderboard snapshot  │
 ├────────────────────────────────────────────────────────────┤
-│ [PROSPECT] [VISIT MARKET] [SHED] [FACTIONS] [SKILLS]        │
+│ [PROSPECT] [VISIT MARKET] [SHED] [FACTIONS] [CERTS]        │
 └────────────────────────────────────────────────────────────┘
 
 This is conceptual, not mandatory literal ASCII.

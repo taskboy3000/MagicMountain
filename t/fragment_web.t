@@ -136,7 +136,7 @@ subtest 'skills fragment returns training records' => sub {
     my $t = setup;
     $t->get_ok('/skills?_format=fragment')
       ->status_is(200)
-      ->content_like(qr{TRAINING RECORDS});
+      ->content_like(qr{CERT STORE});
 };
 
 subtest 'factions fragment returns registry with reference links' => sub {

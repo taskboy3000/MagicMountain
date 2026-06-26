@@ -11,13 +11,13 @@
 | `home` | HOME | `/home?_format=fragment` | Always (character exists, no result pending) |
 | `shed` | (secondary panel) | `/shed?_format=fragment` | Always (character exists) |
 | `factions` | FACTIONS | `/factions?_format=fragment` | Always |
-| `skills` | SKILLS | `/skills?_format=fragment` | Always |
+| `skills` | CERTS | `/skills?_format=fragment` | Always |
 | `account` | ACCOUNT | `/account?_format=fragment` | Always |
 | `leaderboard` | (secondary panel) | `/leaderboard?_format=fragment` | Always |
 
 ## Tabs
 
-Six nav tabs: HOME, PROSPECT, BAZAAR, FACTIONS, SKILLS, ACCOUNT.
+Six nav tabs: HOME, PROSPECT, BAZAAR, FACTIONS, CERTS, ACCOUNT.
 
 ### Tab Active Status Per View
 
@@ -29,7 +29,7 @@ Six nav tabs: HOME, PROSPECT, BAZAAR, FACTIONS, SKILLS, ACCOUNT.
 | PROSPECT | ✓ ¹ | ✓ | ✗ ² | ✓ | ✓ | ✓ | ✓ |
 | BAZAAR | ✓ ³ | ✗ ² | ✓ | ✓ | ✓ ³ | ✓ ³ | ✓ ³ |
 | FACTIONS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SKILLS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| CERTS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | ACCOUNT | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 **Footnotes:**
