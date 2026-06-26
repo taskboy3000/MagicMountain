@@ -1,6 +1,8 @@
 package MagicMountain::Controller::Prospecting;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
+use MagicMountain::ValueTier;
+
 sub show ($self) {
     my $char = $self->_require_character or return;
     my $type = $self->_active_activity_type($char);
@@ -19,15 +21,15 @@ sub show ($self) {
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(
-            artifact_id    => $a->{id},
-            artifact_icon  => '/images/artifact_' . $a->{id} . '.svg',
-            stage          => $a->{stage},
-            value          => $a->{value},
-            signal         => $a->{signal},
-            intro          => $a->{intro},
-            instability    => $a->{instability},
+            artifact_id     => $a->{id},
+            artifact_icon   => '/images/artifact_' . $a->{id} . '.svg',
+            stage           => $a->{stage},
+            value_tier      => MagicMountain::ValueTier::describe($a->{value}),
+            signal          => $a->{signal},
+            intro           => $a->{intro},
+            instability     => $a->{instability},
             max_instability => $a->{max_instability},
-            actions        => \@actions,
+            actions         => \@actions,
         );
         return $self->render('prospecting/scan', layout => undef);
     }
@@ -35,12 +37,12 @@ sub show ($self) {
     $self->render(json => {
         ok     => 1,
         prospecting => {
-            id     => $a->{id},
-            icon   => '/images/artifact_' . $a->{id} . '.svg',
-            stage  => $a->{stage},
-            value  => $a->{value},
-            signal => $a->{signal},
-            intro  => $a->{intro},
+            id         => $a->{id},
+            icon       => '/images/artifact_' . $a->{id} . '.svg',
+            stage      => $a->{stage},
+            value_tier => MagicMountain::ValueTier::describe($a->{value}),
+            signal     => $a->{signal},
+            intro      => $a->{intro},
         },
         _self => { actions => \@actions },
     });
