@@ -271,6 +271,76 @@ subtest 'multi-item allows multiple sales' => sub {
     is(scalar @$remaining, 0, 'both match items sold from shed');
 };
 
+subtest 'show — pressure state bands' => sub {
+    my $t = setup;
+    my $csrf = _csrf($t);
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $act = $t->app->market->get($char->getCol('pending_activity_id'));
+    my $budget = $act->customer->{soft_budget} || 100;
+
+    # Market.pm uses pct <= 0.50, <= 0.80, <= 1.00, <= 1.10, < 1.20, else
+    # Compute spent values that safely land in each band for any budget >= 50
+    my @bands = (
+        { pct => 0.00, expected => 'mood_comfortable' },
+        { pct => 0.50, expected => 'mood_comfortable' },
+        { pct => 0.65, expected => 'mood_interested' },
+        { pct => 0.80, expected => 'mood_interested' },
+        { pct => 0.90, expected => 'mood_wary' },
+        { pct => 1.00, expected => 'mood_wary' },
+        { pct => 1.05, expected => 'mood_strained' },
+        { pct => 1.10, expected => 'mood_strained' },
+        { pct => 1.15, expected => 'mood_leaving' },
+        { pct => 1.19, expected => 'mood_leaving' },
+        { pct => 1.50, expected => 'mood_over_absolute' },
+    );
+
+    for my $band (@bands) {
+        my $spent = int($budget * $band->{pct});
+        $act->customer->{spent_so_far} = $spent;
+        $act->save;
+
+        my $pct_str = $budget ? sprintf('%.4f', $spent / $budget) : '0';
+        $t->get_ok('/market' => {'Accept' => 'application/json'})
+          ->status_is(200)
+          ->json_is('/market_visit/pressure_state' => $band->{expected},
+            "pressure_state=$band->{expected} (spent=$spent, budget=$budget, pct=$pct_str)");
+    }
+};
+
+subtest 'show — customer icon and portrait' => sub {
+    my $t = setup;
+    my $csrf = _csrf($t);
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    my $char = $t->app->characters->find(sub { 1 })->[0];
+    my $act = $t->app->market->get($char->getCol('pending_activity_id'));
+
+    # Set irritation to get 'happy' portrait mood
+    $act->customer->{irritation} = 0;
+    $act->customer->{portrait_id} = 'port_001';
+    $act->save;
+
+    $t->get_ok('/market?_format=fragment')
+      ->status_is(200)
+      ->content_like(qr{portraits/port_001_happy\.svg}, 'happy portrait URL');
+
+    $act->customer->{irritation} = 2;
+    $act->save;
+    $t->get_ok('/market?_format=fragment')
+      ->status_is(200)
+      ->content_like(qr{portraits/port_001_neutral\.svg}, 'neutral portrait URL');
+
+    $act->customer->{irritation} = 4;
+    $act->save;
+    $t->get_ok('/market?_format=fragment')
+      ->status_is(200)
+      ->content_like(qr{portraits/port_001_mad\.svg}, 'mad portrait URL');
+};
+
 subtest 'send_away works' => sub {
     my $t = setup;
     my $csrf = _csrf($t);

@@ -13,7 +13,6 @@ sub recap ($self) {
 
     my $season;
     if ($season_id) {
-        $self->app->seasons->load;
         $season = $self->app->seasons->get($season_id);
     } else {
         my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
@@ -30,21 +29,9 @@ sub recap ($self) {
 
     my $rec = $recs->[0];
     my $factions = $self->app->factions_data // [];
-    my %name_of = map { $_->{id} => $_->{name} } @$factions;
-    my %icon_of = map { $_->{id} => $_->{icon} ? '/images/' . $_->{icon} : undef } @$factions;
 
     my $standing  = $rec->getCol('faction_standing_snapshot') // {};
     my $highlights = $rec->getCol('story_highlights') // {};
-
-    my @standing_rows;
-    for my $fid (sort keys %$standing) {
-        push @standing_rows, {
-            id    => $fid,
-            name  => $name_of{$fid} // $fid,
-            icon  => $icon_of{$fid},
-            value => $standing->{$fid},
-        };
-    }
 
     my $report = MagicMountain::SeasonReport->new(
         final_score  => $rec->getCol('final_score') // 0,
@@ -57,6 +44,7 @@ sub recap ($self) {
         log          => sub ($event) { $self->app->transcript->log_event($event) },
     );
     my $sections = $report->build;
+    my $standing_rows = $report->build_standing_rows;
 
     $self->stash(
         sections      => $sections,
@@ -64,19 +52,12 @@ sub recap ($self) {
         final_score   => $rec->getCol('final_score'),
         final_scrap   => $rec->getCol('final_scrap'),
         rank          => $rec->getCol('rank'),
-        standing_rows => \@standing_rows,
+        standing_rows => $standing_rows,
     );
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         return $self->render('season/recap', layout => undef);
-    }
-
-    my @narrative_parts;
-    for my $sec (@$sections) {
-        my $tpl = "season/recap/$sec->{id}";
-        next unless -e $self->app->home->child("templates/${tpl}.html.ep");
-        push @narrative_parts, $sec->{data}{picked_text} // sprintf("[%s]", $sec->{id});
     }
 
     $self->render(json => {

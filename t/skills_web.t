@@ -61,14 +61,14 @@ subtest 'purchase — missing skill_id dies' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => {})
-      ->status_is(500);
+      ->status_is(400);
 };
 
 subtest 'purchase — unknown skill_id dies' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'nonexistent' })
-      ->status_is(500);
+      ->status_is(400);
 };
 
 subtest 'purchase — insufficient scrap dies' => sub {
@@ -90,7 +90,7 @@ subtest 'purchase — insufficient scrap dies' => sub {
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
-      ->status_is(500);
+      ->status_is(400);
 };
 
 subtest 'purchase — already at max dies' => sub {
@@ -113,7 +113,47 @@ subtest 'purchase — already at max dies' => sub {
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
-      ->status_is(500);
+      ->status_is(400);
+};
+
+subtest 'index — max-level skill has no upgrade action' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'master');
+    $a->save;
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'master', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 9999, action_points => 15, action_points_max => 15,
+        skill_prospecting => 3,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'master' })->status_is(200);
+    $t->get_ok('/skills')
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+
+    my $json = $t->tx->res->json;
+    my ($prospecting) = grep { $_->{id} eq 'prospecting' } @{ $json->{skills} };
+    ok $prospecting, 'prospecting skill present';
+    is $prospecting->{current_level}, 3, 'at max level';
+
+    # Verify no purchase action in _self for max-level skill
+    my @prospecting_actions = grep {
+        $_->{attrs}{'data-skill-id'} && $_->{attrs}{'data-skill-id'} eq 'prospecting'
+    } @{ $json->{_self}{actions} // [] };
+    is scalar @prospecting_actions, 0, 'no upgrade action for maxed skill';
+
+    # Other skills should still have actions
+    my @other_actions = grep {
+        $_->{attrs}{'data-skill-id'} && $_->{attrs}{'data-skill-id'} ne 'prospecting'
+    } @{ $json->{_self}{actions} // [] };
+    ok scalar @other_actions > 0, 'other skills still show upgrade actions';
 };
 
 subtest 'purchase — success deducts scrap and increases level' => sub {

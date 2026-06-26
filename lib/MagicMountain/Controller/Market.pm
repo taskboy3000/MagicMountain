@@ -21,16 +21,7 @@ sub show ($self) {
         $activity->save;
     }
 
-    my $pressure_state;
-    if ($c) {
-        my $pct = ($c->{spent_so_far} // 0) / ($c->{soft_budget} || 1);
-        if        ($pct <= 0.50) { $pressure_state = 'mood_comfortable' }
-        elsif     ($pct <= 0.80) { $pressure_state = 'mood_interested' }
-        elsif     ($pct <= 1.00) { $pressure_state = 'mood_wary' }
-        elsif     ($pct <= 1.10) { $pressure_state = 'mood_strained' }
-        elsif     ($pct <  1.20) { $pressure_state = 'mood_leaving' }
-        else                     { $pressure_state = 'mood_over_absolute' }
-    }
+    my $pressure_state = $c ? $activity->budget_pressure_state($c)->{state} : undef;
 
     my $customer_icon;
     if ($c->{faction_id}) {

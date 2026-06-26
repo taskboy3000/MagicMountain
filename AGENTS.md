@@ -40,6 +40,32 @@ This is a ground-up reimplementation following the architecture spec in
 
 ---
 
+## Controller Boundaries
+
+Controllers are HTTP adapters only. They must not become another business layer.
+
+**Controllers MUST NOT:**
+- implement game rules
+- calculate derived game state
+- build recommendation engines
+- assemble narrative or recap content
+- determine navigation policy (tab enable/disable, view resolution)
+- mutate domain objects except through model/service APIs
+
+**Controllers SHOULD:**
+- extract HTTP parameters and session information
+- invoke domain services or Activity dispatch
+- stash returned view models or pass them to templates
+- render templates or serialize JSON
+
+**Warning sign:** If a controller grows multiple private helper methods that
+calculate game state, that logic belongs in a model or service. Extract it.
+
+> Extracted services live in `lib/MagicMountain/Service/`. They receive `$self->app`
+> like Activities do (consistent with the existing `ShedManager` pattern).
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |

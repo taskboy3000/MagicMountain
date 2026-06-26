@@ -163,6 +163,51 @@ subtest 'JSON — season end shows season_end suggestion' => sub {
     ok grep(/Season terminal/, @texts), 'season_end advisory present';
 };
 
+subtest 'JSON — faction hunger suggestion appears when days_since_purchase >= 3' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 10, length => 30,
+            faction_state => {
+                syndicate => { name => 'Syndicate', days_since_purchase => 4 },
+            })->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'hungry_faction');
+    $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'hungry_faction', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+    )->save;
+
+    my $char = $chars->find(sub { 1 })->[0];
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
+    $shed->create(
+        char_id => $char->getCol('id'), artifact_id => 'test_cog',
+        original_value => 10, decayed_value => 10,
+        condition => 'fresh', days_in_shed => 0,
+        instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['thermal'],
+        estimated_value_min => 8, estimated_value_max => 12,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'hungry_faction' })->status_is(200);
+
+    $t->get_ok('/home')
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+
+    my $suggestions = $t->tx->res->json->{suggestions};
+    my @texts = map { $_->{text} } @$suggestions;
+
+    # Should have shed_available, ap_available, AND faction_hunger
+    ok grep(/Syndicate/, @texts), 'faction hunger advisory references Syndicate';
+};
+
 subtest 'fragment — renders dashboard with advisory text' => sub {
     my $dataDir = setup;
     my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");

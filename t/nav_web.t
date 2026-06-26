@@ -254,4 +254,95 @@ subtest 'idle context text' => sub {
     ok defined $json->{context}, 'context is defined';
 };
 
+subtest 'AP=1 — bazaar active but prospect inactive' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'lowap');
+    $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'lowap', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 1, action_points_max => 15,
+    )->save;
+
+    my ($char) = @{ $chars->find(sub { $_[0]->{account_id} eq $a->getCol('id') }) };
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
+    $shed->create(
+        char_id => $char->getCol('id'), artifact_id => 'test_cog',
+        original_value => 10, decayed_value => 10,
+        condition => 'fresh', days_in_shed => 0,
+        instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['thermal'],
+        estimated_value_min => 8, estimated_value_max => 12,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'lowap' })->status_is(200);
+
+    $t->get_ok('/nav')
+      ->status_is(200);
+
+    my $json = $t->tx->res->json;
+    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{tabs} };
+    ok !$prospect->{active}, 'prospect inactive when AP=1 (needs 2)';
+    is $prospect->{reason}, 'Not enough AP (2 required)', 'correct reason for prospect';
+
+    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
+    ok $bazaar->{active}, 'bazaar active when AP=1';
+};
+
+subtest 'X-Nav-View header changes stored view' => sub {
+    my $t = setup_idle;
+
+    $t->get_ok('/nav' => {'X-Nav-View' => 'skills'})
+      ->status_is(200)
+      ->json_is('/current_view', 'skills');
+
+    $t->get_ok('/nav')
+      ->status_is(200)
+      ->json_is('/current_view', 'skills', 'stored view persists');
+};
+
+subtest 'no activity defaults stored view to home' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'fresh');
+    $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'fresh', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        # No current_view set — should default to home
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'fresh' })->status_is(200);
+
+    $t->get_ok('/nav')
+      ->status_is(200)
+      ->json_is('/current_view', 'home', 'no stored view falls back to home');
+};
+
+subtest 'market context text when no active activity returns empty' => sub {
+    my $t = setup_idle;
+    $t->get_ok('/nav')
+      ->status_is(200);
+
+    my $json = $t->tx->res->json;
+    # idle state, current_view is home — context should be defined
+    ok defined($json->{context}), 'context is defined in idle';
+};
+
 done_testing;

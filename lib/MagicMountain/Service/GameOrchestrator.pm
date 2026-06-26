@@ -1,0 +1,156 @@
+package MagicMountain::Service::GameOrchestrator;
+use Mojo::Base '-base', '-signatures';
+
+has app => sub { die "app is required" };
+
+sub ensure_season ($self, $player_id) {
+    my $season = $self->app->active_season;
+    my $season_recap;
+
+    if (!$season) {
+        $self->app->season_records->load;
+        my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
+        if (@$archived) {
+            my @sorted = sort { ($b->getCol('day') // 0) <=> ($a->getCol('day') // 0) } @$archived;
+            my $last = $sorted[0];
+            my $recs = $self->app->season_records->find(sub { $_[0]->{player_id} eq $player_id && $_[0]->{season_id} eq $last->getCol('id') });
+            if (@$recs) {
+                $season_recap = {
+                    label         => $last->getCol('label'),
+                    final_score   => $recs->[0]->getCol('final_score'),
+                    final_scrap   => $recs->[0]->getCol('final_scrap'),
+                    rank          => $recs->[0]->getCol('rank'),
+                    standing      => $recs->[0]->getCol('faction_standing_snapshot'),
+                    skills        => $recs->[0]->getCol('skills_snapshot'),
+                    highlights    => $recs->[0]->getCol('story_highlights'),
+                };
+            }
+        }
+
+        my $prefix = $self->app->config->{default_season_label_prefix} // 'Season';
+        my $max_num = 0;
+        my $all = $self->app->seasons->all;
+        my $re = qr/^\Q$prefix\E\s+(\d+)$/;
+        for my $id (keys %$all) {
+            my $row = $all->{$id};
+            if ($row->{label} =~ $re) {
+                my $n = $1;
+                $max_num = $n if $n > $max_num;
+            }
+        }
+        my $label = "$prefix " . ($max_num + 1);
+        my $length = $self->app->config->{default_season_length} // 30;
+        my $eod_hour = $self->app->config->{end_of_day_hour} // 0;
+
+        $season = $self->app->seasons->create(
+            label           => $label,
+            length          => $length,
+            day             => 1,
+            end_of_day_hour => $eod_hour,
+            status          => 'active',
+        );
+        $season->save;
+    }
+
+    return ($season, $season_recap);
+}
+
+sub ensure_character ($self, $account, $season) {
+    my $player_id = $account->getCol('id');
+    my $season_id = $season ? $season->getCol('id') : undef;
+
+    my ($char_model) = @{ $self->app->characters->find(
+        sub { $_[0]->{account_id} eq $player_id && (!$season_id || $_[0]->{season_id} eq $season_id) }
+    ) };
+
+    if (!$char_model) {
+        my $daily_ap = $self->app->config->{default_action_points} // 15;
+        $char_model = $self->app->characters->create(
+            name                  => $account->getCol('username'),
+            account_id            => $player_id,
+            season_id             => $season_id,
+            score                 => 0,
+            scrap                 => 0,
+            action_points         => $season ? $daily_ap : 0,
+            action_points_max     => $daily_ap,
+            pending_activity_id   => undef,
+        );
+        $char_model->save;
+    }
+
+    return $char_model;
+}
+
+sub prospecting_view ($self, $char) {
+    my $id = $char->getCol('pending_activity_id') or return undef;
+    $self->app->prospecting->load;
+    my $type = $self->app->prospecting->table->{$id}{type} // '';
+    return undef unless $type eq 'prospecting';
+
+    my $activity = $self->app->prospecting->get($id);
+    return undef unless $activity && $activity->phase ne 'idle';
+
+    my $a = $activity->artifact;
+    return {
+        id     => $a->{id},
+        stage  => $a->{stage},
+        value  => $a->{value},
+        signal => $a->{signal},
+        intro  => $a->{intro},
+    };
+}
+
+sub market_view ($self, $char) {
+    my $id = $char->getCol('pending_activity_id') or return undef;
+    $self->app->prospecting->load;
+    my $type = $self->app->prospecting->table->{$id}{type} // '';
+    return undef unless $type eq 'market_visit';
+
+    my $activity = $self->app->market->get($id);
+    return undef unless $activity && $activity->phase ne 'idle';
+
+    my $c = $activity->customer;
+    my $pressure_state = $c ? $activity->budget_pressure_state($c)->{state} : undef;
+
+    return {
+        customer => {
+            faction_id      => $c->{faction_id},
+            faction_name    => $c->{faction_name},
+            disposition     => $c->{disposition} // 'unknown',
+            ($c->{pending_counter}
+                ? (pending_counter => $c->{pending_counter})
+                : ()),
+        },
+        irritation     => $c->{irritation} // 0,
+        pressure_state => $pressure_state,
+    };
+}
+
+sub shed_items ($self, $char) {
+    my $char_id = $char->getCol('id') or return [];
+    my $items = $self->app->shed->find(
+        sub { $_[0]->{char_id} eq $char_id }
+    );
+    my @result;
+    for my $item (@$items) {
+        push @result, {
+            id                   => $item->getCol('id'),
+            artifact_id          => $item->getCol('artifact_id'),
+            condition            => $item->getCol('condition'),
+            days_in_shed         => $item->getCol('days_in_shed'),
+            estimated_value_min  => $item->getCol('estimated_value_min'),
+            estimated_value_max  => $item->getCol('estimated_value_max'),
+        };
+    }
+    return \@result;
+}
+
+sub player_skills ($self, $char) {
+    my $skills = $self->app->skills_data;
+    for my $s (@$skills) {
+        $s->{current_level} = $char->getCol('skill_' . $s->{id}) // 0;
+    }
+    return $skills;
+}
+
+1;

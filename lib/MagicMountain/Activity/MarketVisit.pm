@@ -632,17 +632,17 @@ sub send_away ($self, $char, %params) {
 # INTERNAL OUTCOMES
 # ═══════════════════════════════════════════════════════════════════════
 
-sub _budget_pressure_state ($self, $customer) {
-    my $budget = $customer->{soft_budget} or return { state => 'mood_comfortable', pct => 0 };
+sub budget_pressure_state ($self, $customer) {
+    my $budget = $customer->{soft_budget} or return { state => 'mood_comfortable', display => 'COMFORTABLE', pct => 0 };
     my $pct = ($customer->{spent_so_far} // 0) / $budget;
-    my $state;
-    if    ($pct <= 0.50) { $state = 'mood_comfortable' }
-    elsif ($pct <= 0.80) { $state = 'mood_interested' }
-    elsif ($pct <= 1.00) { $state = 'mood_wary' }
-    elsif ($pct <= 1.10) { $state = 'mood_strained' }
-    elsif ($pct <  1.20) { $state = 'mood_leaving' }
-    else                 { $state = 'mood_over_absolute' }
-    return { state => $state, pct => $pct };
+    my ($state, $display);
+    if    ($pct <= 0.50) { $state = 'mood_comfortable'; $display = 'COMFORTABLE' }
+    elsif ($pct <= 0.80) { $state = 'mood_interested';  $display = 'INTERESTED' }
+    elsif ($pct <= 1.00) { $state = 'mood_wary';        $display = 'WARY' }
+    elsif ($pct <= 1.10) { $state = 'mood_strained';    $display = 'STRAINED' }
+    elsif ($pct <  1.20) { $state = 'mood_leaving';     $display = 'STRAINED' }
+    else                 { $state = 'mood_over_absolute'; $display = 'OVER LIMIT' }
+    return { state => $state, display => $display, pct => $pct };
 }
 
 sub _over_budget ($self, $char, $item, $value) {
@@ -749,7 +749,7 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
 
     $self->_record_disposition($char, $item, $value + $bonus, $delta, $fid) if $season;
 
-    my $pressure = $self->_budget_pressure_state($customer);
+    my $pressure = $self->budget_pressure_state($customer);
     my $mood_text = $self->_pick_reaction($customer->{faction_id}, $pressure->{state},
         value => $value, item_id => $item->getCol('artifact_id'),
     );

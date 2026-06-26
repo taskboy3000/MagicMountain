@@ -1,7 +1,7 @@
 package MagicMountain::SeasonReport;
 use Mojo::Base '-base', '-signatures';
 
-has [qw(final_score final_scrap rank standing skills highlights season_label factions log)];
+has [qw(final_score final_scrap rank standing skills highlights season_label factions log standing_rows)];
 
 sub build ($self) {
     my $hl  = $self->highlights // {};
@@ -124,6 +124,28 @@ sub _faction_name ($self, $id) {
         return $f->{name} if $f->{id} eq $id;
     }
     return $id;
+}
+
+sub _faction_icon ($self, $id) {
+    return undef unless $id && $self->factions;
+    for my $f (@{ $self->factions }) {
+        return '/images/' . $f->{icon} if $f->{id} eq $id && $f->{icon};
+    }
+    return undef;
+}
+
+sub build_standing_rows ($self) {
+    my $standing = $self->standing // {};
+    my @rows;
+    for my $fid (sort keys %$standing) {
+        push @rows, {
+            id    => $fid,
+            name  => $self->_faction_name($fid),
+            icon  => $self->_faction_icon($fid),
+            value => $standing->{$fid},
+        };
+    }
+    return \@rows;
 }
 
 1;

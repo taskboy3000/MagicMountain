@@ -115,6 +115,40 @@ subtest '/season/recap JSON endpoint' => sub {
       ->json_has('/highlights');
 };
 
+subtest 'no archived seasons returns 204' => sub {
+    # Fresh data dir with no seasons at all
+    my $clean_dir = tempdir(CLEANUP => 1);
+    local $ENV{MM_DATA_DIR} = $clean_dir;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$clean_dir/accounts.json");
+    my $a = $accts->create(username => 'lonely');
+    $a->save;
+
+    my $t2 = Test::Mojo->new('MagicMountain');
+    $t2->post_ok('/sessions', json => { displayName => 'lonely' })->status_is(200);
+    $t2->get_ok('/season/recap')
+      ->status_is(204);
+};
+
+subtest 'specific season_id with no player record returns 204' => sub {
+    my $clean_dir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $clean_dir;
+
+    # Create archived season
+    MagicMountain::Model::Season->new(file => "$clean_dir/seasons.json")
+        ->create(id => 's_other', label => 'Other', status => 'archived', day => 1, length => 30)->save;
+
+    # Player with no record
+    my $accts = MagicMountain::Model::Account->new(file => "$clean_dir/accounts.json");
+    my $a = $accts->create(username => 'norecord');
+    $a->save;
+
+    my $t2 = Test::Mojo->new('MagicMountain');
+    $t2->post_ok('/sessions', json => { displayName => 'norecord' })->status_is(200);
+    $t2->get_ok('/season/recap?season_id=s_other')
+      ->status_is(204);
+};
+
 subtest 'season archive on account tab' => sub {
     $t->get_ok('/account?_format=fragment')
       ->status_is(200)

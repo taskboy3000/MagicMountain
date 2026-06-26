@@ -160,6 +160,46 @@ subtest 'HTML — renders successfully' => sub {
       ->content_like(qr/REGISTERED TO/);
 };
 
+subtest 'JSON — market activity idle phase is not shown' => sub {
+    my $dataDir = setup;
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    my $char = $chars->find(sub { 1 })->[0];
+    my $char_id = $char->getCol('id');
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
+
+    my $act = $t->app->market->create(char_id => $char_id, phase => 'idle');
+    $act->save;
+    $char->setCol('pending_activity_id', $act->getCol('id'));
+    $char->save;
+
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_is('/market_visit' => undef);
+};
+
+subtest 'JSON — season auto-creates with correct label' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    # No season pre-created — Game controller will auto-create
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'pioneer');
+    $a->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'pioneer' })->status_is(200);
+
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_is('/season/label' => 'Season 1')
+      ->json_is('/season/day' => 1)
+      ->json_is('/season/total_days' => 30)
+      ->json_has('/player');
+};
+
 subtest 'JSON — displays faction_sales' => sub {
     my $dataDir = setup;
     my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
