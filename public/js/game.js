@@ -139,7 +139,7 @@ document.getElementById('panel-secondary').addEventListener('click', async (e) =
     const id = ref.dataset.referenceId;
     const resp = await fetch(`/reference/${id}?_format=fragment`);
     if (resp.status !== 200) return;
-    document.getElementById('panel-primary').innerHTML = await resp.text();
+    document.getElementById('panel-secondary').innerHTML = await resp.text();
     return;
   }
   const btn = e.target.closest('[data-action-url]');
@@ -162,7 +162,7 @@ document.getElementById('panel-primary').addEventListener('click', async (e) => 
     const id = ref.dataset.referenceId;
     const resp = await fetch(`/reference/${id}?_format=fragment`);
     if (resp.status !== 200) return;
-    document.getElementById('panel-primary').innerHTML = await resp.text();
+    document.getElementById('panel-secondary').innerHTML = await resp.text();
     return;
   }
   const btn = e.target.closest('[data-action-url]');
