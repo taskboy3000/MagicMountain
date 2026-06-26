@@ -164,7 +164,7 @@ This keeps PvP asynchronous and avoids requiring both players to be online simul
 
 ## Implementation Notes
 
-### From Technical Architecture
+### Design Constraints
 
 - Player interaction remains indirect except for limited PvP
 - No real-time coordination required

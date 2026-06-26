@@ -5,62 +5,71 @@
 | View | Tab Label | Fragment | When Available |
 |------|-----------|----------|----------------|
 | `idle` | PROSPECT | `/idle?_format=fragment` | No active activity |
-| `prospect` | PROSPECT | `/prospecting?_format=fragment` | Activity phase = processing, type = prospecting |
+| `prospecting` | PROSPECT | `/prospecting?_format=fragment` | Activity phase = processing, type = prospecting |
 | `market` | BAZAAR | `/market?_format=fragment` | Activity phase = negotiating, type = market_visit |
-| `shed` | SHED | `/shed?_format=fragment` | Always (character exists) |
+| `result` | HOME | `/result?_format=fragment` | Character has a pending `result` field |
+| `home` | HOME | `/home?_format=fragment` | Always (character exists, no result pending) |
+| `shed` | (secondary panel) | `/shed?_format=fragment` | Always (character exists) |
 | `factions` | FACTIONS | `/factions?_format=fragment` | Always |
 | `skills` | SKILLS | `/skills?_format=fragment` | Always |
-| `bulletin` | BULLETIN | `/crier?_format=fragment` | Always |
+| `account` | ACCOUNT | `/account?_format=fragment` | Always |
+| `leaderboard` | (secondary panel) | `/leaderboard?_format=fragment` | Always |
 
-## Tab Active Status Per View
+## Tabs
+
+Six nav tabs: HOME, PROSPECT, BAZAAR, FACTIONS, SKILLS, ACCOUNT.
+
+### Tab Active Status Per View
 
 `✗` = inactive (greyed, `reason` shown as tooltip), `✓` = active (clickable)
 
-| Tab | idle | prospect | market | shed | factions | skills | bulletin |
-|-----|------|----------|--------|------|----------|--------|----------|
-| PROSPECT | ✓ | ✓ | ✗ ¹ | ✓ | ✓ | ✓ | ✓ |
-| SHED | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| BAZAAR | ✓ ² | ✗ ¹ | ✓ | ✓ ² | ✓ ² | ✓ ² | ✓ ² |
+| Tab | home/idle | prospecting | market | result | factions | skills | account |
+|-----|-----------|-------------|--------|--------|----------|--------|---------|
+| HOME | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| PROSPECT | ✓ ¹ | ✓ | ✗ ² | ✓ | ✓ | ✓ | ✓ |
+| BAZAAR | ✓ ³ | ✗ ² | ✓ | ✓ | ✓ ³ | ✓ ³ | ✓ ³ |
 | FACTIONS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SKILLS | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| BULLETIN | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ACCOUNT | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 **Footnotes:**
-1. `reason`: "Complete your current activity first"
-2. BAZAAR additionally inactive if `$ap < 1` (reason: "No AP remaining") or shed is empty (reason: "No artifacts in shed"). These resource checks apply regardless of view.
+1. PROSPECT inactive if `$ap < 2` (reason: "Not enough AP (2 required)")
+2. `reason`: "Complete your current activity first" / "Finish your current expedition first"
+3. BAZAAR additionally inactive if `$ap < 1` (reason: "No AP remaining") or shed is empty (reason: "No artifacts in shed"). These resource checks apply regardless of view.
 
 ## Secondary View Mapping
 
 | View | Secondary | Rationale |
 |------|-----------|----------|
-| idle | shed | See what you have before choosing an activity |
-| prospect | shed | See inventory while deciding when to stop |
-| market | factions | See standing/influence during negotiation |
-| shed | factions | Browse factions while reviewing inventory |
+| home | factions | Browse factions from dashboard |
+| idle | factions | See standings before choosing activity |
+| prospecting | factions | See standings while deciding when to stop |
+| result | factions | See standings after an outcome |
+| market | shed | See inventory during negotiation |
 | factions | leaderboard | See rankings alongside faction profiles |
 | skills | leaderboard | See rankings while training |
-| bulletin | leaderboard | See rankings alongside news |
+| account | leaderboard | See rankings alongside settings |
 
 ## Context Bar Text Per View
 
 | View | Context text |
 |------|-------------|
-| idle | `PROSPECT — 2 AP  │  SHED — N ITEMS  │  BAZAAR — 1 AP` (adjusted for AP/items) |
-| prospect | `INSTABILITY X/Y  │  STAGE Z  │  VALUE W` (from artifact state) |
+| home/idle | Current Crier message (if any) |
+| prospecting | `INSTABILITY X/Y  │  STAGE Z  │  VALUE W` (from artifact state) |
 | market | `BUYER: faction_name  │  IRRITATION X  │  MOOD: state` (from customer state) |
 
 ## Nav Endpoint Response Shape
 
 ```json
 {
-  "current_view": "prospect",
+  "current_view": "prospecting",
   "primary_fragment_url": "/prospecting?_format=fragment",
-  "secondary_view": "shed",
-  "secondary_fragment_url": "/shed?_format=fragment",
+  "secondary_view": "factions",
+  "secondary_fragment_url": "/factions?_format=fragment&panel=secondary",
   "tabs": [
-    {"id": "prospect", "label": "PROSPECT",  "active": true,  "reason": null, "fragment_url": "/prospecting?_format=fragment"},
+    {"id": "prospect", "label": "PROSPECT", "active": true, "reason": null, "fragment_url": "/prospecting?_format=fragment"},
     ...
   ],
-  "context": "INSTABILITY 7/14  |  STAGE STRAINED  |  [PUSH]  [STOP]"
+  "context": "INSTABILITY 7/14  |  STAGE STRAINED  |  VALUE 24"
 }
 ```

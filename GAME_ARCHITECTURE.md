@@ -33,7 +33,7 @@ never a villain. The game does not morally categorize the player.
 
 ```
 Login/join season
-  → Each day: 15 Action Points (AP)
+  → Each day: 15–20 Action Points (AP, configurable via `default_action_points`, default 20)
     → Prospecting (costs 2 AP)
       → Artifact is drawn from weighted pool
       → Push (repeatable, no AP cost)
@@ -302,7 +302,7 @@ Survives across seasons. Contains no gameplay data.
 | score | integer | Cumulative leaderboard value from sales. NEVER decreases |
 | scrap | integer | Spendable currency. Decreases via skill purchases |
 | action_points | integer | Current AP remaining for the day |
-| action_points_max | integer | Daily AP cap (default 15) |
+| action_points_max | integer | Daily AP cap (default 20, configurable via `default_action_points`) |
 | faction_sales | map | Per-faction sale count this season |
 | standing | map | Per-faction reputation integer |
 | pending_activity_id | string or null | FK to activities.json row. null when idle |
@@ -424,9 +424,9 @@ by `_dynamic_multiplier()`.
   "has_evolved": false,
   "evolution_threshold": 0.25,
   "evolution_chance": 0.03,
-  "evolution_instability_spike": 2,
+  "evolution_instability_spike": 3,
   "breakthrough_multiplier_min": 1.5,
-  "breakthrough_multiplier_max": 2.0,
+  "breakthrough_multiplier_max": 2.5,
   "state_thresholds": { "stable": 0.35, "strained": 0.70 }
 }
 ```
@@ -439,14 +439,15 @@ by `_dynamic_multiplier()`.
   "faction_name": "The Syndicate",
   "desired_behaviors": ["thermal", "storage", "power"],
   "base_multiplier": 1.1,
-  "irritation": 0,
+  "irritation": 2,
   "irritation_threshold": 5,
   "settle_chance": 0.15,
   "offer_value": null,
   "offer_text": null,
   "soft_budget": 120,
   "absolute_budget": 144,
-  "spent_so_far": 0
+  "spent_so_far": 0,
+  "loyalty_free_mismatches": 0
 }
 ```
 
@@ -621,9 +622,10 @@ Each push operation:
    - `ratio <= stable_threshold` → "stable"
    - `ratio <= strained_threshold` → "strained"
    - `ratio > strained_threshold` → "unstable"
+   - Default thresholds: `stable: 0.30`, `strained: 0.65` (set in `state_thresholds` per artifact spec)
 
 4. **Collapse check**: `collapse_chance = (ratio³) × 0.95`
-   - Clamped to minimum 5% and maximum 100%
+   - Clamped to maximum 100% (no minimum floor — near-zero ratio gives near-zero chance)
    - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
     - Collapse is total loss: artifact destroyed, player gets nothing,
       activity row deleted
@@ -636,13 +638,14 @@ Each push operation:
      - `mult = breakthrough_multiplier_min + random_float × (breakthrough_multiplier_max - breakthrough_multiplier_min)`
      - `new_value = floor(artifact.value × mult)`
      - Artifact value set to new_value
-     - Instability increases by `evolution_instability_spike`
-     - Player receives `new_value` as both scrap and score
+      - Instability increases by `evolution_instability_spike` (default 3)
+      - Player receives `new_value` as both scrap and score
       - Activity row deleted (no stop needed, artifact never enters shed)
-     - At most ONE evolution per artifact
+      - At most ONE evolution per artifact
 
 6. **Value gain** (if no collapse and no breakthrough):
    - `gain = base_gain_min + random_int(0, base_gain_max - base_gain_min)`
+   - `gain` is further increased by `upcycling_level - 1` when upcycling >= 2 (so +1 at level 2, +2 at level 3)
    - `artifact.value += gain`
    - A random signal text is selected from the YAML spec for the current stage
 
@@ -730,7 +733,7 @@ When a player starts a Market Visit (costs 1 AP):
    - `faction_id`, `faction_name`
    - `desired_behaviors` — a subset of the faction's interests (hidden from player)
    - `base_multiplier` — the faction's standard offer multiplier
-   - `irritation` — starts at 0
+   - `irritation` — starts at random 0–3 (varies per visit, press-your-luck from the outset)
    - `irritation_threshold` — if exceeded, customer leaves (default 5)
    - `settle_chance` — probability the customer will accept a non-matching item
    - `soft_budget` — 50–150 base + 5 per standing point with this faction
@@ -1312,7 +1315,7 @@ has market => sub ($self) {
 
 # MarketVisit subclass:
 has transitions => sub {
-    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter'] }
+    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter', 'stand_pat'] }
 };
 
 sub create ($self, %params) {
@@ -1329,14 +1332,17 @@ sub create ($self, %params) {
 | idle | begin | Deduct 1 AP. Generate customer. Set FK. Set phase to `negotiating` | `$self->save`, `$char->save` |
 | negotiating | offer | Receive `shed_item_id`. Match `desired_behaviors` vs item `behaviors`. Match → auto-sale. Mismatch → roll against `settle_chance`; on settle → sale at lowball, on fail → if counter-offers enabled → `counter_offer`; else → increment irritation and `no_match`. At irritation threshold → `customer_left` (storm off). | Match/settle/customer_left/send_away (single-item mode): `$self->delete`, `$char->save`. Match (multi-item mode): `$self->save`. No_match: `$self->save`, `$char->save`. |
 | negotiating | accept_counter | Accept pending counter-offer. Triggers sale at counter price. | Same as match/above. |
+| negotiating | stand_pat | Player demands original price (no counter). Roll against `chance = 0.30 + (selling * 0.15) + (standing * 0.02)`, capped at 0.85. Success → sale at `floor(decayed_value × dynamic_multiplier)`. Failure → irritation++, if threshold exceeded → storm off. | Success: `$self->delete`, `$char->save`. Failure/normal: `$self->save`, `$char->save`. |
 | negotiating | send_away | Player ends negotiation. No sale. | `$self->delete`, `$char->save` |
 
 The `offer` action takes a `shed_item_id` parameter identifying which artifact
-from the player's shed is being offered. Counter-offers and multi-item visits
-are optional features gated by config flags (`market_counter_offers`,
-`market_multi_item`), both disabled by default. When multi-item is enabled, a
-sale does not end the visit — irritation carries over as the press-your-luck
-mechanism.
+from the player's shed is being offered. The `stand_pat` action is available
+when a `pending_counter` is set — the player demands the original (non-counter)
+price and the customer may accept or refuse based on a skill+standing roll.
+Counter-offers and multi-item visits are optional features gated by config
+flags (`market_counter_offers`, `market_multi_item`), both enabled by default.
+When multi-item is enabled, a sale does not end the visit — irritation carries
+over as the press-your-luck mechanism.
 
 ### 9.7 Bots
 
@@ -1395,15 +1401,17 @@ any model.
 | Root | index | Gateway redirect (always → /game) |
 | Sessions | login_form, create, destroy, logout | Authentication. `login_form` redirects to `/game`. |
 | Player | show, destroy | Current player JSON/fragment; delete account |
+| Result | show, dismiss | `GET /result` — displays stored outcome (collapse, breakthrough, sold, storm off, etc.). `POST /result/dismiss` — clears result and returns to home view. |
 | Game | show | Game state page. Renders login form inline when unauthenticated. Auto-creates character on first visit. After a season ends, first visit shows `season_recap` and auto-creates a new season + fresh character. |
 | Nav | show | `GET /nav` — returns tabs (active/inactive + reasons), current view, fragment URLs, context bar. Backend-managed UI state. |
 | Idle | show | `GET /idle` — idle action panel (Prospect/Bazaar buttons). Returns 204 when activity active. |
 | Crier | show | `GET /crier` — current season's Town Crier message. Returns 204 when no active season. |
 | Prospecting | begin, push, stop, show | Prospecting lifecycle + `GET /prospecting` fragment/JSON. |
-| Market | begin, offer, send_away, accept_counter, show | Market negotiation lifecycle + `GET /market` fragment/JSON. |
+| Market | begin, offer, send_away, accept_counter, stand_pat, show | Market negotiation lifecycle + `GET /market` fragment/JSON. |
 | Shed | index | List shed contents with condition and estimates. |
 | Skills | index, purchase | View available skills, purchase upgrade. |
 | Factions | show | `GET /factions` — faction registry with standing and influence. Returns 204 when no active season. |
+| Home | show | `GET /home` — home dashboard with station status, shed ledger, and contextual suggestions. |
 | Leaderboard | index, factions | Player rankings; faction influence time series. |
 | Account | show | `GET /account` — account settings panel (logout, delete account). Returns 204 when not logged in. |
 
@@ -1472,10 +1480,12 @@ content/
   prospecting.yml                 # All artifact definitions
   skills.yml                      # Skill definitions and costs
   factions.yml                    # Faction definitions
-  text/
+  flavor/
+    advisories.yml                 # System advisory messages (idle, season end, faction hunger)
     crier.yml                      # Daily maintenance messages (surge, slump, etc.)
     negotiation_reactions.yml      # Per-faction flavor text for market visit outcomes
     commission_triggers.yml        # Commission issuance text (unused until §7.3)
+    system_messages.yml            # Unit status flavor text (device frame boot message)
 ```
 
 ### 12.2 Artifact Definition Shape
@@ -1633,8 +1643,11 @@ changes, no manual registration.
 | GET | `/skills` | `Skills#index` | JSON + fragment | Skill tree |
 | GET | `/factions` | `Factions#show` | JSON + fragment | Faction registry. 204 when no active season. |
 | GET | `/account` | `Account#show` | JSON + fragment | Account settings (logout, delete account). 204 when not logged in. |
+| GET | `/home` | `Home#show` | JSON + fragment | Home dashboard with station status, shed ledger, and suggestions |
+| GET | `/result` | `Result#show` | JSON + fragment | Result display (outcome card for collapse, breakthrough, sale, etc.) |
 | GET | `/leaderboard` | `Leaderboard#index` | JSON + fragment | Player rankings |
 | GET | `/leaderboard/factions` | `Leaderboard#factions` | JSON | Faction influence time series |
+| POST | `/result/dismiss` | `Result#dismiss` | JSON | Clear result and return to home view |
 | POST | `/prospecting/begin` | `Prospecting#begin` | JSON | Start prospecting (costs 2 AP) |
 | POST | `/prospecting/push` | `Prospecting#push` | JSON | Destabilize artifact |
 | POST | `/prospecting/stop` | `Prospecting#stop` | JSON | Halt, create shed entry |
@@ -1642,6 +1655,7 @@ changes, no manual registration.
 | POST | `/market/offer` | `Market#offer` | JSON | Offer shed item to customer |
 | POST | `/market/send_away` | `Market#send_away` | JSON | End negotiation, no sale |
 | POST | `/market/accept_counter` | `Market#accept_counter` | JSON | Accept customer's counter-offer |
+| POST | `/market/stand_pat` | `Market#stand_pat` | JSON | Hold firm at original price; customer may accept (skill+standing roll) or refuse (irritation++) |
 | POST | `/skills/purchase` | `Skills#purchase` | JSON | Buy skill upgrade (costs scrap) |
 
 ### 13.2 Self-Describing Actions Convention
@@ -2112,6 +2126,8 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Character column expansion** | `Model::Character` | `action_points`, `action_points_max`, skill columns |
 | **Prospecting/Market controllers** | `Controller::Prospecting`, `Controller::Market` | Thin dispatch+render, no persistence |
 | **Shed controller** | `Controller::Shed` | `GET /shed` with query-string filtering (condition, artifact_id, behavior, min/max value, sort, order); `respond_to` JSON/HTML |
+| **Home controller** | `Controller::Home` | `GET /home` — home dashboard with station status, contextual suggestions, shed ledger preview |
+| **Result controller** | `Controller::Result` | `GET /result` displays outcome cards (collapse, breakthrough, sale, storm-off); `POST /result/dismiss` clears result and returns to home |
 | **Skills controller + purchase** | `Controller::Skills`, `skills_data` helper | `GET /skills` lists YAML definitions + current levels; `POST /skills/purchase` validates scrap, enforces level cap, deducts and increments |
 | **Leaderboard controller** | `Controller::Leaderboard` | `GET /leaderboard` — seasonal character rankings sorted by score |
 | **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml`, `content/bots.yml`, `content/flavor/negotiation_reactions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions, bot profiles, per-faction negotiation flavor text |
@@ -2120,7 +2136,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
 | **Season-aware character lookup** | `Controller.pm` base class, `MagicMountain.pm` | `_require_character` filters by active season; `active_season` method (non-memoized, fresh each call) on app class |
 | **JS client** | `public/js/game.js` | Declarative JS: fetches `/game` for boot state, fetches `/nav` for panel layout, renders server-provided fragment URLs into primary/secondary panels. No view logic, no URL computation, no HTML template literals. Event delegation on panel containers for action buttons. |
-| **Fragment rendering** | All resource controllers (`Player`, `Crier`, `Idle`, `Prospecting`, `Market`, `Shed`, `Skills`, `Factions`, `Leaderboard`) | Each controller provides `respond_to json` + `_format=fragment` HTML. JS fetches fragment URLs from `/nav` response and renders via `innerHTML`. No client-side HTML construction. |
+| **Fragment rendering** | All resource controllers (`Player`, `Crier`, `Idle`, `Home`, `Result`, `Prospecting`, `Market`, `Shed`, `Skills`, `Factions`, `Leaderboard`, `Account`) | Each controller provides `respond_to json` + `_format=fragment` HTML. JS fetches fragment URLs from `/nav` response and renders via `innerHTML`. No client-side HTML construction. |
 | **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
 | **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
 | **Crier daily progress** | `Crier.pm`, `content/flavor/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
@@ -2139,8 +2155,9 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |
 | **Analysis script** | `bin/analyze_sim` | Reusable transcript analysis: per-bot scores, push/sell counts, match rates |
 | **Rate limiting** | `MagicMountain::RateLimiter.pm`, `MagicMountain.pm` (bridge, helper, config), `Controller/Sessions.pm` (recording) | IP-based + account-name-based rate limiting on login; Retry-After, X-RateLimit-* headers; configurable window/attempts/block |
-| **Counter-offers** | `Activity/MarketVisit.pm` (offer/accept_counter), `Controller/Market.pm`, `Bot/SellPolicy.pm` | Optional, gated by `market_counter_offers` config (default off). Customer counters at midpoint price; player may accept or reject. |
-| **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default off). Multiple sales per visit with budget pressure and irritation carryover. |
+| **Counter-offers** | `Activity/MarketVisit.pm` (offer/accept_counter), `Controller/Market.pm`, `Bot/SellPolicy.pm` | Optional, gated by `market_counter_offers` config (default on). Customer counters at midpoint price; player may accept or reject. |
+| **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default on). Multiple sales per visit with budget pressure and irritation carryover. |
+| **Stand-pat mechanic** | `Activity/MarketVisit.pm` (stand_pat), `Controller/Market.pm` | Player demands original (non-counter) price; customer accepts based on `0.30 + selling*0.15 + standing*0.02` roll (capped 0.85). Failure adds irritation, may trigger storm-off. |
 | **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (1.30× after idle); configured via defaultConfig and per-faction YAML |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
@@ -2307,6 +2324,7 @@ magic_mountain/
 │       │   ├── disable_account.pm    # CLI: disable-account
 │       │   ├── end_season.pm         # CLI: end-season (finalization)
 │       │   ├── list_accounts.pm      # CLI: list-accounts
+│       │   ├── report.pm             # CLI: aggregate transcript stats for tuning analysis
 │       │   └── simulate.pm           # CLI: run bot simulation
 │       ├── Controller/
 │       │   ├── Account.pm            # Account settings panel
@@ -2316,10 +2334,11 @@ magic_mountain/
 │       │   ├── Home.pm               # Home dashboard (shed ledger)
 │       │   ├── Idle.pm               # Idle action panel
 │       │   ├── Leaderboard.pm        # Season leaderboard
-│       │   ├── Market.pm             # MarketVisit actions (begin, offer, send_away)
+│       │   ├── Market.pm             # MarketVisit actions (begin, offer, send_away, accept_counter, stand_pat)
 │       │   ├── Nav.pm                # Navigation state (tabs, views, fragment URLs)
 │       │   ├── Player.pm             # Current player info
 │       │   ├── Prospecting.pm        # Prospecting actions (begin, push, stop)
+│       │   ├── Result.pm             # Result display (outcome cards, dismiss)
 │       │   ├── Root.pm               # Gateway redirect (GET /)
 │       │   ├── Sessions.pm           # Login/logout, session management
 │       │   ├── Shed.pm               # Shed inventory listing
@@ -2361,6 +2380,8 @@ magic_mountain/
 │   │   └── status.html.ep            # Player status strip
 │   ├── prospecting/
 │   │   └── scan.html.ep              # Prospecting scan panel
+│   ├── result/
+│   │   └── show.html.ep              # Result display (outcome cards, season recap)
 │   ├── shed/
 │   │   └── ledger.html.ep            # Shed inventory ledger
 │   └── skills/
@@ -2377,12 +2398,14 @@ magic_mountain/
 │   ├── factions.yml                  # Faction definitions and interests
 │   ├── prospecting.yml               # Artifact specs and weights
 │   ├── skills.yml                    # Skill tree and costs
-│   └── text/                         # Narrative text definitions
+│   └── flavor/                       # Narrative text definitions
+│       ├── advisories.yml            # System advisory messages (idle, season end, etc.)
 │       ├── commission_triggers.yml   # Commission issuance text
 │       ├── crier.yml                 # Town Crier daily messages
-│       └── negotiation_reactions.yml # Per-faction market flavor text
+│       ├── negotiation_reactions.yml # Per-faction market flavor text
+│       └── system_messages.yml       # Unit status flavor text (boot message)
 │
-├── t/                                # Test suite (39 files)
+├── t/                                # Test suite (44 files)
 │   ├── lib/
 │   │   └── TestCharacter.pm          # Test helper: character factory
 │   ├── activity.t                    # Activity base class tests
@@ -2394,9 +2417,11 @@ magic_mountain/
 │   ├── decay.t                       # Artifact decay tests
 │   ├── end_season.t                  # Season finalization tests
 │   ├── faction_snapshot.t            # Faction snapshot tests
+│   ├── faction_stars.t               # Faction stars display tests
 │   ├── faction_state.t               # Faction state tests
 │   ├── fragment_web.t                # Fragment rendering tests
 │   ├── game_web.t                    # Game page integration tests
+│   ├── home_web.t                    # Home dashboard web tests
 │   ├── js_syntax.t                   # JS syntax validation
 │   ├── leaderboard.t                 # Leaderboard tests
 │   ├── login.t                       # Login flow integration tests
@@ -2417,12 +2442,14 @@ magic_mountain/
 │   ├── nav_web.t                     # Nav controller tests
 │   ├── prospecting_web.t             # Prospecting web integration tests
 │   ├── rate_limiter.t                # Rate limiter tests
+│   ├── result_web.t                  # Result page web tests
 │   ├── season_end_web.t              # Season end web tests
 │   ├── season_recap.t                # Season recap display tests
 │   ├── session.t                     # Session lifecycle tests
 │   ├── shed.t                        # ShedManager tests
 │   ├── shed_web.t                    # Shed web integration tests
 │   ├── skills_web.t                  # Skills web integration tests
+│   ├── stand_pat_web.t               # Stand-pat web integration tests
 │   └── transcript.t                  # Transcript tests
 │
 ├── data/                             # Runtime JSON persistence
