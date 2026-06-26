@@ -111,10 +111,11 @@ subtest 'counter-offer generated on mismatch' => sub {
 
     $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
 
-    # Disable settlement to make counter-offer deterministic
+    # Disable settlement, reset irritation to make counter deterministic
     $char = $t->app->characters->find(sub { 1 })->[0];
     my $act = $t->app->market->get($char->getCol('pending_activity_id'));
     $act->customer->{settle_chance} = 0;
+    $act->customer->{irritation} = 0;
     $act->save;
 
     my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });
@@ -304,11 +305,12 @@ subtest 'customer_left when irritation threshold hit' => sub {
 
     $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
 
-    # Disable settlement to make mismatches deterministic
+    # Disable settlement, reset irritation to make mismatches deterministic
     $char = $t->app->characters->find(sub { 1 })->[0];
     my $act_id = $char->getCol('pending_activity_id');
     my $activity = $t->app->market->get($act_id);
     $activity->customer->{settle_chance} = 0;
+    $activity->customer->{irritation} = 0;
     $activity->save;
 
     my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });

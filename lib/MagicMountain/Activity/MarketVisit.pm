@@ -189,7 +189,7 @@ sub begin ($self, $char, %params) {
         desired_behaviors   => $self->_pick_behaviors($faction),
         base_multiplier     => ($faction->{base_multiplier} // 1.0) + $mult_bonus,
         offer_value         => undef,
-        irritation          => 0,
+        irritation          => int(rand(4)),
         irritation_threshold => 5,
         settle_chance       => $faction->{settle_chance} // 0.15,
         soft_budget         => $soft_budget,
@@ -577,6 +577,12 @@ sub send_away ($self, $char, %params) {
         message      => 'You send the customer away.',
     });
     $char->setCol('current_view', 'result');
+
+    $self->_log_event($char, {
+        type        => 'send_away',
+        narrative   => sprintf("%s sends the customer away.", $char->getCol('name')),
+    });
+
     $self->phase('idle');
     $self->customer(undef);
     $self->delete;

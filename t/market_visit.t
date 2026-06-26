@@ -292,6 +292,7 @@ subtest 'selling skill 2 eliminates irritation on mismatch' => sub {
 
     $m->dispatch($char, 'begin');
     $m->customer->{settle_chance} = 0.0;
+    $m->customer->{irritation} = 0;
     $m->customer->{irritation_threshold} = 5;
 
     # First mismatch — irritation should stay 0
@@ -625,6 +626,7 @@ subtest 'sale exceeding absolute_budget returns over_budget with irritation' => 
     $m->customer->{desired_behaviors} = ['thermal'];
     $m->customer->{soft_budget} = 10;
     $m->customer->{absolute_budget} = 15;
+    $m->customer->{irritation} = 0;
 
     my $result = $m->dispatch($char, 'offer', shed_item_id => 'ob-item');
     is($result->{view}{result}, 'over_budget', 'over_budget result');
