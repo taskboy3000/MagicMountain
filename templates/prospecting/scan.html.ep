@@ -4,7 +4,7 @@
 % my %sc = (stable => 'mm-badge-green', strained => 'mm-badge-amber', unstable => 'mm-badge-red');
 % my $st = stash('stage');
     <p>VALUE: <strong><%= $value_tier %></strong>  ◆  STATUS: <span class="mm-badge <%= $sc{$st} // 'mm-badge-green' %>"><%= $st || '—' %></span></p>
-    <div style="display:flex; gap:0.5rem; margin-top:0.5rem">
+    <div style="display:flex; gap:0.5rem; margin-top:0.5rem; justify-content:center">
 %= include 'components/action_buttons', actions => $actions
     </div>
 % my $intro_text = stash('intro');
