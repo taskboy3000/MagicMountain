@@ -34,6 +34,7 @@ sub show ($self) {
                 id         => $item->getCol('id'),
                 label      => $aid,
                 label_full => $aid,
+                icon       => '/images/artifact_' . $aid . '.svg',
                 condition  => $item->getCol('condition'),
                 value_min  => $item->getCol('estimated_value_min'),
                 value_max  => $item->getCol('estimated_value_max'),

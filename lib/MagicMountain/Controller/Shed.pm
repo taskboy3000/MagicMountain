@@ -71,6 +71,7 @@ sub _enriched_items ($items, $is_secondary, $c) {
             id         => $item->getCol('id'),
             label      => $is_secondary ? ($short->{$aid} // $aid) : $aid,
             label_full => $aid,
+            icon       => '/images/artifact_' . $aid . '.svg',
             condition  => $item->getCol('condition'),
             value_min  => $item->getCol('estimated_value_min'),
             value_max  => $item->getCol('estimated_value_max'),

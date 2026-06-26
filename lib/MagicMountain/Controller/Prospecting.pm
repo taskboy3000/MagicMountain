@@ -20,6 +20,7 @@ sub show ($self) {
     if ($format && $format eq 'fragment') {
         $self->stash(
             artifact_id    => $a->{id},
+            artifact_icon  => '/images/artifact_' . $a->{id} . '.svg',
             stage          => $a->{stage},
             value          => $a->{value},
             signal         => $a->{signal},
@@ -35,6 +36,7 @@ sub show ($self) {
         ok     => 1,
         prospecting => {
             id     => $a->{id},
+            icon   => '/images/artifact_' . $a->{id} . '.svg',
             stage  => $a->{stage},
             value  => $a->{value},
             signal => $a->{signal},
