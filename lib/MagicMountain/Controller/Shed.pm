@@ -68,15 +68,14 @@ sub _enriched_items ($items, $is_secondary, $c) {
     for my $item (@$items) {
         my $aid = $item->getCol('artifact_id');
         push @out, {
-            id         => $item->getCol('id'),
-            label      => $is_secondary ? ($short->{$aid} // $aid) : $aid,
-            label_full => $aid,
-            icon       => '/images/artifact_' . $aid . '.svg',
-            condition  => $item->getCol('condition'),
-            value_min  => $item->getCol('estimated_value_min'),
-            value_max  => $item->getCol('estimated_value_max'),
-            days       => $item->getCol('days_in_shed'),
-            behaviors  => $item->getCol('behaviors'),
+            id          => $item->getCol('id'),
+            label       => $is_secondary ? ($short->{$aid} // $aid) : $aid,
+            label_full  => $aid,
+            icon        => '/images/artifact_' . $aid . '.svg',
+            condition   => $item->getCol('condition'),
+            value_label => $item->value_label,
+            days        => $item->getCol('days_in_shed'),
+            behaviors   => $item->getCol('behaviors'),
         };
     }
     return \@out;
