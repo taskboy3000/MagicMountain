@@ -89,7 +89,7 @@ for my $config (@configs) {
 print "\n=== All runs complete ===\n";
 print "Output directory: $outdir\n";
 print "\nTo analyze individual transcripts:\n";
-print "  perl bin/analyze_sim $outdir/<config>/seed_<N>.jsonl\n";
+print "  perl bin/analyze $outdir/<config>/seed_<N>.jsonl\n";
 print "\nTo aggregate scores:\n";
 print "  for config in @configs; do\n";
 print "    echo \"\\\$config:\"\n";
