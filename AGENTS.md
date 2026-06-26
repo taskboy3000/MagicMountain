@@ -21,6 +21,8 @@ This is a ground-up reimplementation following the architecture spec in
 
 ## Design Principles
 
+
+0. Every feature should be implementable without Mojolicious. The web controllers are adapters that expose engine functionality over HTTP; they are not part of the game engine itself. The wen UI is one client of the REST API. There will be others in the future.
 1. **Prefer data over branching.** When choosing between a data structure
    (tables, hashes, YAML, registries, dispatch maps) and if/elsif chains,
    prefer the data-driven design.

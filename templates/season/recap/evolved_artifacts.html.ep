@@ -1,0 +1,2 @@
+% my @lines = (sprintf('Breakthrough events recorded: <strong>%d</strong>. Artifact evolution confirmed.', $count), sprintf('<strong>%d</strong> artifact(s) underwent evolutionary transformation during extraction.', $count), sprintf('Evolution incidents: <strong>%d</strong>. Mountain anomaly interaction detected.', $count));
+<%= $lines[rand @lines] %>

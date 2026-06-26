@@ -219,6 +219,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Skills** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
 | **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
 | **Content** (YAML loader) | Directory path, parsed YAML data | Model persistence, game rules |
+| **SeasonReport** (recap builder) | Plain data inputs, `log` coderef | Model objects, app reference, game logic, formatting, HTML |
 | **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
 | **Bot** (automated player) | Policy name, parameters, activity access | Direct persistence (uses same models and activities as controllers) |
@@ -2159,6 +2160,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default on). Multiple sales per visit with budget pressure and irritation carryover. |
 | **Stand-pat mechanic** | `Activity/MarketVisit.pm` (stand_pat), `Controller/Market.pm` | Player demands original (non-counter) price; customer accepts based on `0.30 + selling*0.15 + standing*0.02` roll (capped 0.85). Failure adds irritation, may trigger storm-off. |
 | **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (1.30× after idle); configured via defaultConfig and per-faction YAML |
+| **Season report** | `SeasonReport.pm`, `Controller/Season.pm`, `templates/season/recap/` | Data-driven recap builder: accepts plain data hashes, returns structured section list. Each section maps to a template. No YAML, no regex, no HTML in Perl. Testable without web server. |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
@@ -2308,6 +2310,7 @@ magic_mountain/
 │       ├── Maintenance.pm            # In-process daily maintenance timer
 │       ├── Model.pm                  # Base persistence class (JSON file CRUD, UUID, find)
 │       ├── RateLimiter.pm            # IP/account-based rate limiting
+│       ├── SeasonReport.pm           # Post-season recap builder (data → sections)
 │       ├── ShedManager.pm            # Artifact decay logic
 │       ├── Activity/
 │       │   ├── MarketVisit.pm        # Customer generation, negotiation, sale
@@ -2381,6 +2384,9 @@ magic_mountain/
 │   │   └── scan.html.ep              # Prospecting scan panel
 │   ├── result/
 │   │   └── show.html.ep              # Result display (outcome cards, season recap)
+│   ├── season/
+│   │   └── recap.html.ep             # Season report orchestrator (section loop + stat boxes)
+│   │       recap/                     # Per-section templates (header, market, rank, etc.)
 │   ├── shed/
 │   │   └── ledger.html.ep            # Shed inventory ledger
 │   └── skills/
@@ -2403,8 +2409,9 @@ magic_mountain/
 │       ├── crier.yml                 # Town Crier daily messages
 │       ├── negotiation_reactions.yml # Per-faction market flavor text
 │       └── system_messages.yml       # Unit status flavor text (boot message)
+│       (recap.yml was removed — recap prose is in section templates)
 │
-├── t/                                # Test suite (44 files)
+├── t/                                # Test suite (45 files)
 │   ├── lib/
 │   │   └── TestCharacter.pm          # Test helper: character factory
 │   ├── activity.t                    # Activity base class tests
@@ -2444,6 +2451,7 @@ magic_mountain/
 │   ├── result_web.t                  # Result page web tests
 │   ├── season_end_web.t              # Season end web tests
 │   ├── season_recap.t                # Season recap display tests
+│   ├── season_report.t               # SeasonReport service unit tests
 │   ├── session.t                     # Session lifecycle tests
 │   ├── shed.t                        # ShedManager tests
 │   ├── shed_web.t                    # Shed web integration tests

@@ -7,10 +7,14 @@
       <%= $season_label %>
     </p>
 
-% if ($narrative) {
-    <pre style="font-family:IBM Plex Mono,monospace;font-size:0.72rem;line-height:1.6;color:var(--mm-text-dim);white-space:pre-wrap;word-wrap:break-word;margin:0 0 0.75rem 0"><%= $narrative %></pre>
+%# ── Narrative sections (data-driven, conditionally included) ──
+% for my $sec (@$sections) {
+%   my $tpl = "season/recap/$sec->{id}";
+%   next unless -e app->home->child("templates/${tpl}.html.ep");
+    <pre style="font-family:IBM Plex Mono,monospace;font-size:0.72rem;line-height:1.6;color:var(--mm-text-dim);white-space:pre-wrap;word-wrap:break-word;margin:0 0 0.75rem 0"><%== include $tpl, variant => $sec->{variant}, %{ $sec->{data} } %></pre>
 % }
 
+%# ── Fixed stat panel (always rendered) ──
     <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;justify-content:center;text-align:center">
       <div style="flex:1;border:1px solid var(--mm-border);padding:0.4rem">
         <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Score</div>
@@ -26,6 +30,7 @@
       </div>
     </div>
 
+%# ── Standing panel (always rendered if data exists) ──
 % if (@$standing_rows) {
     <div style="border:1px solid var(--mm-border);padding:0.4rem;margin-bottom:0.5rem">
       <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase;margin-bottom:0.3rem">Faction Standing</div>

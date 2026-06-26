@@ -1,0 +1,13 @@
+AGENT IMPACT ANALYSIS
+% my @influence_lines = (sprintf('Factions influenced: %s', $standing_summary), sprintf('Standing earned across %d factions: %s', $standing_count, $standing_summary), sprintf('Relationship portfolio: %s', $standing_summary));
+<%= $influence_lines[rand @influence_lines] %>
+% if ($variant eq 'significant') {
+%   my @lines = ('Assessment: AGENT ACTIVITY CORRELATED WITH FACTION PERFORMANCE — transaction volume sufficient to register in faction influence tracking.', 'Assessment: AGENT OUTPUT ALIGNED WITH MARKET LEADER — continued engagement with preferred factions may yield improved procurement status.', 'Assessment: NOTABLE — agent transaction volume exceeded seasonal baseline. Market impact: detectable but not decisive.');
+<%= $lines[rand @lines] %>
+% } elsif ($variant eq 'moderate') {
+%   my @lines = ('Assessment: AGENT INFLUENCE ON MARKET TRENDS: MODERATE — transaction volume sufficient for individual standing but below market-shifting threshold.', 'Assessment: AGENT ACTIVITY WITHIN EXPECTED PARAMETERS. Standing gains consistent with experience curve projections.', 'Assessment: MARGINAL MARKET PENETRATION — agent lacked sufficient throughput to influence faction hierarchy.');
+<%= $lines[rand @lines] %>
+% } else {
+%   my @lines = ('Assessment: AGENT INFLUENCE ON MARKET TRENDS: NEGLIGIBLE.', 'Assessment: INSUFFICIENT TRANSACTION VOLUME TO AFFECT COMPETITIVE STANDINGS.', 'Assessment: RECOMMENDATION — increase artifact throughput in future seasons to achieve measurable market presence.');
+<%= $lines[rand @lines] %>
+% }
