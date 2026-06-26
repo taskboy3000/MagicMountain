@@ -388,9 +388,24 @@ sub _do_breakthrough ($self, $char, $artifact) {
     my $new_value = int($artifact->{value} * $mult);
 
     $artifact->{instability} += $artifact->{evolution_instability_spike};
+    $artifact->{value} = $new_value;
 
-    $char->setCol('scrap', $char->getCol('scrap') + $new_value);
-    $char->setCol('score', $char->getCol('score') + $new_value);
+    my $item = $self->app->shed->create(
+        char_id         => $char->getCol('id'),
+        artifact_id     => $artifact->{id},
+        original_value  => $new_value,
+        decayed_value   => $new_value,
+        condition       => 'fresh',
+        days_in_shed    => 0,
+        instability     => $artifact->{instability},
+        stage           => $artifact->{stage},
+        push_count      => $artifact->{push_count},
+        has_evolved     => 1,
+        behaviors       => $artifact->{behaviors},
+        archetypes      => $artifact->{archetypes},
+        decay_modifiers => $artifact->{decay_modifiers},
+    );
+    $item->save;
 
     $char->setCol('result', {
         outcome      => 'breakthrough',
@@ -411,15 +426,26 @@ sub _do_breakthrough ($self, $char, $artifact) {
         type        => 'breakthrough',
         artifact_id => $artifact->{id},
         reward      => $new_value,
-        narrative   => sprintf("Breakthrough! The %s yields %d scrap!",
+        narrative   => sprintf("Breakthrough! The %s evolved into a %d scrap artifact!",
             $artifact->{id}, $new_value),
+    });
+    $self->_log_event($char, {
+        type         => 'shed_entry',
+        shed_item_id => $item->getCol('id'),
+        artifact_id  => $artifact->{id},
+        narrative    => sprintf("%s placed in shed (breakthrough).", $artifact->{id}),
     });
 
     return {
         view => {
-            ok      => 1,
-            result  => 'breakthrough',
-            reward  => $new_value,
+            ok        => 1,
+            result    => 'breakthrough',
+            shed_item => {
+                id          => $item->getCol('id'),
+                artifact_id => $artifact->{id},
+                value       => $new_value,
+                condition   => 'fresh',
+            },
             message => 'A sudden breakthrough! The artifact reveals unexpected potential.',
             player  => $self->_player_snapshot($char),
         },

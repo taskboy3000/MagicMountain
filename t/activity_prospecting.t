@@ -300,7 +300,7 @@ subtest 'guaranteed collapse when instability exceeds max' => sub {
 
 # ── Breakthrough ──────────────────────────────────────────────────────
 
-subtest 'breakthrough awards value and clears activity' => sub {
+subtest 'breakthrough creates shed item and clears activity' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
     my $char         = _fresh_char();
@@ -328,9 +328,17 @@ subtest 'breakthrough awards value and clears activity' => sub {
     my $result = $p->dispatch($char, 'push');
 
     is($result->{view}{result}, 'breakthrough', 'result is breakthrough');
-    ok($result->{view}{reward} > 0,             'reward is positive');
-    ok($char->{scrap}           > 0,            'scrap awarded');
-    ok($char->{score}           > 0,            'score awarded');
+    is($char->{scrap},          0,              'no scrap awarded directly');
+    is($char->{score},          0,              'no score awarded directly');
+    ok($result->{view}{shed_item},              'shed item info in response');
+    is($result->{view}{shed_item}{condition}, 'fresh', 'shed item is fresh');
+    is($result->{view}{shed_item}{value},      100,     'shed item value is breakthrough value (50 * 2.0)');
+
+    my $app = $p->app;
+    is(scalar @{ $app->{_shed_items} }, 1,       'one shed item created');
+    is($app->{_shed_items}[0]{has_evolved}, 1,   'shed item marked as evolved');
+    is($app->{_shed_items}[0]{original_value}, 100, 'shed item has evolved value');
+
     is($p->phase, 'idle',                        'phase -> idle');
     is($p->artifact, undef,                      'artifact cleared');
 };

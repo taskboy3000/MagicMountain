@@ -5,13 +5,13 @@ skills:
     max_level: 3
     levels:
       - level: 1
-        cost: 10
+        cost: 100
         description: "Better leads"
       - level: 2
-        cost: 25
+        cost: 250
         description: "Richer veins"
       - level: 3
-        cost: 50
+        cost: 500
         description: "Eye for the unusual"
 
   - id: upcycling
@@ -20,13 +20,13 @@ skills:
     max_level: 3
     levels:
       - level: 1
-        cost: 10
+        cost: 100
         description: "Firm touch"
       - level: 2
-        cost: 25
+        cost: 250
         description: "Steady hand"
       - level: 3
-        cost: 50
+        cost: 500
         description: "Master's feel"
 
   - id: selling
@@ -35,11 +35,11 @@ skills:
     max_level: 3
     levels:
       - level: 1
-        cost: 10
+        cost: 100
         description: "Better haggling"
       - level: 2
-        cost: 25
+        cost: 250
         description: "Customer reader"
       - level: 3
-        cost: 50
+        cost: 500
         description: "Dealmaker"

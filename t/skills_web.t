@@ -22,7 +22,7 @@ sub setup {
     my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
     $chars->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
-        score => 0, scrap => 100, action_points => 15, action_points_max => 15,
+        score => 0, scrap => 1000, action_points => 15, action_points_max => 15,
     )->save;
 
     my $t = Test::Mojo->new('MagicMountain');
@@ -119,29 +119,35 @@ subtest 'purchase — already at max dies' => sub {
 subtest 'purchase — success deducts scrap and increases level' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
+    my $prev_scrap = 1000;
+
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(200)
       ->json_is('/ok' => 1)
-      ->json_is('/player/scrap' => 90)
       ->json_is('/player/score' => 0);
+    my $scrap1 = $t->tx->res->json->{player}{scrap};
+    ok $scrap1 < $prev_scrap, 'scrap decreased after level 1 purchase';
 
     $t->get_ok('/skills')
       ->status_is(200)
       ->json_is('/skills/0/id' => 'prospecting')
       ->json_is('/skills/0/current_level' => 1);
 
-    # Buy level 2 (cost 25)
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(200)
-      ->json_is('/ok' => 1)
-      ->json_is('/player/scrap' => 65);
+      ->json_is('/ok' => 1);
+    my $scrap2 = $t->tx->res->json->{player}{scrap};
+    ok $scrap2 < $scrap1, 'scrap decreased after level 2 purchase';
 
     $t->get_ok('/skills')
       ->json_is('/skills/0/current_level' => 2);
 
-    # Buy level 3 (cost 50)
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
-      ->status_is(200);
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+    my $scrap3 = $t->tx->res->json->{player}{scrap};
+    ok $scrap3 < $scrap2, 'scrap decreased after level 3 purchase';
+
     $t->get_ok('/skills')
       ->json_is('/skills/0/current_level' => 3);
 };

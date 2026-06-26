@@ -26,11 +26,16 @@ sub _factions ($self) {
 sub _weighted_faction ($self, $char) {
     my $factions = $self->_factions;
     my $standing = $char->getCol('standing') // {};
+    my $snubs    = $char->getCol('faction_snubs') // {};
 
     my $total = 0;
     my @weights;
     for my $f (@$factions) {
-        my $w = 1.0 + (($standing->{$f->{id}} // 0) * 0.5);
+        my $eff_standing = $standing->{$f->{id}} // 0;
+        $eff_standing = 10 if $eff_standing > 10;
+        my $w = 1.0 + ($eff_standing * 0.25);
+        $w -= ($snubs->{$f->{id}} // 0) * 0.25;
+        $w = 0.2 if $w < 0.2;
         push @weights, { faction => $f, weight => $w };
         $total += $w;
     }
@@ -561,6 +566,13 @@ sub stand_pat ($self, $char, %params) {
 # ── send_away ─────────────────────────────────────────────────────────
 
 sub send_away ($self, $char, %params) {
+    my $faction_id = $self->customer->{faction_id};
+    if ($faction_id) {
+        my $snubs = $char->getCol('faction_snubs') // {};
+        $snubs->{$faction_id}++;
+        $char->setCol('faction_snubs', $snubs);
+    }
+
     $char->setCol('result', {
         outcome      => 'sent_away',
         icon         => 'WAIT',
@@ -687,6 +699,10 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
 
     $char->setCol('faction_sales', $sales);
     $char->setCol('standing', $standing);
+
+    my $snubs = $char->getCol('faction_snubs') // {};
+    delete $snubs->{$fid};
+    $char->setCol('faction_snubs', $snubs);
 
     my $season = $self->app->active_season;
     if ($season) {
