@@ -27,6 +27,18 @@ action points per day, and fleeting market opportunities.
 **Player role**: The player is an opportunistic salvager — never a savior,
 never a villain. The game does not morally categorize the player.
 
+### 1.1 Device-Fiction UI
+
+The entire UI is presented as a fictional in-universe device: the **ProspectBoy 3000 (PB3K)**, a rugged field PDA recovered from the old world. Every screen, panel, and interaction is framed as a function of this device — there is no "game menu" or omniscient interface. The player does not look at the game world through a window; they interact with it through the PB3K's applications, sensors, and communication protocols.
+
+This constraint governs all UI design and content writing:
+- **Templates** render PB3K screens (scan panels, cert store, registry entries), not game UI widgets.
+- **JavaScript** orchestrates device functions (app switching, data fetching), not game navigation.
+- **Content** (reference entries, skill descriptions, status messages) is written as PB3K documentation — operational, bureaucratic, occasionally humorous. Never as game tutorial text or lore dumps.
+- **Errors and empty states** return 204 (no signal / no data) rather than "nothing here" messages.
+
+The PB3K framing is not a lore decoration — it is a **design constraint** that prevents the UI from becoming a conventional game dashboard. Every feature must be implementable as a PB3K function or it does not belong in the device screen.
+
 ---
 
 ## 2. Core Gameplay Loop
