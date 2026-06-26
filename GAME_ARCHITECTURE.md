@@ -2132,7 +2132,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Leaderboard controller** | `Controller::Leaderboard` | `GET /leaderboard` — seasonal character rankings sorted by score |
 | **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml`, `content/bots.yml`, `content/flavor/negotiation_reactions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions, bot profiles, per-faction negotiation flavor text |
 | **Transcript system** | `Model::Transcript` | JSONL event log with narrative, integrated into all activity handlers and simulation |
-| **Bot simulation** | `Command::simulate`, `Bot::PushPolicy`, `Bot::SellPolicy`, `content/bots.yml`, `bin/analyze_sim` | Pluggable push/sell policies, YAML profile definitions, weighted profile distribution, reproducible simulation, analysis script |
+| **Bot simulation** | `Command::simulate`, `Bot::PushPolicy`, `Bot::SellPolicy`, `content/bots.yml`, `bin/analyze` | Pluggable push/sell policies, YAML profile definitions, weighted profile distribution, reproducible simulation, analysis script |
 | **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
 | **Season-aware character lookup** | `Controller.pm` base class, `MagicMountain.pm` | `_require_character` filters by active season; `active_season` method (non-memoized, fresh each call) on app class |
 | **JS client** | `public/js/game.js` | Declarative JS: fetches `/game` for boot state, fetches `/nav` for panel layout, renders server-provided fragment URLs into primary/secondary panels. No view logic, no URL computation, no HTML template literals. Event delegation on panel containers for action buttons. |
@@ -2153,7 +2153,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Loyalty price bonus** | `Activity::MarketVisit.pm` (`_apply_loyalty_bonus`) | 1.05× offer multiplier for 3+ sales to the same faction |
 | **Loyalty access guarantee** | `Activity::MarketVisit.pm` (begin), `Model::Character.pm` (`loyalty_visits_since`) | After 3 consecutive market visits to non-top-faction customers, forcibly redirects to player's top faction |
 | **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |
-| **Analysis script** | `bin/analyze_sim` | Reusable transcript analysis: per-bot scores, push/sell counts, match rates |
+| **Analysis script** | `bin/analyze` | Reusable transcript analysis: aggregate stats + per-bot scores, push/sell counts, match rates |
 | **Rate limiting** | `MagicMountain::RateLimiter.pm`, `MagicMountain.pm` (bridge, helper, config), `Controller/Sessions.pm` (recording) | IP-based + account-name-based rate limiting on login; Retry-After, X-RateLimit-* headers; configurable window/attempts/block |
 | **Counter-offers** | `Activity/MarketVisit.pm` (offer/accept_counter), `Controller/Market.pm`, `Bot/SellPolicy.pm` | Optional, gated by `market_counter_offers` config (default on). Customer counters at midpoint price; player may accept or reject. |
 | **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default on). Multiple sales per visit with budget pressure and irritation carryover. |
@@ -2289,8 +2289,7 @@ magic_mountain/
 ├── package.json                   # Node tooling (JS syntax check)
 │
 ├── bin/                           # Utility scripts
-│   ├── analyze                    # Simulation analysis
-│   ├── analyze_sim                # Transcript analysis
+│   ├── analyze                    # Simulation analysis (aggregate + per-bot)
 │   ├── check_coverage             # Faction-artifact coverage validation
 │   ├── check_loyalist_balance     # Loyalist strategy viability check
 │   ├── find_dead_code             # Dead code detection
