@@ -57,7 +57,7 @@ subtest 'fragment renders known entry' => sub {
       ->content_like(qr{SYND\.8TE}, 'title rendered')
       ->content_like(qr{Syndicate}, 'subtitle rendered')
       ->content_like(qr{/images/icon_syndicate\.svg}, 'icon URL rendered')
-      ->content_like(qr{aggressive negotiation}, 'body text rendered');
+      ->content_like(qr{B\.L\.O\.T\.}, 'body text rendered');
 };
 
 subtest 'JSON endpoint returns entry' => sub {
