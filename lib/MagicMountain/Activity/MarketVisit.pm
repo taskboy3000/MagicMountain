@@ -176,10 +176,16 @@ sub begin ($self, $char, %params) {
     my $standing_bonus = ($standing->{$faction->{id}} // 0) * 5;
     my $soft_budget = $base_budget + $standing_bonus;
     my $sales_to_faction = ($faction_sales->{$faction->{id}} // 0);
+    my $portrait_id;
+    if (eval { $self->app->customer_portraits; 1 }) {
+        my $portraits = $self->app->customer_portraits;
+        $portrait_id = @$portraits ? $portraits->[rand @$portraits] : undef;
+    }
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
         disposition         => $faction->{disposition},
+        portrait_id         => $portrait_id,
         desired_behaviors   => $self->_pick_behaviors($faction),
         base_multiplier     => ($faction->{base_multiplier} // 1.0) + $mult_bonus,
         offer_value         => undef,

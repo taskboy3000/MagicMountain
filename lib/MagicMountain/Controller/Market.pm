@@ -41,6 +41,13 @@ sub show ($self) {
         }
     }
 
+    my $portrait_url;
+    if ($c->{portrait_id}) {
+        my $irritation = $c->{irritation} // 0;
+        my $mood = $irritation <= 1 ? 'happy' : ($irritation <= 3 ? 'neutral' : 'mad');
+        $portrait_url = '/images/portraits/' . $c->{portrait_id} . '_' . $mood . '.svg';
+    }
+
     my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
     if ($c->{pending_counter}) {
         push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => '/market/accept_counter', 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
@@ -53,6 +60,7 @@ sub show ($self) {
             customer_faction_id   => $c->{faction_id},
             customer_faction_name => $c->{faction_name},
             customer_faction_icon => $customer_icon,
+            customer_portrait     => $portrait_url,
             customer_disposition  => $c->{disposition} // 'unknown',
             irritation            => $c->{irritation} // 0,
             pressure_state        => $pressure_state,

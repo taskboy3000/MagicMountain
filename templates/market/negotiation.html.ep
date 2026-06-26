@@ -1,13 +1,20 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">
-% my $icon_html = $customer_faction_icon ? qq{<img src="$customer_faction_icon" alt="" style="width:14px;height:14px;vertical-align:middle;margin-right:4px">} : '';
-<%== $icon_html %><%= $customer_faction_name %></div>
+  <div class="mm-panel-header">NEGOTIATION</div>
   <div class="mm-panel-body">
-    <p style="color:var(--mm-text-dim);font-size:0.78rem"><%= $customer_disposition %></p>
-% if ($pressure_state) {
-% my %pc = (mood_comfortable => 'mm-badge-green', mood_interested => 'mm-badge-green', mood_wary => 'mm-badge-amber', mood_strained => 'mm-badge-amber', mood_leaving => 'mm-badge-red', mood_over_absolute => 'mm-badge-red');
-    <p>Mood: <span class="mm-badge <%= $pc{$pressure_state} // 'mm-badge-green' %>"><%= $pressure_state =~ s/mood_//r %></span></p>
+    <div style="display:flex;gap:8px;margin-bottom:0.5rem;padding:0.4rem;border:1px solid var(--mm-border);border-radius:4px">
+% if ($customer_portrait) {
+      <div style="flex-shrink:0;width:32px;height:42px;overflow:hidden">
+        <img src="<%= $customer_portrait %>" alt="" style="width:32px;height:42px">
+      </div>
 % }
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:4px">
+% my $icon_html = $customer_faction_icon ? qq{<img src="$customer_faction_icon" alt="" style="width:14px;height:14px">} : '';
+<%== $icon_html %><strong><%= $customer_faction_name %></strong>
+        </div>
+        <div style="color:var(--mm-text-dim);font-size:0.72rem"><%= $customer_disposition %></div>
+      </div>
+    </div>
 % my $sale = stash('last_sale');
 % if ($sale) {
     <div style="border:1px solid var(--mm-green);padding:0.4rem;margin:0.5rem 0">

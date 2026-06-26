@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 32" fill="none" stroke="#c49a4a" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Shoulders -->
+  <path d="M5 30c0-4 14-4 14 0"/>
+  <!-- Neck -->
+  <path d="M10 30V26M14 30V26"/>
+  <!-- Head -->
+  <ellipse cx="12" cy="16" rx="7" ry="8.5"/>
+  <!-- Eyes -->
+  <circle cx="9" cy="14" r="1.2"/>
+  <circle cx="15" cy="14" r="1.2"/>
+  <circle cx="9" cy="14" r="0.5" fill="none"/>
+  <circle cx="15" cy="14" r="0.5" fill="none"/>
+  <!-- Eyebrows (arched up) -->
+  <path d="M7.5 11.5Q9 10 10.5 11.5"/>
+  <path d="M13.5 11.5Q15 10 16.5 11.5"/>
+  <!-- Mouth (smile) -->
+  <path d="M8.5 19Q12 22 15.5 19"/>
+</svg>

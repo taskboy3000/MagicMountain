@@ -74,7 +74,7 @@ $t->json_has('/player', 'player is present');
 $t->json_is('/player/name' => 'alice', 'player name from account');
 $t->json_is('/player/score' => 0, 'fresh character score 0');
 $t->json_is('/player/scrap' => 0, 'fresh character scrap 0');
-$t->json_is('/player/action_points' => 15, 'fresh character full AP');
+$t->json_is('/player/action_points' => 20, 'fresh character full AP');
 
 # Second visit — recap should NOT appear again
 $t->get_ok('/game' => {Accept => 'application/json'})

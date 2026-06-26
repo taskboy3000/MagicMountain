@@ -298,6 +298,17 @@ sub startup ($self) {
         return $data->{factions};
     });
 
+    $self->helper(customer_portraits => sub ($c) {
+        my $dir = $c->app->home . '/public/images/portraits';
+        opendir my $dh, $dir or return [];
+        my %seen;
+        while (my $f = readdir $dh) {
+            $seen{$1} = 1 if $f =~ /^(.+?)_happy\.svg$/;
+        }
+        closedir $dh;
+        return [ sort keys %seen ];
+    });
+
     # Fragment format for resource endpoints (Phase 1)
     $self->types->type(fragment => 'text/html');
 

@@ -54,8 +54,13 @@ function populateStatusStrip(g) {
 async function applyNav(requestedView) {
   const headers = { Accept: 'application/json' };
   if (requestedView) headers['X-Nav-View'] = requestedView;
-  const resp = await fetch('/nav', { headers });
-  const nav = await resp.json();
+  const [navResp, gameResp] = await Promise.all([
+    fetch('/nav', { headers }),
+    fetch('/game', { headers: { Accept: 'application/json' } }),
+  ]);
+  const nav = await navResp.json();
+  const g = await gameResp.json();
+  populateStatusStrip(g);
   renderNavBar(nav.tabs);
   document.getElementById('context-bar').textContent = nav.context || '';
   await Promise.all([
