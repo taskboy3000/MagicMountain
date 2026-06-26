@@ -327,6 +327,7 @@ subtest 'negotiation fragment renders faction icon and portrait' => sub {
     $t->get_ok('/market?_format=fragment')
       ->status_is(200)
       ->content_like(qr{src="/images/icon_\w+\.svg"}, 'faction icon URL')
+      ->content_like(qr{data-reference-id="faction_\w+"}, 'faction reference link')
       ->content_like(qr{portraits/port_001_happy\.svg}, 'happy portrait URL');
 
     $act->customer->{irritation} = 2;

@@ -298,6 +298,11 @@ sub startup ($self) {
         return $data->{factions};
     });
 
+    $self->helper(references_data => sub ($c) {
+        state $data = YAML::XS::LoadFile($c->app->home . '/content/references.yml');
+        return $data->{entries} // [];
+    });
+
     $self->helper(advisories => sub ($c) {
         state $data = YAML::XS::LoadFile($c->app->home . '/content/flavor/advisories.yml');
         return $data->{advisories};
@@ -434,6 +439,7 @@ sub buildRoutes ($self) {
     $auth->get('/shed')->to('shed#index');
     $auth->get('/skills')->to('skills#index');
     $auth->get('/factions')->to('factions#show');
+    $auth->get('/reference/:id')->to('reference#show');
     $auth->get('/account')->to('account#show');
     $auth->get('/leaderboard')->to('leaderboard#index');
     $auth->get('/leaderboard/factions')->to('leaderboard#factions');
@@ -464,9 +470,9 @@ sub active_season ($self) {
 }
 
 sub ensureActiveSeason ($self) {
-    my $seasons_file = $self->dataDir . '/seasons.json';
+    $self->seasons->load;
 
-    if (!-e $seasons_file) {
+    if (!scalar keys %{ $self->seasons->all }) {
         $self->log->info("No season data found. Creating default active season.");
         my $season = $self->seasons->create(
             label           => $self->config->{default_season_label_prefix} . ' 1',
@@ -479,7 +485,6 @@ sub ensureActiveSeason ($self) {
         return 1;
     }
 
-    $self->seasons->load;
     my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
     if (!@$active) {
         $self->log->warn("No active season found. Run 'create-season' to start one.");

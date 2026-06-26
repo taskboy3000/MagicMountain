@@ -7,20 +7,11 @@ use FindBin;
 use lib ("$FindBin::Bin/../lib");
 
 use MagicMountain::Model::Account;
-use Mojo::JSON qw(decode_json);
+use MagicMountain::Model::AuditLog;
 
 sub audit_entries {
     my ($file) = @_;
-    return [] unless -e $file;
-    open my $fh, '<', $file or die $!;
-    my @entries;
-    while (my $line = <$fh>) {
-        chomp $line;
-        next unless $line;
-        push @entries, Mojo::JSON::decode_json($line);
-    }
-    close $fh;
-    return \@entries;
+    return MagicMountain::Model::AuditLog->new(file => $file)->all_entries;
 }
 
 sub audit_has {

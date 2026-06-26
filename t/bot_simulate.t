@@ -13,8 +13,6 @@ my $data_dir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $data_dir;
 $ENV{MM_SKIP_SEASON_CHECK} = 1;
 
-write_file("$data_dir/transcript.jsonl", '');
-
 # Use the Mojo test app to simulate
 use Test::Mojo;
 my $t = Test::Mojo->new('MagicMountain');

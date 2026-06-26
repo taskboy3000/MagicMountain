@@ -27,7 +27,7 @@ my @cases = (
 for my $c (@cases) {
     my ($value, $expected) = @$c;
     is MagicMountain::ValueTier::describe($value), $expected,
-        "describe($value) => $expected";
+        "describe(" . ($value // 'undef') . ") => $expected";
 }
 
 done_testing;

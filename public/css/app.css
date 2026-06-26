@@ -342,6 +342,10 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   cursor: pointer;
 }
 
+/* ── Reference link ───────────────────────────────────────────── */
+.ref-link { cursor: pointer; border-bottom: 1px dashed var(--mm-amber); }
+.ref-link:hover { color: var(--mm-amber-bright); border-bottom-style: solid; }
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 600px) {
   #main-area { flex-direction: column; }

@@ -11,7 +11,7 @@
         <div style="display:flex;align-items:center;gap:4px">
 % my $ficon = $customer->faction_icon_url;
 % my $icon_html = $ficon ? qq{<img src="$ficon" alt="" class="mm-icon">} : '';
-<%== $icon_html %><strong><%= $customer->faction_name %></strong>
+<%== $icon_html %><strong class="ref-link" data-reference-id="faction_<%= $customer->faction_id %>"><%= $customer->faction_name %></strong>
         </div>
         <div style="color:var(--mm-text-dim);font-size:0.72rem"><%= $customer->disposition %></div>
       </div>

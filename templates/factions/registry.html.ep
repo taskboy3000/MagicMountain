@@ -9,7 +9,7 @@
 % if ($f->{icon}) {
           <img src="<%= $f->{icon} %>" alt="" class="mm-icon">
 % }
-          <strong title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
+          <strong class="ref-link" data-reference-id="faction_<%= $f->{id} %>" title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
         </div>
         <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $f->{disposition} // '' %></div>
       </div>

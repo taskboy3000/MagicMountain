@@ -1,6 +1,7 @@
 package MagicMountain::Command::report;
 use Mojo::Base 'Mojolicious::Command', '-signatures';
-use Mojo::JSON qw(decode_json);
+
+use MagicMountain::Model::Transcript;
 
 has description => 'Aggregate transcript stats for tuning analysis.';
 has usage => "Usage: $0 report [--transcript FILE] [--player ID]\n"
@@ -8,19 +9,22 @@ has usage => "Usage: $0 report [--transcript FILE] [--player ID]\n"
            . "  --player ID        Filter to a specific character ID\n";
 
 sub run ($self, @args) {
-    my ($transcript, $player);
+    my ($transcript_path, $player);
     for (my $i = 0; $i < @args; $i++) {
-        if ($args[$i] eq '--transcript' && $i + 1 < @args) { $transcript = $args[++$i] }
+        if ($args[$i] eq '--transcript' && $i + 1 < @args) { $transcript_path = $args[++$i] }
         if ($args[$i] eq '--player' && $i + 1 < @args) { $player = $args[++$i] }
     }
-    $transcript //= $self->app->home . '/data/transcript.jsonl';
-    -f $transcript or die "transcript not found: $transcript\n";
 
-    open my $fh, '<', $transcript or die "cannot read $transcript: $!\n";
+    my $transcript;
+    if ($transcript_path) {
+        $transcript = MagicMountain::Model::Transcript->new(file => $transcript_path);
+    } else {
+        $transcript = $self->app->transcript;
+    }
+
+    my @events = @{ $transcript->all_events };
     my (@players, @prospecting, @market, %by_char);
-    while (my $line = <$fh>) {
-        chomp $line;
-        my $e = eval { decode_json($line) } or next;
+    for my $e (@events) {
         next if $player && $e->{char_id} ne $player;
         next if $e->{type} =~ /^policy_|^sim_|decay_tick|faction_snapshot/;
         push @players, $e->{char_id} unless $by_char{$e->{char_id}}++;
@@ -86,7 +90,6 @@ sub run ($self, @args) {
             $m->{stand_pats}++ if $m;
         }
     }
-    close $fh;
 
     my $n = scalar @players;
     printf "Characters: %d\n", $n;

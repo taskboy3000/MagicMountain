@@ -139,11 +139,13 @@ subtest 'skills fragment returns training records' => sub {
       ->content_like(qr{TRAINING RECORDS});
 };
 
-subtest 'factions fragment returns registry' => sub {
+subtest 'factions fragment returns registry with reference links' => sub {
     my $t = setup;
     $t->get_ok('/factions?_format=fragment')
       ->status_is(200)
-      ->content_like(qr{FACTION REGISTRY});
+      ->content_like(qr{FACTION REGISTRY})
+      ->content_like(qr{data-reference-id="faction_syndicate"}, 'syndicate reference link')
+      ->content_like(qr{class="ref-link"}, 'ref-link class present');
 };
 
 subtest 'leaderboard fragment returns rankings' => sub {

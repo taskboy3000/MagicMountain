@@ -4,10 +4,13 @@ use Mojo::Base 'Mojolicious::Command', '-signatures';
 use Getopt::Long qw(GetOptionsFromArray);
 use File::Temp qw(tempdir);
 use File::Slurp qw(write_file);
-use File::Copy qw(copy);
 use YAML::XS qw(LoadFile);
 use MagicMountain::Model::Transcript;
 use MagicMountain::Model::Season;
+use MagicMountain::Model::Account;
+use MagicMountain::Model::Character;
+use MagicMountain::Model::Session;
+use MagicMountain::Model::ShedItem;
 use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
 
@@ -71,12 +74,12 @@ sub run ($self, @args) {
 
     delete $app->{$_} for qw(accounts characters seasons shed session_store transcript prospecting market audit_log faction_snapshots);
 
-    write_file("$data_dir/accounts.json",   '{}');
-    write_file("$data_dir/characters.json", '{}');
-    write_file("$data_dir/sessions.json",   '{}');
-    write_file("$data_dir/activities.json", '{}');
-    write_file("$data_dir/shed.json",       '{}');
-    write_file("$data_dir/seasons.json",    '{}');
+    MagicMountain::Model::Account->new(file => "$data_dir/accounts.json")->save;
+    MagicMountain::Model::Character->new(file => "$data_dir/characters.json")->save;
+    MagicMountain::Model::Session->new(file => "$data_dir/sessions.json")->save;
+    MagicMountain::Model->new(file => "$data_dir/activities.json")->save;
+    MagicMountain::Model::ShedItem->new(file => "$data_dir/shed.json")->save;
+    MagicMountain::Model::Season->new(file => "$data_dir/seasons.json")->save;
 
     $app->config->{market_counter_offers} = $counter_offers;
     $app->config->{market_multi_item}     = $multi_item;
@@ -230,7 +233,7 @@ sub run ($self, @args) {
     });
 
     if ($output) {
-        copy($transcript_file, $output);
+        $transcript->export_to($output);
         $app->log->info(sprintf("Transcript written to %s", $output));
     } else {
         print "Transcript: $transcript_file\n";

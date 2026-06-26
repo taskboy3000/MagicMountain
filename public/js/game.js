@@ -149,6 +149,14 @@ document.getElementById('panel-primary').addEventListener('click', async (e) => 
     document.getElementById('panel-primary').innerHTML = await resp.text();
     return;
   }
+  const ref = e.target.closest('[data-reference-id]');
+  if (ref) {
+    const id = ref.dataset.referenceId;
+    const resp = await fetch(`/reference/${id}?_format=fragment`);
+    if (resp.status !== 200) return;
+    document.getElementById('panel-primary').innerHTML = await resp.text();
+    return;
+  }
   const btn = e.target.closest('[data-action-url]');
   if (btn) handleAction(btn);
 });

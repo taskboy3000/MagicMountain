@@ -2,8 +2,6 @@ package MagicMountain::Command::activity;
 use Mojo::Base 'Mojolicious::Command', '-signatures';
 use open ':std', ':encoding(UTF-8)';
 
-use Mojo::JSON 'decode_json';
-
 has description => 'Show a human-readable digest of recent player activity from the transcript log';
 has usage       => "Usage: $0 activity [--lines N] [--player NAME] [--since TS]\n";
 
@@ -21,19 +19,9 @@ sub run ($self, @args) {
     }
     $lines //= 30;
 
-    my $file = $self->app->dataDir . '/transcript.jsonl';
-    open my $fh, '<', $file or die "Cannot open $file: $!";
-
-    my @events;
-    while (<$fh>) {
-        chomp;
-        my $e = eval { decode_json($_) };
-        next unless $e;
-        next if $player && (($e->{narrative} // '') !~ /\Q$player/i);
-        next if $since && ($e->{ts} // 0) < $since;
-        push @events, $e;
-    }
-    close $fh;
+    my @events = @{ $self->app->transcript->all_events };
+    @events = grep { ($_->{narrative} // '') =~ /\Q$player/i } @events if $player;
+    @events = grep { ($_->{ts} // 0) >= $since } @events if $since;
 
     my $start = @events > $lines ? $#events - $lines + 1 : 0;
     for my $i ($start .. $#events) {

@@ -13,7 +13,7 @@ sub show ($self) {
 
     my $active_season = $self->app->active_season;
     my $all = $self->app->seasons->all;
-    my @seasons = sort { ($b->{day} // 0) <=> ($a->{day} // 0) } values %$all;
+    my @seasons = sort { ($b->{createdAt} // 0) <=> ($a->{createdAt} // 0) } values %$all;
 
     my @archive;
     for my $s (@seasons) {

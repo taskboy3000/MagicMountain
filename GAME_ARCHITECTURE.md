@@ -218,8 +218,15 @@ Each module has strict constraints on what it may and must never hold.
 | **Nav** (Controller::Nav) | App reference, fragment URL mapping, tab rules | Game logic, character data |
 | **Skills** (YAML loader) | Directory path, parsed YAML data, app helper (`$c->skills_data`) | Game logic, character state |
 | **Maintenance** | App reference, end_of_day_hour, clock, on_maintenance callback | Game math, artifact logic, character internals |
+| **ValueTier** (pure function) | Static threshold/label table | App reference, game state, model objects |
+| **Artifact** (view model) | Artifact data hash, `value_label`, `icon_url`, `stage_badge_css` | Game logic, persistence |
+| **Customer** (view model) | Customer data hash, `faction_id`, `faction_name`, `faction_icon_url`, `portrait_url`, `pressure_state`, `pressure_label` | Game logic, persistence |
 | **Content** (YAML loader) | Directory path, parsed YAML data | Model persistence, game rules |
 | **SeasonReport** (recap builder) | Plain data inputs, `log` coderef | Model objects, app reference, game logic, formatting, HTML |
+| **Service::SkillTraining** (service) | App reference, `skills_data` helper, Model::Character queries | Game rules, view logic, URL construction |
+| **Service::Navigation** (service) | App reference, tab/fragment mappings, nav state logic | Game rules, persistence, template rendering |
+| **Service::GameOrchestrator** (service) | App reference, character/season queries | Game rules, persistence operations, view model assembly |
+| **Service::Suggestion** (service) | App reference, activity/shed state queries | Game rules, persistence operations |
 | **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
 | **Bot** (automated player) | Policy name, parameters, activity access | Direct persistence (uses same models and activities as controllers) |
@@ -1412,6 +1419,7 @@ any model.
 | Shed | index | List shed contents with condition and estimates. |
 | Skills | index, purchase | View available skills, purchase upgrade. |
 | Factions | show | `GET /factions` — faction registry with standing and influence. Returns 204 when no active season. |
+| Reference | show | `GET /reference/:id` — in-universe registry entry for factions, artifact types, or PB3K terminology. Reads from `content/references.yml`. Returns 204 on unknown id. |
 | Home | show | `GET /home` — home dashboard with station status, shed ledger, and contextual suggestions. |
 | Leaderboard | index, factions | Player rankings; faction influence time series. |
 | Account | show | `GET /account` — account settings panel (logout, delete account). Returns 204 when not logged in. |
@@ -1476,12 +1484,13 @@ Display names must be unique.
 ### 12.1 Directory Structure
 
 ```
-content/
-  bots.yml                        # Bot profile definitions (push/sell policies, skills)
-  prospecting.yml                 # All artifact definitions
-  skills.yml                      # Skill definitions and costs
-  factions.yml                    # Faction definitions
-  flavor/
+  content/
+    bots.yml                        # Bot profile definitions
+    prospecting.yml                 # All artifact definitions
+    references.yml                  # Reference registry entries (factions, artifact types, terms)
+    skills.yml                      # Skill definitions and costs
+    factions.yml                    # Faction definitions
+    flavor/
     advisories.yml                 # System advisory messages (idle, season end, faction hunger)
     crier.yml                      # Daily maintenance messages (surge, slump, etc.)
     negotiation_reactions.yml      # Per-faction flavor text for market visit outcomes
@@ -1643,6 +1652,7 @@ changes, no manual registration.
 | GET | `/shed` | `Shed#index` | JSON + fragment | Shed ledger |
 | GET | `/skills` | `Skills#index` | JSON + fragment | Skill tree |
 | GET | `/factions` | `Factions#show` | JSON + fragment | Faction registry. 204 when no active season. |
+| GET | `/reference/:id` | `Reference#show` | JSON + fragment | In-universe registry entry by ID. 204 on unknown id. |
 | GET | `/account` | `Account#show` | JSON + fragment | Account settings (logout, delete account). 204 when not logged in. |
 | GET | `/home` | `Home#show` | JSON + fragment | Home dashboard with station status, shed ledger, and suggestions |
 | GET | `/result` | `Result#show` | JSON + fragment | Result display (outcome card for collapse, breakthrough, sale, etc.) |
@@ -2161,6 +2171,18 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Stand-pat mechanic** | `Activity/MarketVisit.pm` (stand_pat), `Controller/Market.pm` | Player demands original (non-counter) price; customer accepts based on `0.30 + selling*0.15 + standing*0.02` roll (capped 0.85). Failure adds irritation, may trigger storm-off. |
 | **Market dynamics** | `Activity::MarketVisit.pm` (`_dynamic_multiplier`) | Trait saturation (0.01/sale), daily faction appetite (2–4/day), desperation bonus (1.30× after idle); configured via defaultConfig and per-faction YAML |
 | **Season report** | `SeasonReport.pm`, `Controller/Season.pm`, `templates/season/recap/` | Data-driven recap builder: accepts plain data hashes, returns structured section list. Each section maps to a template. No YAML, no regex, no HTML in Perl. Testable without web server. |
+| **ValueTier** | `MagicMountain::ValueTier.pm` | Pure function: `describe($value) → tier label` (negligible/low/middling/ordinary/uncommon/rare/high). Used by Artifact view model and ShedItem `value_label`. |
+| **Artifact view model** | `MagicMountain::Artifact.pm` | View model wrapping artifact data with `value_label`, `icon_url`, `stage_badge_css`, `TO_JSON` for native Mojo serialization. Controller passes to template directly. |
+| **Customer view model** | `MagicMountain::Customer.pm` | View model wrapping customer data with `portrait_url`, `faction_icon_url`, `has_pending_counter`, `pressure_state/label`, `TO_JSON`. |
+| **ShedItem value_label** | `Model::ShedItem.pm` (`value_label`) | Fuzzy tier label displayed to player instead of raw estimated min/max ranges. Uses `ValueTier::describe($decayed_value)`. |
+| **Service::SkillTraining** | `Service/SkillTraining.pm` | Extracted from Skills controller. Validates scrap, level caps; executes purchase and persists. Controllers delegate to service. |
+| **Service::Navigation** | `Service/Navigation.pm` | Extracted from Nav controller. Resolves tabs, active/inactive states, fragment URLs, current view. Controllers delegate view logic. |
+| **Service::GameOrchestrator** | `Service/GameOrchestrator.pm` | Extracted from Game controller. Assembles game state: resolves characters, seasons, activities into a unified view model. |
+| **Service::Suggestion** | `Service/Suggestion.pm` | Extracted from Home controller. Produces contextual action suggestions based on activity/shed/AP state. |
+| **Reference registry** | `Controller/Reference.pm`, `content/references.yml`, `templates/reference/show.html.ep` | `GET /reference/:id` returns in-universe reference card fragment. Faction short names in UI trigger lookup. Data-driven from YAML. |
+| **Reference link wiring** | `templates/factions/registry.html.ep`, `templates/market/negotiation.html.ep`, `public/js/game.js` | Faction short names (secondary panel) and faction names (negotiation panel) carry `data-reference-id` and `class="ref-link"`. Click handler in game.js merges into existing `panel-primary` delegation — fetches `/reference/:id?_format=fragment` and swaps into primary panel. |
+| **Session-loss recovery** | `public/js/game.js` | `redirect: 'manual'` on fetch prevents Mojo 302 from being silently followed. Try/catch on `resp.json()` redirects to `/game` on non-JSON response. `!g.ok` guard in `loadGame()`. `!data.csrf_token` guard in `handleAction()`. |
+| **Fragment content assertions** | `t/market_visit_web.t`, `t/prospecting_web.t`, `t/fragment_web.t`, `t/reference_web.t` | Tests verify rendered HTML contains correct icon URLs (`content_like(qr{...})`), `data-reference-id` attributes, value_label text patterns, and action button presence. Catches template interpolation bugs (e.g. inline Perl string building for image URLs). |
 
 ### 19.2 Needs Update (Existing Code to Refactor)
 
@@ -2306,12 +2328,20 @@ magic_mountain/
 │   └── MagicMountain/
 │       ├── Activity.pm               # Base class for state-machine activities
 │       ├── Controller.pm             # Base controller
+│       ├── Artifact.pm              # View model: artifact display data (value_label, icon_url, stage_badge_css, TO_JSON)
 │       ├── Crier.pm                  # Town Crier narrative generation
+│       ├── Customer.pm              # View model: customer display data (portrait_url, faction_icon_url, TO_JSON)
 │       ├── Maintenance.pm            # In-process daily maintenance timer
 │       ├── Model.pm                  # Base persistence class (JSON file CRUD, UUID, find)
 │       ├── RateLimiter.pm            # IP/account-based rate limiting
 │       ├── SeasonReport.pm           # Post-season recap builder (data → sections)
+│       ├── Service/
+│       │   ├── GameOrchestrator.pm   # Game state assembly (characters, seasons, activities)
+│       │   ├── Navigation.pm         # Tab/view resolution, fragment URL mapping
+│       │   ├── SkillTraining.pm      # Skill purchase validation and execution
+│       │   └── Suggestion.pm         # Contextual home-dashboard suggestions
 │       ├── ShedManager.pm            # Artifact decay logic
+│       └── ValueTier.pm             # Pure function: value number → tier label (negligible/low/middling/ordinary/uncommon/rare/high)
 │       ├── Activity/
 │       │   ├── MarketVisit.pm        # Customer generation, negotiation, sale
 │       │   └── Prospecting.pm        # Artifact draw, push/collapse/breakthrough, stop
@@ -2340,6 +2370,7 @@ magic_mountain/
 │       │   ├── Nav.pm                # Navigation state (tabs, views, fragment URLs)
 │       │   ├── Player.pm             # Current player info
 │       │   ├── Prospecting.pm        # Prospecting actions (begin, push, stop)
+│       │   ├── Reference.pm          # In-universe reference registry (GET /reference/:id)
 │       │   ├── Result.pm             # Result display (outcome cards, dismiss)
 │       │   ├── Root.pm               # Gateway redirect (GET /)
 │       │   ├── Sessions.pm           # Login/logout, session management
@@ -2382,6 +2413,8 @@ magic_mountain/
 │   │   └── status.html.ep            # Player status strip
 │   ├── prospecting/
 │   │   └── scan.html.ep              # Prospecting scan panel
+│   ├── reference/
+│   │   └── show.html.ep              # Reference registry entry card (faction, artifact type, term)
 │   ├── result/
 │   │   └── show.html.ep              # Result display (outcome cards, season recap)
 │   ├── season/
@@ -2448,6 +2481,7 @@ magic_mountain/
 │   ├── nav_web.t                     # Nav controller tests
 │   ├── prospecting_web.t             # Prospecting web integration tests
 │   ├── rate_limiter.t                # Rate limiter tests
+│   ├── reference_web.t               # Reference registry web tests
 │   ├── result_web.t                  # Result page web tests
 │   ├── season_end_web.t              # Season end web tests
 │   ├── season_recap.t                # Season recap display tests

@@ -1,7 +1,14 @@
 package MagicMountain::Command::init;
 use Mojo::Base 'Mojolicious::Command', '-signatures';
 
-use File::Slurp qw(write_file);
+use MagicMountain::Model::Account;
+use MagicMountain::Model::Character;
+use MagicMountain::Model::Session;
+use MagicMountain::Model::Season;
+use MagicMountain::Model::ShedItem;
+use MagicMountain::Model::ArtifactDisposition;
+use MagicMountain::Model::FactionSnapshot;
+use MagicMountain::Model::SeasonRecord;
 
 has description => 'Reset all game data and create a fresh season. Wipes accounts, characters, seasons, and all state.';
 has usage       => "Usage: $0 init [--label 'Season 1'] [--length 30] [--end-of-day-hour 0] [--force]\n";
@@ -35,33 +42,30 @@ sub run ($self, @args) {
         }
     }
 
-    # Wipe all data files
-    my @json_files = qw(
-        accounts.json characters.json sessions.json seasons.json
-        shed.json activities.json dispositions.json
-        faction_snapshots.json season_records.json
+    # Wipe all data files through Model API
+    my @models = (
+        ['accounts.json',        'MagicMountain::Model::Account'],
+        ['characters.json',      'MagicMountain::Model::Character'],
+        ['sessions.json',        'MagicMountain::Model::Session'],
+        ['seasons.json',         'MagicMountain::Model::Season'],
+        ['shed.json',            'MagicMountain::Model::ShedItem'],
+        ['activities.json',      'MagicMountain::Model'],
+        ['dispositions.json',    'MagicMountain::Model::ArtifactDisposition'],
+        ['faction_snapshots.json','MagicMountain::Model::FactionSnapshot'],
+        ['season_records.json',  'MagicMountain::Model::SeasonRecord'],
     );
-    for my $f (@json_files) {
-        my $path = "$dir/$f";
-        if (-e $path) {
-            write_file($path, '{}');
-            say "  wiped $f";
-        } else {
-            write_file($path, '{}');
-            say "  created $f";
-        }
+    for my $entry (@models) {
+        my ($filename, $class) = @$entry;
+        my $path = "$dir/$filename";
+        $class->new(file => $path)->save;
+        say -e $path ? "  wiped $filename" : "  created $filename";
     }
 
-    my @jsonl_files = qw(audit.jsonl transcript.jsonl);
-    for my $f (@jsonl_files) {
+    for my $f (qw(audit.jsonl transcript.jsonl)) {
         my $path = "$dir/$f";
-        if (-e $path) {
-            write_file($path, '');
-            say "  wiped $f";
-        } else {
-            write_file($path, '');
-            say "  created $f";
-        }
+        my $existed = -e $path;
+        unlink $path;
+        say $existed ? "  wiped $f" : "  created $f";
     }
 
     # Bust lazy model caches so they reload from empty files
