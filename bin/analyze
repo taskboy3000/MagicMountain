@@ -6,15 +6,28 @@ use Mojo::JSON qw(decode_json);
 my $file = shift or die "Usage: $0 <transcript.jsonl>\n";
 open my $fh, '<', $file or die "Cannot open $file: $!";
 
+# Read first line for bot roster
+my $first = <$fh>;
+my $start = decode_json($first);
+
+my (%cid, %n2b);
+if ($start->{bots}) {
+    for my $b (@{$start->{bots}}) { $cid{$b->{char_id}} = $b; $n2b{$b->{name}} = $b; }
+}
+
 my %stats;
 my %bot_score;
-my $run_id;
+my $run_id = $start->{run_id};
+
+$stats{bot_count} = $start->{bot_count} // 0;
+$stats{sim_days}  = $start->{days} // 0;
+
+    # Per-bot tracking
+my (%cnt, %scr, %off);
 
 while (my $line = <$fh>) {
     chomp $line;
     my $ev = decode_json($line);
-
-    $run_id //= $ev->{run_id};
 
     $stats{total_events}++;
 
@@ -40,14 +53,23 @@ while (my $line = <$fh>) {
         $stats{total_sale_value} += $ev->{value};
         $bot_score{$ev->{char_id}} += $ev->{value};
     }
-    elsif ($ev->{type} eq 'sim_start') {
-        $stats{bot_count} = $ev->{bot_count};
-        $stats{sim_days}  = $ev->{day};
+
+    # Per-bot tracking
+    my $bot;
+    if ($ev->{char_id} && $cid{$ev->{char_id}}) { $bot = $cid{$ev->{char_id}}; }
+    elsif ($ev->{player} && $n2b{$ev->{player}}) { $bot = $n2b{$ev->{player}}; }
+    next unless $bot;
+    $cnt{$bot->{name}}{$ev->{type}}++;
+    $scr{$bot->{name}} = ($scr{$bot->{name}} // 0) + ($ev->{value} // 0) if $ev->{type} eq "sale";
+    if ($ev->{type} eq "offer") {
+        $off{$bot->{name}}{total}++;
+        $off{$bot->{name}}{match}++ if $ev->{match};
     }
 }
 
 close $fh;
 
+# --- Aggregate stats ---
 my $total = ($stats{collapses} // 0) + ($stats{stops} // 0) + ($stats{breakthroughs} // 0);
 $total ||= 1;
 
@@ -67,77 +89,51 @@ printf "Avg pushes per artifact: %.1f\n", $stats{artifacts} ? ($stats{pushes} //
 if (keys %bot_score) {
     my @scores = sort { $a <=> $b } values %bot_score;
     printf "Score range: %d - %d\n", $scores[0], $scores[-1];
-    printf "Avg score:   %.1f\n", (sum(values %bot_score)) / scalar(keys %bot_score);
+    my $sum; $sum += $_ for values %bot_score;
+    printf "Avg score:   %.1f\n", $sum / scalar(keys %bot_score);
 }
 
-sub sum {
-    my $t = 0;
-    $t += $_ for @_;
-    return $t;
+# --- Per-bot table ---
+if (keys %cnt) {
+    print "\n";
+    printf "%-22s | %-16s | %-16s | Score | Sls | Sell%%\n", "Bot", "Push", "Sell";
+    print "-" x 80 . "\n";
+    for my $n (sort keys %cnt) {
+        my $b = $n2b{$n};
+        my $total_offers = $off{$n}{total} // 0;
+        my $match_pct = $total_offers ? int(($off{$n}{match}//0) / $total_offers * 100) : 0;
+        printf "%-22s | %-16s | %-16s | %4d  | %2d  | %3d%%\n",
+            $n, $b->{push_policy}, $b->{sell_policy}, $scr{$n} // 0,
+            $cnt{$n}{sale} // 0, $match_pct;
+    }
 }
 
-__END__
+# --- By sell policy ---
+if (keys %scr) {
+    print "\n=== BY SELL POLICY ===\n";
+    my (%sp_sc, %sp_ct, %sp_sl, %sp_of, %sp_mt);
+    for my $n (keys %scr) {
+        my $sp = $n2b{$n}{sell_policy};
+        $sp_sc{$sp} += $scr{$n}; $sp_ct{$sp}++; $sp_sl{$sp} += $cnt{$n}{sale};
+        $sp_of{$sp} += $off{$n}{total} // 0; $sp_mt{$sp} += $off{$n}{match} // 0;
+    }
+    printf "%-18s | Score  | Sales | Match%%\n", "Sell Policy";
+    print "-" x 50 . "\n";
+    for my $sp (sort { ($sp_sc{$b}//0) <=> ($sp_sc{$a}//0) } keys %sp_sc) {
+        my $n = $sp_ct{$sp} || 1;
+        my $m = $sp_mt{$sp} // 0; my $t = $sp_of{$sp} // 0;
+        printf "%-18s | %4d   | %4.1f  | %d%%\n",
+            $sp, int($sp_sc{$sp}/$n), $sp_sl{$sp}/$n, $t ? int($m/$t*100) : 0;
+    }
 
-=head1 SYNOPSIS
-
-      perl bin/analyze results.jsonl
-
-=head1 DESCRIPTION
-
-Reads a simulation transcript JSONL file and prints summary statistics to
-stdout. Use after a C<simulate> run to evaluate game balance.
-
-=head1 TUNING LOOP
-
-  1. Run simulation:
-     perl -Ilib script/mountain simulate --count 8 --days 30 --seed 42 \
-       --output results.jsonl
-
-  2. Analyze:
-  perl bin/analyze results.jsonl
-
-  3. Adjust artifact parameters in C<content/prospecting.yml>:
-       max_instability         - Higher = harder to collapse
-       base_gain_min/max       - Higher = more value per push
-       evolution_chance        - Higher = more breakthroughs
-       evolution_threshold     - Lower = breakthroughs happen earlier
-       weight                  - Higher = more common in draw pool
-
-  4. Re-run with same seed for direct comparison:
-     perl -Ilib script/mountain simulate --count 8 --days 30 --seed 42 \
-       --output results.jsonl
-
-  5. Compare metrics.
-
-=head1 KEY METRICS
-
-=over
-
-=item B<Collapse rate>
-
-Target: 40-60%. Above 70% means artifacts are too dangerous; below 30% means
-too safe. Adjusted via C<max_instability> and C<instability_growth_max> in
-C<content/prospecting.yml>.
-
-=item B<Breakthrough rate>
-
-Target: 3-8%. Rare enough to be exciting, common enough to be a credible
-alternative to stopping. Adjusted via C<evolution_chance> and
-C<evolution_threshold>.
-
-=item B<Avg pushes per artifact>
-
-Target: 2-4. Below 2 means players stop too early or collapse too fast. Above
-4 means artifacts are too durable. Adjusted via instability growth rates.
-
-=item B<Sales per bot per season>
-
-Target: 3-8 across a 30-day season. Being able to sell roughly half of stopped
-artifacts feels rewarding. If sales are very low, check the market visit
-frequency (AP allocation) and customer match rates.
-
-=back
-
-=head1 SEE ALSO
-
-L<MagicMountain::Command::simulate>, L<content/prospecting.yml>
+    # --- By push policy ---
+    print "\n=== BY PUSH POLICY ===\n";
+    my (%pp_sc, %pp_ct);
+    for my $n (keys %scr) {
+        my $pp = $n2b{$n}{push_policy};
+        $pp_sc{$pp} += $scr{$n}; $pp_ct{$pp}++;
+    }
+    for my $pp (sort { ($pp_sc{$b}//0) <=> ($pp_sc{$a}//0) } keys %pp_sc) {
+        printf "%-18s | %4d\n", $pp, int($pp_sc{$pp}/$pp_ct{$pp});
+    }
+}
