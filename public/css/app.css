@@ -346,7 +346,7 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 @media (max-width: 600px) {
   #main-area { flex-direction: column; }
   #panel-primary { max-height: 50vh; }
-  #panel-secondary { border-left: none; border-top: 1px solid var(--mm-border); flex: none; max-height: 40vh; }
+  #panel-secondary { border-left: none; border-top: 3px solid var(--mm-amber); background: var(--mm-bg); flex: none; max-height: 40vh; }
   #device-frame { max-height: 100vh; }
   #nav-bar .nav-btn { font-size: 0.6rem; padding: 0.08rem 0.25rem; letter-spacing: 0.03em; }
   #terminal-frame { padding: 24px 8px 10px; }
