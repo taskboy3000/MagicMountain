@@ -310,7 +310,7 @@ subtest 'show — pressure state bands' => sub {
     }
 };
 
-subtest 'show — customer icon and portrait' => sub {
+subtest 'negotiation fragment renders faction icon and portrait' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
 
@@ -326,6 +326,7 @@ subtest 'show — customer icon and portrait' => sub {
 
     $t->get_ok('/market?_format=fragment')
       ->status_is(200)
+      ->content_like(qr{src="/images/icon_\w+\.svg"}, 'faction icon URL')
       ->content_like(qr{portraits/port_001_happy\.svg}, 'happy portrait URL');
 
     $act->customer->{irritation} = 2;

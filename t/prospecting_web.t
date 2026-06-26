@@ -93,6 +93,19 @@ subtest 'begin picks active-season character over orphaned character' => sub {
       ->json_is('/player/scrap' => 0, 'used active-season character (scrap=0, not orphan scrap=99)');
 };
 
+subtest 'fragment renders artifact icon, value_label, and buttons' => sub {
+    my $t = setup;
+    my $csrf = _csrf($t);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    $t->get_ok('/prospecting?_format=fragment')
+      ->status_is(200)
+      ->content_like(qr{src="/images/artifact_\w+\.svg"}, 'artifact icon URL')
+      ->content_like(qr{VALUE: <strong>(negligible|low|middling|ordinary|uncommon|rare|high)</strong>}, 'value_label in HTML')
+      ->content_like(qr{id="btn-push"}, 'push button present')
+      ->content_like(qr{id="btn-stop"}, 'stop button present');
+};
+
 subtest 'full lifecycle: begin → push → stop' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
