@@ -387,23 +387,31 @@ sub _do_breakthrough ($self, $char, $artifact) {
                        - $artifact->{breakthrough_multiplier_min});
     my $new_value = int($artifact->{value} * $mult);
 
+    my $sell = $char->getCol('skill_selling') // 0;
+
     $artifact->{instability} += $artifact->{evolution_instability_spike};
     $artifact->{value} = $new_value;
 
+    my $range = $sell >= 1 ? 0.15 : 0.20;
+    my $est_min = int($new_value * (1 - $range));
+    my $est_max = int($new_value * (1 + $range));
+
     my $item = $self->app->shed->create(
-        char_id         => $char->getCol('id'),
-        artifact_id     => $artifact->{id},
-        original_value  => $new_value,
-        decayed_value   => $new_value,
-        condition       => 'fresh',
-        days_in_shed    => 0,
-        instability     => $artifact->{instability},
-        stage           => $artifact->{stage},
-        push_count      => $artifact->{push_count},
-        has_evolved     => 1,
-        behaviors       => $artifact->{behaviors},
-        archetypes      => $artifact->{archetypes},
-        decay_modifiers => $artifact->{decay_modifiers},
+        char_id              => $char->getCol('id'),
+        artifact_id          => $artifact->{id},
+        original_value       => $new_value,
+        decayed_value        => $new_value,
+        condition            => 'fresh',
+        days_in_shed         => 0,
+        instability          => $artifact->{instability},
+        stage                => $artifact->{stage},
+        push_count           => $artifact->{push_count},
+        has_evolved          => 1,
+        behaviors            => $artifact->{behaviors},
+        archetypes           => $artifact->{archetypes},
+        estimated_value_min  => $est_min,
+        estimated_value_max  => $est_max,
+        decay_modifiers      => $artifact->{decay_modifiers},
     );
     $item->save;
 

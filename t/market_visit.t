@@ -500,7 +500,7 @@ subtest 'loyalty guarantee triggers after 3 non-loyalty visits' => sub {
     is($m->customer->{faction_id}, 'syndicate', 'customer forced to syndicate on 4th visit');
 };
 
-subtest 'send_away returns to idle' => sub {
+subtest 'send_away refunds AP and returns to idle' => sub {
     my $content_file = _make_content_file();
     my $m            = _make_singleton($content_file);
     my $char         = _fresh_char();
@@ -512,9 +512,79 @@ subtest 'send_away returns to idle' => sub {
     );
 
     $m->dispatch($char, 'begin');
+    is($char->{action_points}, 14, 'AP deducted after begin');
     my $result = $m->dispatch($char, 'send_away');
 
     is($result->{view}{result}, 'sent_away', 'send_away -> sent_away');
+    is($char->{action_points}, 15, 'AP refunded after send_away');
+};
+
+subtest 'send_away first snub per day grants +1 influence to other factions' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+
+    {
+        package FakeSeason;
+        sub new { bless { _row => { status => 'active' } }, shift }
+        sub getCol { my ($self, $c) = @_; $self->{_row}{$c} }
+        sub setCol { my ($self, $c, $v) = @_; $self->{_row}{$c} = $v }
+        sub save { 1 }
+        sub load { 1 }
+        sub all { {} }
+        sub find {
+            my ($self, $code) = @_;
+            my @found;
+            my $row = $self->{_row};
+            push @found, $self if $code->($row);
+            return \@found;
+        }
+    }
+    my $faction_state = {
+        syndicate => { influence => 10 },
+        faculty   => { influence => 20 },
+        purifiers => { influence => 5 },
+    };
+    my $season = FakeSeason->new;
+    $season->setCol('id', 's1');
+    $season->setCol('day', 5);
+    $season->setCol('faction_state', $faction_state);
+
+    $m->app->{_active_season} = $season;
+    $m->app->{_seasons} = $season;
+
+    my $shed = $m->app->shed;
+    $shed->create(
+        id => 'snub-test-item', char_id => 'char-1', artifact_id => 'thermal_box_001',
+        behaviors => ['thermal'], decayed_value => 20, original_value => 20,
+    );
+
+    srand(42);
+    $m->dispatch($char, 'begin');
+    my $faction_id = $m->customer->{faction_id};
+    my $before = { map { $_ => $faction_state->{$_}{influence} } keys %$faction_state };
+    $m->dispatch($char, 'send_away');
+
+    for my $fid (keys %$faction_state) {
+        if ($fid eq $faction_id) {
+            is($faction_state->{$fid}{influence}, $before->{$fid},
+                "snubbed faction $fid influence unchanged");
+        } else {
+            is($faction_state->{$fid}{influence}, $before->{$fid} + 1,
+                "other faction $fid gained +1 influence");
+        }
+    }
+    is($char->{snub_day}, 5, 'snub_day updated to current season day');
+
+    my $after_first = { map { $_ => $faction_state->{$_}{influence} } keys %$faction_state };
+
+    $m->dispatch($char, 'begin');
+    $m->dispatch($char, 'send_away');
+    my $after_second = { map { $_ => $faction_state->{$_}{influence} } keys %$faction_state };
+    for my $fid (keys %$after_first) {
+        is($after_second->{$fid}, $after_first->{$fid},
+            "no additional influence on second snub for $fid");
+    }
 };
 
 

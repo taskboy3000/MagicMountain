@@ -497,7 +497,7 @@ sub stand_pat ($self, $char, %params) {
         return $self->_do_sale($char, $item, $stand_price, 'stand_pat');
     }
 
-    $customer->{irritation}++;
+    $customer->{irritation} += 1.5;
     $customer->{pending_counter} = $pc;
     $customer->{last_message} = sprintf("%s refuses your demand and looks annoyed.",
         $customer->{faction_name});
@@ -571,6 +571,32 @@ sub send_away ($self, $char, %params) {
         my $snubs = $char->getCol('faction_snubs') // {};
         $snubs->{$faction_id}++;
         $char->setCol('faction_snubs', $snubs);
+    }
+
+    my $ap = $char->getCol('action_points') // 0;
+    my $max = $char->getCol('action_points_max') // 99;
+    $char->setCol('action_points', ($ap + 1) < $max ? ($ap + 1) : $max);
+
+    my $season = $self->app->active_season;
+    if ($season && $faction_id) {
+        my $day = $season->getCol('day') // 0;
+        my $snub_day = $char->getCol('snub_day') // 0;
+        if ($day != $snub_day) {
+            $char->setCol('snub_day', $day);
+            my $fs = $season->getCol('faction_state') // {};
+            for my $fid (keys %$fs) {
+                next if $fid eq $faction_id;
+                $fs->{$fid}->{influence} = ($fs->{$fid}->{influence} // 0) + 1;
+            }
+            $season->setCol('faction_state', $fs);
+            $season->save;
+            $self->_log_event($char, {
+                type        => 'influence_snub',
+                faction_id  => $faction_id,
+                narrative   => sprintf("%s snubbed %s — all other factions gain +1 influence.",
+                    $char->getCol('name'), $self->customer->{faction_name} // $faction_id),
+            });
+        }
     }
 
     $char->setCol('result', {

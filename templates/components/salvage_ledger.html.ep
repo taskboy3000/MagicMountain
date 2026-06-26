@@ -1,0 +1,39 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">SALVAGE LEDGER</div>
+  <div class="mm-panel-body">
+% if (@$items) {
+    <div class="mm-ledger-wrap"><table class="mm-ledger">
+      <thead><tr>
+        <th>Item</th><th>Value</th>
+% if ($market_active) {
+        <th></th>
+% }
+      </tr></thead>
+      <tbody>
+% for my $item (@$items) {
+% my %dot = (fresh => 'var(--mm-green)', settling => 'var(--mm-amber)', fading => 'var(--mm-red)');
+% my $dot = $dot{$item->{condition}} // 'var(--mm-green)';
+        <tr>
+          <td style="display:flex;align-items:center;gap:4px" title="Condition: <%= $item->{condition} %> — <%= $item->{days} // 0 %> days in storage">
+% my %bar = (fresh => 'var(--mm-green)', settling => 'var(--mm-amber)', fading => 'var(--mm-red)');
+            <span style="display:inline-flex;flex-direction:column;align-items:center;gap:1px">
+              <img src="<%= $item->{icon} %>" alt="" class="mm-icon">
+              <span style="display:block;width:20px;height:2px;border-radius:1px;background:<%= $bar{$item->{condition}} // 'var(--mm-green)' %>"></span>
+            </span>
+            <span title="<%= $item->{label_full} %>"><%= $item->{label} %></span></td>
+          <td><%= $item->{value_min} // '?' %>-<%= $item->{value_max} // '?' %></td>
+% if ($market_active) {
+          <td>
+% my $offer = { label => 'Offer', attrs => { 'data-action-url' => '/market/offer', 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item->{id} } };
+%=           include 'components/action_buttons', actions => [$offer]
+          </td>
+% }
+        </tr>
+% }
+      </tbody>
+    </table></div>
+% } else {
+    <p style="color:var(--mm-text-dim);text-align:center">No artifacts in storage.</p>
+% }
+  </div>
+</div>

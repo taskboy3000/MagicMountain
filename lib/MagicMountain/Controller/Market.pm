@@ -11,9 +11,11 @@ sub show ($self) {
 
     my $c = $activity->customer;
 
-    # Clear transient UI state so stale sale/message cards don't persist
+    my ($last_sale, $last_message);
     if ($c) {
-        $c->{last_sale} = undef;
+        $last_sale    = $c->{last_sale};
+        $last_message = $c->{last_message};
+        $c->{last_sale}    = undef;
         $c->{last_message} = undef;
         $activity->customer($c);
         $activity->save;
@@ -65,8 +67,8 @@ sub show ($self) {
             irritation            => $c->{irritation} // 0,
             pressure_state        => $pressure_state,
             pending_counter       => $c->{pending_counter},
-            message               => $c->{last_message},
-            last_sale             => $c->{last_sale},
+            message               => $last_message,
+            last_sale             => $last_sale,
             actions               => \@actions,
         );
         return $self->render('market/negotiation', layout => undef);

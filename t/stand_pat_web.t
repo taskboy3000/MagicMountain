@@ -107,7 +107,7 @@ subtest 'stand_pat refused — irritation increases, counter persists' => sub {
     $t->post_ok('/market/stand_pat' => {'X-CSRF-Token' => $csrf})
       ->status_is(200)
       ->json_is('/result' => 'stand_pat_refused')
-      ->json_is('/irritation' => 1)
+      ->json_is('/irritation' => 1.5)
       ->json_has('/message');
 
     # Counter should still be available
