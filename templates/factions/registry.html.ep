@@ -7,7 +7,7 @@
       <div style="flex:1; min-width:0">
         <div style="display:flex;align-items:center;gap:4px">
 % if ($f->{icon}) {
-          <img src="<%= $f->{icon} %>" alt="" style="width:14px;height:14px;flex-shrink:0">
+          <img src="<%= $f->{icon} %>" alt="" class="mm-icon">
 % }
           <strong title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
         </div>

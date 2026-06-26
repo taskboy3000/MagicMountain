@@ -153,6 +153,10 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   flex-direction: column;
 }
 
+/* ── Icons ───────────────────────────────────────────────────── */
+.mm-icon { width: 28px; height: 28px; flex-shrink: 0; vertical-align: middle; }
+.mm-portrait { width: 32px; height: 42px; flex-shrink: 0; }
+
 /* ── Terminal frame ──────────────────────────────────────────── */
 #terminal-frame {
   position: relative;

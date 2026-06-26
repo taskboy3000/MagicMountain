@@ -13,7 +13,7 @@
       <tbody>
 % for my $item (@$items) {
         <tr>
-          <td style="display:flex;align-items:center;gap:4px"><img src="<%= $item->{icon} %>" alt="" style="width:14px;height:14px;flex-shrink:0"><span title="<%= $item->{label_full} %>"><%= $item->{label} %></span></td>
+          <td style="display:flex;align-items:center;gap:4px"><img src="<%= $item->{icon} %>" alt="" class="mm-icon"><span title="<%= $item->{label_full} %>"><%= $item->{label} %></span></td>
           <td><span class="mm-badge
 % my %cc = (fresh => 'mm-badge-green', settling => 'mm-badge-amber', fading => 'mm-badge-red');
             <%= $cc{$item->{condition}} // 'mm-badge-green' %>"><%= $item->{condition} %></span></td>
