@@ -6,7 +6,13 @@ async function api(path, { body, method } = {}) {
   if (body) headers['Content-Type'] = 'application/json';
   if (method !== 'GET' && CSRF_TOKEN) headers['X-CSRF-Token'] = CSRF_TOKEN;
   const resp = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
-  const data = await resp.json();
+  let data;
+  try {
+    data = await resp.json();
+  } catch (_) {
+    window.location.href = '/game';
+    return;
+  }
   if (data.csrf_token) CSRF_TOKEN = data.csrf_token;
   return data;
 }
