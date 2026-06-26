@@ -425,8 +425,7 @@ sub buildRoutes ($self) {
 
     # Resource endpoints (fragment/JSON via show action)
     $auth->get('/player')->to('player#show')->name('player');
-    # DEAD-SUPPRESS: future season history UI
-    # $auth->get('/season')->to('season#show');
+    $auth->get('/season/recap')->to('season#recap');
     $auth->get('/crier')->to('crier#show');
     $auth->get('/home')->to('home#show');
     $auth->get('/idle')->to('idle#show');

@@ -34,6 +34,14 @@ async function handleAction(btn) {
 async function loadGame() {
   const g = await api('/game');
   populateStatusStrip(g);
+  if (g.season_recap) {
+    const resp = await fetch('/season/recap?_format=fragment');
+    if (resp.status === 200) {
+      document.getElementById('panel-primary').innerHTML = await resp.text();
+      document.getElementById('panel-secondary').innerHTML = '';
+      return;
+    }
+  }
   await applyNav();
 }
 
@@ -61,6 +69,16 @@ async function applyNav(requestedView) {
   const nav = await navResp.json();
   const g = await gameResp.json();
   populateStatusStrip(g);
+  if (g.season_recap) {
+    const resp = await fetch('/season/recap?_format=fragment');
+    if (resp.status === 200) {
+      document.getElementById('panel-primary').innerHTML = await resp.text();
+      document.getElementById('panel-secondary').innerHTML = '';
+      renderNavBar(nav.tabs);
+      document.getElementById('context-bar').textContent = nav.context || '';
+      return;
+    }
+  }
   renderNavBar(nav.tabs);
   document.getElementById('context-bar').textContent = nav.context || '';
   await Promise.all([
@@ -94,12 +112,32 @@ document.getElementById('nav-bar').addEventListener('click', async (e) => {
   applyNav(btn.dataset.view);
 });
 
-document.getElementById('panel-secondary').addEventListener('click', (e) => {
+document.getElementById('panel-secondary').addEventListener('click', async (e) => {
+  const link = e.target.closest('.season-recap-link');
+  if (link) {
+    e.preventDefault();
+    const url = link.dataset.actionUrl;
+    if (!url) return;
+    const resp = await fetch(url);
+    if (resp.status !== 200) return;
+    document.getElementById('panel-primary').innerHTML = await resp.text();
+    return;
+  }
   const btn = e.target.closest('[data-action-url]');
   if (btn) handleAction(btn);
 });
 
-document.getElementById('panel-primary').addEventListener('click', (e) => {
+document.getElementById('panel-primary').addEventListener('click', async (e) => {
+  const link = e.target.closest('.season-recap-link');
+  if (link) {
+    e.preventDefault();
+    const url = link.dataset.actionUrl;
+    if (!url) return;
+    const resp = await fetch(url);
+    if (resp.status !== 200) return;
+    document.getElementById('panel-primary').innerHTML = await resp.text();
+    return;
+  }
   const btn = e.target.closest('[data-action-url]');
   if (btn) handleAction(btn);
 });

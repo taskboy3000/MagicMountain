@@ -7,12 +7,11 @@ use FindBin;
 use lib ("$FindBin::Bin/../lib");
 
 use MagicMountain::Model::Account;
-use MagicMountain::Model::Character;
 use MagicMountain::Model::Season;
 use MagicMountain::Model::SeasonRecord;
 
 my $data_dir = tempdir(CLEANUP => 1);
-$ENV{MM_DATA_DIR} = $data_dir;
+local $ENV{MM_DATA_DIR} = $data_dir;
 
 # Pre-seed: archived season + season record for player
 MagicMountain::Model::Season->new(file => "$data_dir/seasons.json")
@@ -49,36 +48,83 @@ $recs->create(
 use MagicMountain;
 my $t = Test::Mojo->new('MagicMountain');
 
-# Login
-$t->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
+subtest 'unauthenticated redirects to login' => sub {
+    my $t2 = Test::Mojo->new('MagicMountain');
+    $t2->get_ok('/season/recap?_format=fragment')
+      ->status_is(302)
+      ->header_like(Location => qr{/login});
+};
 
-# Visit /game — should show recap + auto-create new season
-$t->get_ok('/game' => {Accept => 'application/json'})
-  ->status_is(200)
-  ->json_is('/ok' => 1);
+subtest 'login and game recap on first visit' => sub {
+    $t->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
 
-# Verify season_recap is present
-$t->json_has('/season_recap', 'season_recap is present');
-$t->json_is('/season_recap/label' => 'Season 1', 'recap label correct');
-$t->json_is('/season_recap/final_score' => 150, 'recap score correct');
-$t->json_is('/season_recap/rank' => 2, 'recap rank correct');
-$t->json_has('/season_recap/highlights', 'recap has highlights');
+    # Visit /game — should show recap + auto-create new season
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_is('/ok' => 1);
 
-# Verify a new active season was auto-created
-$t->json_has('/season', 'season is present');
-$t->json_is('/season/day' => 1, 'new season starts at day 1');
-$t->json_is('/season/total_days' => 30, 'new season default length');
+    # Verify season_recap is present
+    $t->json_has('/season_recap', 'season_recap is present');
+    $t->json_is('/season_recap/label' => 'Season 1', 'recap label correct');
+    $t->json_is('/season_recap/final_score' => 150, 'recap score correct');
+    $t->json_is('/season_recap/rank' => 2, 'recap rank correct');
+    $t->json_has('/season_recap/highlights', 'recap has highlights');
 
-# Verify a fresh character was created for the new season
-$t->json_has('/player', 'player is present');
-$t->json_is('/player/name' => 'alice', 'player name from account');
-$t->json_is('/player/score' => 0, 'fresh character score 0');
-$t->json_is('/player/scrap' => 0, 'fresh character scrap 0');
-$t->json_is('/player/action_points' => 20, 'fresh character full AP');
+    # Verify a new active season was auto-created
+    $t->json_has('/season', 'season is present');
+    $t->json_is('/season/day' => 1, 'new season starts at day 1');
+    $t->json_is('/season/total_days' => 30, 'new season default length');
 
-# Second visit — recap should NOT appear again
-$t->get_ok('/game' => {Accept => 'application/json'})
-  ->status_is(200)
-  ->json_hasnt('/season_recap', 'recap gone on second visit');
+    # Verify a fresh character was created for the new season
+    $t->json_has('/player', 'player is present');
+    $t->json_is('/player/name' => 'alice', 'player name from account');
+    $t->json_is('/player/score' => 0, 'fresh character score 0');
+    $t->json_is('/player/scrap' => 0, 'fresh character scrap 0');
+    $t->json_is('/player/action_points' => 20, 'fresh character full AP');
+};
+
+subtest 'second visit — recap gone' => sub {
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_hasnt('/season_recap', 'recap gone on second visit');
+};
+
+subtest '/season/recap fragment returns narrative' => sub {
+    $t->get_ok('/season/recap?_format=fragment');
+    $t->status_is(200);
+    $t->content_like(qr/SEASON/);
+    $t->content_like(qr/COMPANY CONFIDENTIAL/);
+    $t->content_like(qr/CENTRAL ARCHIVE/);
+    $t->content_like(qr/MARKET HEALTH/);
+    $t->content_like(qr/AGENT IMPACT/);
+    $t->content_like(qr/PERSONAL/);
+    $t->content_like(qr/>150</);
+    $t->content_like(qr/>75</);
+    $t->content_like(qr/>2</);
+};
+
+subtest '/season/recap with specific season_id' => sub {
+    $t->get_ok('/season/recap?season_id=s1&_format=fragment')
+      ->status_is(200)
+      ->content_like(qr/Season 1/, 'returns correct season label');
+};
+
+subtest '/season/recap JSON endpoint' => sub {
+    $t->get_ok('/season/recap')
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_has('/narrative')
+      ->json_is('/final_score' => 150)
+      ->json_has('/highlights');
+};
+
+subtest 'season archive on account tab' => sub {
+    $t->get_ok('/account?_format=fragment')
+      ->status_is(200)
+      ->content_like(qr/SEASON ARCHIVE/, 'archive section present')
+      ->content_like(qr/Season 1/, 'archived season listed')
+      ->content_like(qr/Complete/, 'status badge shows Complete')
+      ->content_like(qr/150/, 'final score shown in archive');
+};
 
 done_testing;

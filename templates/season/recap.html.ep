@@ -1,0 +1,48 @@
+<div class="mm-panel" style="border-color:var(--mm-amber)">
+  <div class="mm-panel-header" style="background:var(--mm-amber);color:var(--mm-bg);text-align:center;letter-spacing:0.15em">
+    ◆ SEASON COMPLETE ◆
+  </div>
+  <div class="mm-panel-body" style="padding:0.75rem">
+    <p style="text-align:center;font-size:1.1rem;margin:0 0 0.5rem 0;color:var(--mm-amber);letter-spacing:0.1em">
+      <%= $season_label %>
+    </p>
+
+% if ($narrative) {
+    <pre style="font-family:IBM Plex Mono,monospace;font-size:0.72rem;line-height:1.6;color:var(--mm-text-dim);white-space:pre-wrap;word-wrap:break-word;margin:0 0 0.75rem 0"><%= $narrative %></pre>
+% }
+
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;justify-content:center;text-align:center">
+      <div style="flex:1;border:1px solid var(--mm-border);padding:0.4rem">
+        <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Score</div>
+        <div style="font-size:1.2rem;color:var(--mm-green)"><%= $final_score %></div>
+      </div>
+      <div style="flex:1;border:1px solid var(--mm-border);padding:0.4rem">
+        <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Scrap</div>
+        <div style="font-size:1.2rem;color:var(--mm-amber)"><%= $final_scrap %></div>
+      </div>
+      <div style="flex:1;border:1px solid var(--mm-border);padding:0.4rem">
+        <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase">Rank</div>
+        <div style="font-size:1.2rem;color:var(--mm-red)"><%= $rank %></div>
+      </div>
+    </div>
+
+% if (@$standing_rows) {
+    <div style="border:1px solid var(--mm-border);padding:0.4rem;margin-bottom:0.5rem">
+      <div style="font-size:0.65rem;color:var(--mm-text-dim);text-transform:uppercase;margin-bottom:0.3rem">Faction Standing</div>
+% for my $s (@$standing_rows) {
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:0.2rem">
+% if ($s->{icon}) {
+        <img src="<%= $s->{icon} %>" alt="" class="mm-icon">
+% }
+        <span style="flex:1"><%= $s->{name} %></span>
+        <span style="color:var(--mm-amber)">+<%= $s->{value} %></span>
+      </div>
+% }
+    </div>
+% }
+
+    <button class="mm-btn mm-btn-primary" style="width:100%;box-sizing:border-box;margin-top:0.5rem"
+      data-action-url="/result/dismiss" data-method="POST"
+      data-redirect="/game">Continue to New Season</button>
+  </div>
+</div>

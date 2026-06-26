@@ -1,0 +1,127 @@
+recap:
+  header:
+    - "◆ CLASSIFICATION: COMPANY CONFIDENTIAL ◆"
+
+  subtitle:
+    - "PROSPECTBOY 3000 — SEASON ANALYSIS REPORT"
+    - "PROSPECTBOY 3000 — MARKET CLOSURE SUMMARY"
+    - "PROSPECTBOY 3000 — EXTRACTION SEASON POST-MORTEM"
+
+  disclaimer:
+    - "WARNING: THIS DOCUMENT IS PROPRIETARY. C-SUITE APPROVAL REQUIRED FOR EXTERNAL DISTRIBUTION. DO NOT DISSEMINATE, REPRODUCE, OR DISCUSS WITH UNAUTHORIZED PERSONNEL."
+    - "CAUTION: THIS REPORT CONTAINS SENSITIVE MARKET ANALYSIS. ACCESS RESTRICTED TO AUTHORIZED PERSONNEL ONLY. VIOLATORS WILL BE HELD ACCOUNTABLE."
+    - "NOTICE: THIS DOCUMENT CONTAINS TRADE SECRETS. SHARING WITH COMPETING ENTITIES IS STRICTLY PROHIBITED. REPORT UNAUTHORIZED ACCESS IMMEDIATELY."
+
+  market_health_leader:
+    - "MARKET HEALTH OVERVIEW"
+
+  faction_dominance:
+    - "The {top_faction} consolidated {top_faction_influence} influence across {factions_competing} active factions — the highest single-faction concentration this season. Their procurement network operated at near-total market saturation."
+    - "{top_faction} dominated the exchange floor with {top_faction_influence} influence ({factions_competing} factions active). Competing buyer agents were consistently outbid."
+    - "Market influence concentrated under {top_faction} ({top_faction_influence} total, {factions_competing} factions tracked). No serious challenge to their position emerged."
+
+  faction_competition:
+    - "Competitive pressure among remaining factions was fragmented — no coalition formed to counterbalance {top_faction}'s purchasing power."
+    - "The remaining {factions_competing_minus_1} factions failed to coordinate effective counter-strategies. Individual buyer agents operated at cross-purposes throughout the season."
+    - "Despite aggregate buying activity, no competing faction cluster achieved sufficient influence density to challenge {top_faction}'s position."
+
+  market_assessment_dominated:
+    - "Assessment: BUYER'S MARKET — influence concentrated under single entity."
+    - "Assessment: SUPPLIER-FAVORABLE — high demand concentration benefits extractors aligned with dominant faction."
+    - "Assessment: MONOPSONY TREND — single-buyer dominance reduces price competition."
+
+  market_assessment_fragmented:
+    - "Assessment: COMPETITIVE MARKET — no single faction achieved decisive influence advantage."
+    - "Assessment: FRAGMENTED DEMAND — multiple buyers competing creates favorable conditions for price negotiation."
+
+  faction_event_alliance:
+    - "FIELD INTELLIGENCE: {faction_a} and {faction_b} entered a temporary procurement alliance during the season's midpoint. The arrangement dissolved without formal agreement."
+    - "FIELD INTELLIGENCE: {faction_a} extended a formal cooperation offer to {faction_b}. Terms were not disclosed. Outcome: inconclusive."
+    - "FIELD INTELLIGENCE: Unconfirmed reports indicate {faction_a} and {faction_b} shared logistics data for a period of approximately 6 days. Mutual benefit unverified."
+
+  faction_event_war:
+    - "FIELD INTELLIGENCE: {faction_a} issued a procurement sanction against {faction_b}, citing unfair acquisition practices. No measurable impact on either party's market access."
+    - "FIELD INTELLIGENCE: Hostility between {faction_a} and {faction_b} escalated to open competition on three separate artifact categories. Both sides sustained elevated acquisition costs."
+    - "FIELD INTELLIGENCE: {faction_a} accused {faction_b} of contract interference. {faction_b} denied all claims. The Bazaar council declined to intervene."
+
+  faction_event_frustration:
+    - "FIELD INTELLIGENCE: {faction_a} buyer agents expressed frustration with artifact quality this season. Internal memos describe the local supply as 'inconsistent.'"
+    - "FIELD INTELLIGENCE: {faction_a} procurement targets were not met. Internal review cites 'insufficient throughput from local extractors.'"
+    - "FIELD INTELLIGENCE: {faction_a} representatives were overheard criticizing the pace of artifact recovery. Word from their compound: they need more, faster."
+
+  faction_event_merger:
+    - "FIELD INTELLIGENCE: {faction_a} absorbed a smaller operational unit mid-season. The acquisition did not significantly alter their market footprint."
+    - "FIELD INTELLIGENCE: {faction_a} acquired supply lines previously controlled by a defunct operator. The move was interpreted as consolidation."
+    - "FIELD INTELLIGENCE: {faction_a} consolidated two satellite procurement offices into their main operation. Efficiency gains were marginal."
+
+  faction_event_stalemate:
+    - "FIELD INTELLIGENCE: A dispute between {faction_a} and {faction_b} over territorial extraction rights reached a stalemate. Neither party yielded."
+    - "FIELD INTELLIGENCE: {faction_a} and {faction_b} remain deadlocked over outstanding procurement obligations. Settlement expected next season."
+    - "FIELD INTELLIGENCE: Negotiations between {faction_a} and {faction_b} collapsed. Both parties returned to independent procurement strategies."
+
+  agent_impact_header:
+    - "AGENT IMPACT ANALYSIS"
+
+  agent_influence:
+    - "Factions influenced: {standing_summary}"
+    - "Standing earned across {standing_count} factions: {standing_summary}"
+    - "Relationship portfolio: {standing_summary}"
+
+  agent_impact_significant:
+    - "Assessment: AGENT ACTIVITY CORRELATED WITH FACTION PERFORMANCE — {top_sales_faction} transactions represent a measurable contribution to {top_faction}'s market position."
+    - "Assessment: AGENT OUTPUT ALIGNED WITH MARKET LEADER — continued engagement with {top_faction} may yield preferred procurement status."
+    - "Assessment: NOTABLE — agent transaction volume exceeded seasonal baseline. Market impact: detectable but not decisive."
+
+  agent_impact_moderate:
+    - "Assessment: AGENT INFLUENCE ON MARKET TRENDS: MODERATE — transaction volume sufficient for individual standing but below market-shifting threshold."
+    - "Assessment: AGENT ACTIVITY WITHIN EXPECTED PARAMETERS. Standing gains consistent with experience curve projections."
+    - "Assessment: MARGINAL MARKET PENETRATION — agent lacked sufficient throughput to influence faction hierarchy."
+
+  agent_impact_minimal:
+    - "Assessment: AGENT INFLUENCE ON MARKET TRENDS: NEGLIGIBLE."
+    - "Assessment: INSUFFICIENT TRANSACTION VOLUME TO AFFECT COMPETITIVE STANDINGS."
+    - "Assessment: RECOMMENDATION — increase artifact throughput in future seasons to achieve measurable market presence."
+
+  personal_header:
+    - "PERSONAL ACCOMPLISHMENTS"
+
+  rank:
+    - "Final classification: AGENT RANK #{rank}."
+    - "Season-end ranking: #{rank}."
+    - "Leaderboard position: #{rank}."
+
+  rank_top:
+    - "Assessment: TOP PERFORMER — agent exceeded all baseline extraction targets."
+    - "Assessment: EXEMPLARY — this agent's output sets the standard for future seasons."
+
+  rank_mid:
+    - "Assessment: MEETS EXPECTATIONS — agent performance within acceptable parameters."
+    - "Assessment: CONSISTENT — agent maintained steady output throughout the assessment period."
+
+  rank_low:
+    - "Assessment: BELOW BASELINE — increased extraction effort recommended."
+    - "Assessment: UNDERPERFORMING RELATIVE TO PEER GROUP — corrective action advised."
+
+  best_sale:
+    - "Highest-value single transaction: {top_sale_value} scrap — counterparty: {top_sale_faction}."
+    - "Peak transaction value: {top_sale_value} scrap ({top_sale_faction})."
+    - "Maximum deal value recorded: {top_sale_value} scrap. Counterparty: {top_sale_faction}."
+
+  evolved:
+    - "Breakthrough events recorded: {evolved_artifacts_sold}. Artifact evolution confirmed."
+    - "{evolved_artifacts_sold} artifact(s) underwent evolutionary transformation during extraction."
+    - "Evolution incidents: {evolved_artifacts_sold}. Mountain anomaly interaction detected."
+
+  clearance:
+    - "End-of-season clearance liquidation: +{clearance_bonus} scrap recovered."
+    - "Clearance sale proceeds: {clearance_bonus} scrap. Residual inventory monetized."
+    - "Terminal inventory disposition returned {clearance_bonus} scrap to agent account."
+
+  total_sales:
+    - "Total artifacts processed: {total_sales}."
+    - "Transaction count: {total_sales}."
+
+  closing:
+    - "END REPORT — DATA FAILED TO SYNCHRONIZE WITH CENTRAL ARCHIVE. CONTACT CENTRAL ARCHIVE FOR SUPPORT."
+    - "REPORT ENDS — UPLINK WITH CENTRAL ARCHIVE UNSTABLE. DATA MAY NOT BE PERSISTED. CONTACT CENTRAL ARCHIVE FOR SUPPORT."
+    - "SEASON ANALYSIS COMPLETE — ARCHIVE CONFIRMATION NOT RECEIVED. IF THIS MESSAGE PERSISTS, CONTACT CENTRAL ARCHIVE FOR SUPPORT."
