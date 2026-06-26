@@ -5,7 +5,7 @@ async function api(path, { body, method } = {}) {
   const headers = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (method !== 'GET' && CSRF_TOKEN) headers['X-CSRF-Token'] = CSRF_TOKEN;
-  const resp = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const resp = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined, redirect: 'manual' });
   let data;
   try {
     data = await resp.json();
@@ -29,7 +29,11 @@ async function handleAction(btn) {
     body[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = btn.dataset[key];
   }
   const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
-  if (!data.ok) return;
+  if (!data) return;
+  if (!data.ok) {
+    if (!data.csrf_token) { window.location.href = '/game'; return; }
+    return;
+  }
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);
@@ -39,6 +43,7 @@ async function handleAction(btn) {
 // ── Boot ────────────────────────────────────────────────────────
 async function loadGame() {
   const g = await api('/game');
+  if (!g || !g.ok) return;
   populateStatusStrip(g);
   if (g.season_recap) {
     const resp = await fetch('/season/recap?_format=fragment');
