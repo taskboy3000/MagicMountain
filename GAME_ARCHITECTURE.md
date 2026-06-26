@@ -53,8 +53,8 @@ Login/join season
       → Negotiation may succeed (sale) or fail (customer leaves)
       → On sale: scrap + score awarded, artifact removed from Shed
 
-    → Skill Training (no AP cost, costs scrap)
-      → Buy or upgrade seasonal skills
+    → Cert Training (no AP cost, costs scrap)
+      → Buy or upgrade seasonal cert modules
 
   → Day rollover: refresh AP, artifact decay tick, season day increments
   → Season ends after N days (admin-triggered)
@@ -66,7 +66,7 @@ Login/join season
 - Artifacts enter the Shed after prospecting. Selling happens later, possibly
   on a different day.
 - AP are refreshed fully at day rollover. Unused AP are lost.
-- Skill training does not cost AP but costs scrap.
+- Cert training does not cost AP but costs scrap.
 
 ---
 
@@ -531,55 +531,60 @@ Created during season finalization, before characters are deleted. Served to
 players on first `/game` visit after the season ends as `season_recap`
 (visible once, cleared on subsequent visits).
 
-### 5.10 Skill Definition (content/skills.yml, loaded by `skills_data` helper)
+### 5.10 Skill/Cert Definition (content/skills.yml, loaded by `skills_data` helper)
 
-Skills are defined in YAML content, not hardcoded:
+Cert modules are defined in YAML content, not hardcoded:
 
 ```yaml
 skills:
   - id: prospecting
-    name: Prospecting
+    name: GEO-SENSE
+    description: "Survey analysis module. Enhances artifact detection sensitivity."
     max_level: 3
     levels:
       - level: 1
-        cost: 10
-        description: "Better leads"
+        cost: 100
+        description: "signal-filter v1 — noise reduction, target isolation"
       - level: 2
-        cost: 25
-        description: "Richer veins"
+        cost: 250
+        description: "deep-scan protocol — prioritizes high-yield signatures"
       - level: 3
-        cost: 50
-        description: "Eye for the unusual"
+        cost: 500
+        description: "predictive litho-analysis — anomaly classification engine"
   - id: upcycling
-    name: Upcycling
+    name: DEFRAG
+    description: "Push protocol optimizer. Regulates artifact destabilization."
     max_level: 3
     levels:
       - level: 1
-        cost: 10
-        description: "Firm touch"
+        cost: 100
+        description: "damping routine v1 — reduces instability growth"
       - level: 2
-        cost: 25
-        description: "Steady hand"
+        cost: 250
+        description: "adaptive gain control — improves value yield per cycle"
       - level: 3
-        cost: 50
-        description: "Master's feel"
+        cost: 500
+        description: "resonance predictor — breakthrough probability enhancement"
   - id: selling
-    name: Selling
+    name: UP-CEL
+    description: "Negotiation coprocessor. Augments market interface."
     max_level: 3
     levels:
       - level: 1
-        cost: 10
-        description: "Better haggling"
+        cost: 100
+        description: "value projection module — narrows appraisal variance"
       - level: 2
-        cost: 25
-        description: "Customer reader"
+        cost: 250
+        description: "stress analysis — detects buyer irritation thresholds"
       - level: 3
-        cost: 50
-        description: "Dealmaker"
+        cost: 500
+        description: "persuasion algorithm — improves offer multipliers"
 ```
 
-The `cost` field is in scrap. Exact mechanical effects per level are marked
-as implementation detail — see section 6.6.
+The internal column names remain `skill_prospecting`, `skill_upcycling`,
+`skill_selling` — only the UI labels changed. The `cost` field is in scrap.
+Exact mechanical effects per level are marked as implementation detail —
+see section 6.6.
 
 ### 5.11 Entity Lifecycle
 
@@ -858,14 +863,15 @@ When a player starts a Market Visit (costs 1 AP):
 - At most ONE customer per Market Visit (but that customer may buy multiple
   items when multi-item mode is enabled)
 
-### 6.6 Skills (Mechanical Effects)
+### 6.6 Skills / CERTS (Mechanical Effects)
 
-Skills are purchasable per season via the Skills controller (`POST /skills/purchase`).
+Cert modules are purchasable per season via the Skills controller (`POST /skills/purchase`).
 Each has 3 levels, costs defined in `content/skills.yml`. Effects are applied
 at the point of use (draw, push, stop, offer) by reading the character's
-skill columns.
+skill columns. The internal column names use the legacy IDs (`skill_prospecting`,
+`skill_upcycling`, `skill_selling`); the UI labels are the cert module names.
 
-**Prospecting (levels 1–3)** — affects artifact drawing and base value:
+**GEO-SENSE (prospecting, levels 1–3)** — affects artifact drawing and base value:
 
 | Level | Effect |
 |-------|--------|
@@ -873,7 +879,7 @@ skill columns.
 | 2 | `base_value` increased by +4 total; weight doubled for artifacts with `base_value >= 8` (higher chance of rich finds) |
 | 3 | `base_gain_min` and `base_gain_max` each increased by +1 per push |
 
-**Upcycling (levels 1–3)** — reduces instability growth during pushes:
+**DEFRAG (upcycling, levels 1–3)** — reduces instability growth during pushes:
 
 | Level | Effect |
 |-------|--------|
@@ -884,7 +890,7 @@ skill columns.
 Instability growth floors at 1 — even max upcycling cannot fully
 eliminate instability.
 
-**Selling (levels 1–3)** — improves market outcomes:
+**UP-CEL (selling, levels 1–3)** — improves market outcomes:
 
 | Level | Effect |
 |-------|--------|
