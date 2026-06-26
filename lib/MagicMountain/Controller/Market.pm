@@ -1,6 +1,8 @@
 package MagicMountain::Controller::Market;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
+use MagicMountain::Customer;
+
 sub show ($self) {
     my $char = $self->_require_character or return;
     my $type = $self->_active_activity_type($char);
@@ -10,6 +12,18 @@ sub show ($self) {
     return $self->rendered(204) unless $activity && $activity->phase ne 'idle';
 
     my $c = $activity->customer;
+
+    my $pressure = $c ? $activity->budget_pressure_state($c) : undef;
+    my $faction_icon_url;
+    if ($c->{faction_id}) {
+        my $factions = $self->app->factions_data // [];
+        for my $f (@$factions) {
+            if ($f->{id} eq $c->{faction_id}) {
+                $faction_icon_url = $f->{icon} ? '/images/' . $f->{icon} : undef;
+                last;
+            }
+        }
+    }
 
     my ($last_sale, $last_message);
     if ($c) {
@@ -21,65 +35,31 @@ sub show ($self) {
         $activity->save;
     }
 
-    my $pressure_state = $c ? $activity->budget_pressure_state($c)->{state} : undef;
-
-    my $customer_icon;
-    if ($c->{faction_id}) {
-        my $factions = $self->app->factions_data // [];
-        for my $f (@$factions) {
-            if ($f->{id} eq $c->{faction_id}) {
-                $customer_icon = $f->{icon} ? '/images/' . $f->{icon} : undef;
-                last;
-            }
-        }
-    }
-
-    my $portrait_url;
-    if ($c->{portrait_id}) {
-        my $irritation = $c->{irritation} // 0;
-        my $mood = $irritation <= 1 ? 'happy' : ($irritation <= 3 ? 'neutral' : 'mad');
-        $portrait_url = '/images/portraits/' . $c->{portrait_id} . '_' . $mood . '.svg';
-    }
+    my $customer = $c ? MagicMountain::Customer->new({
+        %$c,
+        faction_icon_url => $faction_icon_url,
+        pressure_state   => $pressure ? $pressure->{state}   : undef,
+        pressure_label   => $pressure ? $pressure->{display} : undef,
+        last_sale        => $last_sale,
+        last_message     => $last_message,
+    }) : undef;
 
     my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
-    if ($c->{pending_counter}) {
+    if ($c && $c->{pending_counter}) {
         push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => '/market/accept_counter', 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
         push @actions, { label => 'Stand Pat', attrs => { 'data-action-url' => '/market/stand_pat', 'data-method' => 'POST', id => 'btn-stand-pat', class => 'mm-btn' } };
     }
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        $self->stash(
-            customer_faction_id   => $c->{faction_id},
-            customer_faction_name => $c->{faction_name},
-            customer_faction_icon => $customer_icon,
-            customer_portrait     => $portrait_url,
-            customer_disposition  => $c->{disposition} // 'unknown',
-            irritation            => $c->{irritation} // 0,
-            pressure_state        => $pressure_state,
-            pending_counter       => $c->{pending_counter},
-            message               => $last_message,
-            last_sale             => $last_sale,
-            actions               => \@actions,
-        );
+        $self->stash(customer => $customer, actions => \@actions);
         return $self->render('market/negotiation', layout => undef);
     }
 
     $self->render(json => {
-        ok     => 1,
-        market_visit => {
-            customer => {
-                faction_id   => $c->{faction_id},
-                faction_name => $c->{faction_name},
-                disposition  => $c->{disposition} // 'unknown',
-                ($c->{pending_counter}
-                    ? (pending_counter => $c->{pending_counter})
-                    : ()),
-            },
-            irritation     => $c->{irritation} // 0,
-            pressure_state => $pressure_state,
-        },
-        _self => { actions => \@actions },
+        ok          => 1,
+        market_visit => $customer,
+        _self       => { actions => \@actions },
     });
 }
 

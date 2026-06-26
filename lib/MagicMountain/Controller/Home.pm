@@ -29,15 +29,14 @@ sub show ($self) {
         for my $item (@$all_shed) {
             my $aid = $item->getCol('artifact_id');
             push @shed_rows, {
-                id         => $item->getCol('id'),
-                label      => $aid,
-                label_full => $aid,
-                icon       => '/images/artifact_' . $aid . '.svg',
-                condition  => $item->getCol('condition'),
-                value_min  => $item->getCol('estimated_value_min'),
-                value_max  => $item->getCol('estimated_value_max'),
-                days       => $item->getCol('days_in_shed'),
-                behaviors  => $item->getCol('behaviors'),
+                id          => $item->getCol('id'),
+                label       => $aid,
+                label_full  => $aid,
+                icon        => '/images/artifact_' . $aid . '.svg',
+                condition   => $item->getCol('condition'),
+                value_label => $item->value_label,
+                days        => $item->getCol('days_in_shed'),
+                behaviors   => $item->getCol('behaviors'),
             };
         }
         $self->stash(

@@ -68,8 +68,8 @@ subtest 'market show returns JSON without _format' => sub {
     $t->get_ok('/market')
       ->status_is(200)
       ->json_has('/market_visit')
-      ->json_has('/market_visit/customer')
-      ->json_has('/market_visit/customer/faction_id');
+      ->json_has('/market_visit/faction_id')
+      ->json_has('/market_visit/irritation');
 };
 
 subtest '_require_character returns 404 for endpoints without character' => sub {

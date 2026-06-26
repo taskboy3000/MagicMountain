@@ -2,38 +2,36 @@
   <div class="mm-panel-header">NEGOTIATION</div>
   <div class="mm-panel-body">
     <div style="display:flex;gap:8px;margin-bottom:0.5rem;padding:0.4rem;border:1px solid var(--mm-border);border-radius:4px">
-% if ($customer_portrait) {
+% if ($customer->portrait_url) {
       <div style="flex-shrink:0;width:32px;height:42px;overflow:hidden">
-        <img src="<%= $customer_portrait %>" alt="" class="mm-portrait">
+        <img src="<%= $customer->portrait_url %>" alt="" class="mm-portrait">
       </div>
 % }
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:4px">
-% my $icon_html = $customer_faction_icon ? qq{<img src="$customer_faction_icon" alt="" class="mm-icon">} : '';
-<%== $icon_html %><strong><%= $customer_faction_name %></strong>
+% my $icon_html = $customer->faction_icon_url ? qq{<img src="$customer->faction_icon_url" alt="" class="mm-icon">} : '';
+<%== $icon_html %><strong><%= $customer->faction_name %></strong>
         </div>
-        <div style="color:var(--mm-text-dim);font-size:0.72rem"><%= $customer_disposition %></div>
+        <div style="color:var(--mm-text-dim);font-size:0.72rem"><%= $customer->disposition %></div>
       </div>
     </div>
-% my $sale = stash('last_sale');
-% if ($sale) {
+% if ($customer->last_sale) {
     <div style="border:1px solid var(--mm-green);padding:0.4rem;margin:0.5rem 0">
-      <p style="margin:0 0 0.2rem 0">Sold for <strong><%= $sale->{value} %></strong> scrap
-        <span class="mm-badge mm-badge-green"><%= $sale->{sale_type} %></span>
-% if ($sale->{precision_bonus}) {
-        <span style="color:var(--mm-green);font-size:0.78rem">+<%= $sale->{precision_bonus} %> precision bonus!</span>
+      <p style="margin:0 0 0.2rem 0">Sold for <strong><%= $customer->last_sale->{value} %></strong> scrap
+        <span class="mm-badge mm-badge-green"><%= $customer->last_sale->{sale_type} %></span>
+% if ($customer->last_sale->{precision_bonus}) {
+        <span style="color:var(--mm-green);font-size:0.78rem">+<%= $customer->last_sale->{precision_bonus} %> precision bonus!</span>
 % }
       </p>
     </div>
 % }
-% my $msg = stash('message');
-% if ($msg) {
-    <p style="font-style:italic;color:var(--mm-text-dim);margin:0.5rem 0"><%= $msg %></p>
+% if ($customer->last_message) {
+    <p style="font-style:italic;color:var(--mm-text-dim);margin:0.5rem 0"><%= $customer->last_message %></p>
 % }
-% if ($pending_counter) {
+% if ($customer->has_pending_counter) {
 %   my @top = grep { $_->{attrs}{id} eq 'btn-accept-counter' || $_->{attrs}{id} eq 'btn-stand-pat' } @$actions;
     <div style="border:1px solid var(--mm-amber);padding:0.4rem;margin:0.5rem 0">
-      <p style="margin:0 0 0.3rem 0"><strong>Counter-offer:</strong> <%= $pending_counter->{value} %> scrap</p>
+      <p style="margin:0 0 0.3rem 0"><strong>Counter-offer:</strong> <%= $customer->pending_counter_value %> scrap</p>
 %= include 'components/action_buttons', actions => \@top
       <p style="margin:0.3rem 0 0 0;font-size:0.7rem;color:var(--mm-text-dim)">(or offer a different artifact to reject)</p>
     </div>
