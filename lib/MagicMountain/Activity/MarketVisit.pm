@@ -1,7 +1,7 @@
 package MagicMountain::Activity::MarketVisit;
 use Modern::Perl;
 use Mojo::Base 'MagicMountain::Activity', '-signatures';
-use YAML::XS qw(LoadFile);
+
 
 # ── Transition table ────────────────────────────────────────────────
 
@@ -114,17 +114,8 @@ sub _apply_loyalty_bonus ($self, $char, $faction_id, $offer_value) {
 
 # ── Narrative reactions ───────────────────────────────────────────────
 
-has reactions_filename => sub ($self) {
-    $self->app->home . '/content/text/negotiation_reactions.yml';
-};
-
-sub _reactions ($self) {
-    state $data = LoadFile($self->reactions_filename);
-    return $data->{negotiation_reactions} // {};
-}
-
 sub _pick_reaction ($self, $faction_id, $outcome, %params) {
-    my $reactions = $self->_reactions;
+    my $reactions = $self->app->negotiation_reactions // {};
     my $msgs = $reactions->{$faction_id}{$outcome} or return;
     my $text = $msgs->[ int(rand(scalar @$msgs)) ] or return;
     $text =~ s!\{(\w+)\}!$params{$1} // "{$1}"!ge;

@@ -98,7 +98,7 @@ has shed_manager => sub ($self) {
 
 has crier => sub ($self) {
     MagicMountain::Crier->new(
-        content_file => $self->home . '/content/text/crier.yml',
+        content_file => $self->home . '/content/flavor/crier.yml',
     );
 };
 
@@ -296,6 +296,16 @@ sub startup ($self) {
     $self->helper(factions_data => sub ($c) {
         state $data = YAML::XS::LoadFile($c->app->home . '/content/factions.yml');
         return $data->{factions};
+    });
+
+    $self->helper(advisories => sub ($c) {
+        state $data = YAML::XS::LoadFile($c->app->home . '/content/flavor/advisories.yml');
+        return $data->{advisories};
+    });
+
+    $self->helper(negotiation_reactions => sub ($c) {
+        state $data = YAML::XS::LoadFile($c->app->home . '/content/flavor/negotiation_reactions.yml');
+        return $data->{negotiation_reactions};
     });
 
     $self->helper(customer_portraits => sub ($c) {

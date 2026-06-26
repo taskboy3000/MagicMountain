@@ -24,6 +24,10 @@ use MagicMountain::Activity::MarketVisit;
     package FakeApp;
     sub new { bless {}, shift }
     sub home { $FindBin::Bin . '/..' }
+    sub negotiation_reactions {
+        state $data = YAML::XS::LoadFile(shift->home . '/content/flavor/negotiation_reactions.yml');
+        return $data->{negotiation_reactions};
+    }
     sub log { bless {}, 'FakeLogger' }
     sub shed {
         my $self = shift;

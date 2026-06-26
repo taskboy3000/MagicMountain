@@ -759,7 +759,7 @@ When a player starts a Market Visit (costs 1 AP):
      - If artifact behaviors intersect desired_behaviors:
        - **Match**: High offer at `floor(decayed_value × base_multiplier × match_mult)`.
          `match_mult` is 1.2 normally, 1.4 with Selling skill 3.
-         Positive narrative response from `content/text/negotiation_reactions.yml`
+         Positive narrative response from `content/flavor/negotiation_reactions.yml`
          (per-faction flavor text, with `{item_id}` / `{value}` template variables).
          Falls back to generic text if no faction entry exists.
          Sale is automatic — no accept step.
@@ -2114,7 +2114,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Shed controller** | `Controller::Shed` | `GET /shed` with query-string filtering (condition, artifact_id, behavior, min/max value, sort, order); `respond_to` JSON/HTML |
 | **Skills controller + purchase** | `Controller::Skills`, `skills_data` helper | `GET /skills` lists YAML definitions + current levels; `POST /skills/purchase` validates scrap, enforces level cap, deducts and increments |
 | **Leaderboard controller** | `Controller::Leaderboard` | `GET /leaderboard` — seasonal character rankings sorted by score |
-| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml`, `content/bots.yml`, `content/text/negotiation_reactions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions, bot profiles, per-faction negotiation flavor text |
+| **Content YAML** | `content/prospecting.yml`, `content/skills.yml`, `content/factions.yml`, `content/bots.yml`, `content/flavor/negotiation_reactions.yml` | Artifact definitions (with decay_modifiers), skills (with per-level costs), factions, bot profiles, per-faction negotiation flavor text |
 | **Transcript system** | `Model::Transcript` | JSONL event log with narrative, integrated into all activity handlers and simulation |
 | **Bot simulation** | `Command::simulate`, `Bot::PushPolicy`, `Bot::SellPolicy`, `content/bots.yml`, `bin/analyze_sim` | Pluggable push/sell policies, YAML profile definitions, weighted profile distribution, reproducible simulation, analysis script |
 | **Artifact decay** | `ShedManager.pm`, `Maintenance.pm`, `Activity::Prospecting` | Smooth daily linear interpolation; per-artifact `decay_modifiers` from YAML; `fresh`/`settling`/`fading` stages; estimate range updates; optional `decay_tick` transcript events gated by flag |
@@ -2123,7 +2123,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Fragment rendering** | All resource controllers (`Player`, `Crier`, `Idle`, `Prospecting`, `Market`, `Shed`, `Skills`, `Factions`, `Leaderboard`) | Each controller provides `respond_to json` + `_format=fragment` HTML. JS fetches fragment URLs from `/nav` response and renders via `innerHTML`. No client-side HTML construction. |
 | **Settle rolls** | `Activity::MarketVisit.pm` | On mismatch, 15% chance customer accepts lowball; configurable per-faction |
 | **ArtifactDisposition records** | `Model::ArtifactDisposition.pm` | Append-only per-sale records with artifact snapshot, faction, standing/influence deltas; created in `_do_sale` |
-| **Crier daily progress** | `Crier.pm`, `content/text/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
+| **Crier daily progress** | `Crier.pm`, `content/flavor/crier.yml` | Day-range messages (early/mid/late season) as fallback when no faction events fire |
 | **Season finalization CLI** | `Command::end_season.pm`, `Model::Season.pm` (finalize) | 8-step archive: clearance sale (25% of shed value), compute leaderboard, build SeasonRecords, discard shed/characters, clear faction_state, archive. CLI-only — no web UI button. |
 | **Clearance sale** | `Model::Season.pm` (finalize) | Unsold shed items liquidated at 25% of `decayed_value` during season finalization; awarded as scrap+score before SeasonRecord creation |
 | **Loyalty standing escalation** | `Activity::MarketVisit.pm`, `Model::Character.pm` | Standing delta grows with repeat sales: +2 match / +1 mismatch base, +1 evolved, +1 at 2nd+ sale, +1 at 4th+ sale; loyalty access guarantee redirects customers to top faction after 3 off-faction visits |
@@ -2133,7 +2133,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Faction snapshot history** | `Model::FactionSnapshot.pm`, `Maintenance.pm`, `Season.pm` (finalize), `Controller/Leaderboard.pm` (factions) | Daily faction influence persisted during maintenance and season end; `GET /leaderboard/factions` returns per-faction time series |
 | **`nullCol` helper** | `Model.pm` | `delete` a column from row (avoids JSON `null` artifacts from `setCol($col, undef)`) |
 | **Shared mtime cache** | `Model.pm` | mtime:size file signature cache (`%_mtime_for`); avoids redundant reloads when multiple saves happen in the same request. Cross-process safe in prefork mode — no per-process sequence counter. |
-| **Narrative reactions** | `Activity::MarketVisit.pm`, `content/text/negotiation_reactions.yml` | Per-faction flavor text for match/settle/mismatch/storm_off outcomes; `{item_id}`/`{value}` template substitution; falls back to hardcoded text |
+| **Narrative reactions** | `Activity::MarketVisit.pm`, `content/flavor/negotiation_reactions.yml` | Per-faction flavor text for match/settle/mismatch/storm_off outcomes; `{item_id}`/`{value}` template substitution; falls back to hardcoded text |
 | **Loyalty price bonus** | `Activity::MarketVisit.pm` (`_apply_loyalty_bonus`) | 1.05× offer multiplier for 3+ sales to the same faction |
 | **Loyalty access guarantee** | `Activity::MarketVisit.pm` (begin), `Model::Character.pm` (`loyalty_visits_since`) | After 3 consecutive market visits to non-top-faction customers, forcibly redirects to player's top faction |
 | **Expanded artifact pool** | `content/prospecting.yml` | Expanded from minimal set to 20+ artifacts across multiple archetypes and behaviors |

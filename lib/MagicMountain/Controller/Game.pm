@@ -219,7 +219,7 @@ sub show ($self) {
 }
 
 sub _unit_status ($self) {
-    state $data = LoadFile($self->app->home . '/content/text/system_messages.yml');
+    state $data = LoadFile($self->app->home . '/content/flavor/system_messages.yml');
     my $messages = $data->{unit_status} or return '';
     return $messages->[rand @$messages];
 }

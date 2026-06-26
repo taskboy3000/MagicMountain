@@ -1,6 +1,6 @@
 package MagicMountain::Controller::Home;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
-use YAML::XS qw(LoadFile);
+
 
 sub show ($self) {
     my $char = $self->_require_character or return;
@@ -19,8 +19,7 @@ sub show ($self) {
     my $type = $self->_active_activity_type($char);
     my $market_active = ($type && $type eq 'market') ? 1 : 0;
 
-    state $advisories_data = LoadFile($self->app->home . '/content/text/advisories.yml');
-    my $advisories = $advisories_data->{advisories} // {};
+    my $advisories = $self->app->advisories // {};
     my @suggestions = _build_suggestions($ap, $scrap, $shed_count, $season_day, $season_len, $season, $char, $advisories);
 
     my $crier = $season ? $season->getCol('crier_message') : undef;

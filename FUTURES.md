@@ -63,9 +63,9 @@ in the UI (e.g. "Season 1 — Day 5 of 30").
 
 Daily maintenance messages (surge, slump, dominance, milestone, season
 opening, daily progress) were already implemented in `crier.yml`. Added:
-`content/text/negotiation_reactions.yml` with per-faction flavor text for
+`content/flavor/negotiation_reactions.yml` with per-faction flavor text for
 all offer outcomes (match, settle, mismatch, storm_off), replacing hardcoded
-sprintf messages in MarketVisit. `content/text/commission_triggers.yml`
+sprintf messages in MarketVisit. `content/flavor/commission_triggers.yml`
 created as content-only (unused until Commission System is built).
 
 ---

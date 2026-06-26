@@ -167,7 +167,7 @@ artifact has no decay_modifiers.
 
 ## 8. Crier (Crier.pm + crier.yml)
 
-**File**: `lib/MagicMountain/Crier.pm` (priority logic), `content/text/crier.yml` (templates)
+**File**: `lib/MagicMountain/Crier.pm` (priority logic), `content/flavor/crier.yml` (templates)
 
 | Parameter | Value | Code location | What it affects |
 |-----------|-------|---------------|-----------------|

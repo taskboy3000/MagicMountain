@@ -260,7 +260,7 @@ a 15% bonus (does not count toward budget pressure).
 
 ---
 
-## 5. `content/text/crier.yml`
+## 5. `content/flavor/crier.yml`
 
 Daily maintenance messages. One message per day, chosen by priority.
 
@@ -316,7 +316,7 @@ catch-all fallbacks.
 
 ---
 
-## 6. `content/text/negotiation_reactions.yml`
+## 6. `content/flavor/negotiation_reactions.yml`
 
 Per-faction flavor text for market visit outcomes. Replaces hardcoded
 generic messages when text exists for a faction.
@@ -346,7 +346,7 @@ sprintf messages in the code.
 
 ---
 
-## 7. `content/text/commission_triggers.yml`
+## 7. `content/flavor/commission_triggers.yml`
 
 Narrative text for faction commission events. Currently content-only —
 the Commission System (§7.3 of GAME_ARCHITECTURE.md) is not yet implemented.
