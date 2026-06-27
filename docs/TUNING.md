@@ -104,6 +104,7 @@ scrap). **Mechanical effects** are hardcoded:
 | 1 | Instability growth reduced by 1 (min 1) | `push`, line 214 |
 | 2 | Growth reduced by 2; value gain increased by 1 | `push`, lines 214, 243 |
 | 3 | Growth reduced by 3; value gain increased by 2; evolution_chance +0.02 | `push`, lines 214, 243, 234 |
+| 4 | Initial instability reduced by upcycling level; growth reduced by 4; value gain increased by 3 | `_apply_defaults`, line 102; `push` |
 
 ### Selling (`MarketVisit.pm` and `Prospecting.pm`)
 
@@ -186,7 +187,7 @@ artifact has no decay_modifiers.
 | `score` never decreases | Die on setCol if new value < current value |
 | `scrap` >= 0 | Die on setCol if new value < 0 |
 | `action_points` <= `action_points_max` | Die on setCol if exceeded |
-| `skill_*` columns 0–3 | Die on setCol if out of range |
+| `skill_*` columns 0–4 | Die on setCol if out of range |
 
 ---
 

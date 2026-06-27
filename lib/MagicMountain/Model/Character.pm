@@ -25,8 +25,8 @@ sub validate ($self, $col, $val) {
         my $max = $self->getCol('action_points_max') // 15;
         die "invariant: action_points ($val) exceeds max ($max)" if $val > $max;
     }
-    if ($col =~ /^skill_/ && defined($val) && ($val < 0 || $val > 3)) {
-        die "invariant: $col must be 0-3";
+    if ($col =~ /^skill_/ && defined($val) && ($val < 0 || $val > 4)) {
+        die "invariant: $col must be 0-4";
     }
 }
 

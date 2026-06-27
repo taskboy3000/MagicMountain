@@ -82,9 +82,8 @@ calculate game state, that logic belongs in a model or service. Extract it.
 ## Running & Testing
 
 ```bash
-perl -Ilib script/mountain daemon                              # dev server
+bash start.sh [PORT]                                           # dev server (kill+restart on :9000 default)
 perl -Ilib script/mountain advance-day                         # manual day rollover
-bash start.sh                                                  # kill+restart on :9000
 prove -l t/                                                    # full test suite
 prove -lv t/nav_web.t                                          # single test
 perl bin/walkthrough                                           # end-to-end game loop

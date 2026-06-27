@@ -97,9 +97,10 @@ sub _decay_modifiers ($self, $artifact) {
 sub _apply_defaults ($self, $artifact, $char) {
     my $prosp = $char->getCol('skill_prospecting') // 0;
     my $upcyc = $char->getCol('skill_upcycling')  // 0;
+    my $upcyc_effects = $self->_upcycling_effects($char);
 
     my $rand_instability = int(rand(8));
-    $rand_instability -= $upcyc if $upcyc >= 4;
+    $rand_instability -= $upcyc if ($upcyc_effects->{initial_instability_reduction} // 0);
     $rand_instability = 0 if $rand_instability < 0;
     $artifact->{instability} = ($artifact->{starting_instability} // 0) + $rand_instability;
     $artifact->{push_count}                   = 0;
@@ -124,6 +125,17 @@ sub _apply_defaults ($self, $artifact, $char) {
     $artifact->{signal}                      = '';
     $artifact->{intro}                       = $artifact->{intro} // '';
     $artifact->{decay_modifiers}             = $self->_decay_modifiers($artifact);
+}
+
+# ── Upcycling effects lookup ─────────────────────────────────────────
+
+sub _upcycling_effects ($self, $char) {
+    my $upcyc = $char->getCol('skill_upcycling') // 0;
+    return {} unless $upcyc > 0;
+    my $skills = $self->app->skills_data;
+    my ($skill) = grep { $_->{id} eq 'upcycling' } @$skills;
+    return {} unless $skill && $skill->{levels} && $skill->{levels}[$upcyc - 1];
+    return $skill->{levels}[$upcyc - 1]{effects} // {};
 }
 
 # ── Stage determination ──────────────────────────────────────────────
@@ -211,13 +223,14 @@ sub begin ($self, $char, %params) {
 sub push ($self, $char, %params) {
     my $artifact = $self->artifact;
     my $upcyc = $char->getCol('skill_upcycling') // 0;
+    my $upcyc_effects = $self->_upcycling_effects($char);
 
     $artifact->{push_count}++;
 
     my $growth = $artifact->{instability_growth_min}
                + int(rand($artifact->{instability_growth_max}
                         - $artifact->{instability_growth_min} + 1));
-    $growth -= $upcyc;
+    $growth -= ($upcyc_effects->{instability_growth_reduction} // 0);
     $growth = 1 if $growth < 1;
     $artifact->{instability} += $growth;
 
@@ -237,7 +250,7 @@ sub push ($self, $char, %params) {
         &&  $ratio >= $artifact->{evolution_threshold})
     {
         my $evo_chance = $artifact->{evolution_chance};
-        $evo_chance += 0.02 if $upcyc >= 3;
+        $evo_chance += ($upcyc_effects->{evolution_chance_bonus} // 0);
         if (rand() < $evo_chance) {
             return $self->_do_breakthrough($char, $artifact);
         }
@@ -246,7 +259,7 @@ sub push ($self, $char, %params) {
     my $gain = $artifact->{base_gain_min}
              + int(rand($artifact->{base_gain_max}
                       - $artifact->{base_gain_min} + 1));
-    $gain += ($upcyc >= 2 ? ($upcyc - 1) : 0);
+    $gain += ($upcyc_effects->{value_gain_bonus} // 0);
     $artifact->{value} += $gain;
 
     $artifact->{signal} = $self->_pick_signal($artifact, $artifact->{stage});

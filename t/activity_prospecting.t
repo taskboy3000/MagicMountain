@@ -7,6 +7,7 @@ use Test::More;
 use File::Temp qw(tempfile tempdir);
 use File::Slurp qw(write_file);
 use Mojo::JSON qw(encode_json decode_json);
+use YAML::XS;
 
 use_ok('MagicMountain::Activity::Prospecting');
 use_ok('TestCharacter');
@@ -29,6 +30,13 @@ use_ok('TestCharacter');
         return $item;
     }
     sub transcript { bless {}, 'FakeTranscript' }
+    sub skills_data {
+        my $self = shift;
+        state $skills = YAML::XS::LoadFile(
+            "$FindBin::Bin/../content/skills.yml"
+        )->{skills};
+        return $skills;
+    }
 }
 {
     package FakeTranscript;
@@ -529,6 +537,21 @@ subtest 'upcycling skill 2 adds value gain bonus on push' => sub {
         my $gain = $p->artifact->{value} - $val_before;
         is($gain, 4, 'gain = 3 + (2 - 1) = 4 with upcycling 2');
     }
+};
+
+subtest 'upcycling skill 4 reduces initial instability in _apply_defaults' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_upcycling => 4);
+
+    srand(0);
+    my $spec = $p->_find_spec('thermal_box_001');
+    my $artifact = { %$spec };
+    $p->_apply_defaults($artifact, $char);
+
+    # With skill_upcycling = 4, rand_instability = int(rand(8)) = 1 (srand(0)), then - 4 = -3, clamped to 0
+    # starting_instability is 0 for thermal_box_001, so total = 0 + 0
+    is($artifact->{instability}, 0, 'instability clamped to 0 with upcycling 4');
 };
 
 # ── Collapse edge cases ──────────────────────────────────────────────

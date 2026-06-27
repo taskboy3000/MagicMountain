@@ -168,7 +168,7 @@ skills:
   - id: prospecting              # Internal key, used in character columns
     name: Prospecting            # Display name
     description: "Find better..." # Shown in UI below name
-    max_level: 3                 # Maximum purchasable level (0–3)
+    max_level: 4                 # Maximum purchasable level (0–4)
     levels:                      # Cost per level (in scrap)
       - level: 1
         cost: 10
@@ -181,7 +181,7 @@ skills:
         description: "Eye for the unusual"
 ```
 
-### Mechanical effects (hardcoded, not in YAML)
+### Mechanical effects (upcycling effects now in YAML; prospecting, selling still hardcoded)
 
 | Skill | Level | Effect |
 |-------|-------|--------|
@@ -191,6 +191,7 @@ skills:
 | upcycling | 1 | instability growth −1 per push (min 1) |
 | upcycling | 2 | growth −2; value gain per push +1 |
 | upcycling | 3 | growth −3; value gain +2; `evolution_chance + 0.02` |
+| upcycling | 4 | initial instability −upcyc level; growth −4; value gain +3 |
 | selling | 1 | Estimate range narrowed from ±20% to ±15% at stop |
 | selling | 2 | No irritation gain on mismatches at market |
 | selling | 3 | Match mult 1.4× instead of 1.2×; reveals one desired behavior |

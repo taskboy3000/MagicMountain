@@ -245,7 +245,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
 | **Shed** (inventory manager) | ShedItem rows in `shed.json`, decay logic in `ShedManager.pm`, query/filter by traits | Market, Faction objects, Account model |
 | **Market** (customer generator) | Faction objects, content reference, customer generation | Character model, Account model, Shed |
-| **Model::Character** | File path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–3) | Market, Faction, Content, Shed, game math, artifact logic |
+| **Model::Character** | File path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–4) | Market, Faction, Content, Shed, game math, artifact logic |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
 | **Model::Season** | File path, column definitions, JSON CRUD, finalize class method | Per-player character data, game logic |
@@ -351,7 +351,7 @@ Survives across seasons. Contains no gameplay data.
 | standing | map | Per-faction reputation integer |
 | pending_activity_id | string or null | FK to activities.json row. null when idle |
 | skill_prospecting | integer | 0–3, Prospecting skill level |
-| skill_upcycling | integer | 0–3, Upcycling skill level |
+| skill_upcycling | integer | 0–4, Upcycling skill level |
 | skill_selling | integer | 0–3, Selling skill level |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
 | current_view | string | Last active view (idle/shed/factions/skills/account/market/prospecting). Managed by Nav controller — synced on every `/nav` response. Activity-only views invalidate when activity ends. |
@@ -368,7 +368,7 @@ Survives across seasons. Contains no gameplay data.
 - `score` never decreases
 - Attempting to start a prospecting or market activity without sufficient AP
   is a hard error
-- Skills are 0–3, inclusive
+- Skills are 0–4, inclusive
 
 **Property distinction:**
 - `score` = cumulative seasonal leaderboard value from artifact sales, never decreases
@@ -590,7 +590,7 @@ skills:
   - id: upcycling
     name: DEFRAG
     description: "Push protocol optimizer. Regulates artifact destabilization."
-    max_level: 3
+    max_level: 4
     levels:
       - level: 1
         cost: 100
@@ -601,6 +601,9 @@ skills:
       - level: 3
         cost: 500
         description: "resonance predictor — breakthrough probability enhancement"
+      - level: 4
+        cost: 1000
+        description: "phase cancellation array — reduces initial artifact instability"
   - id: selling
     name: UP-CEL
     description: "Negotiation coprocessor. Augments market interface."
@@ -1635,7 +1638,7 @@ skills:
   - id: upcycling
     name: Upcycling
     description: "Push artifacts further with greater control"
-    max_level: 3
+    max_level: 4
     levels:
       - level: 1
         cost: 10
@@ -1646,6 +1649,9 @@ skills:
       - level: 3
         cost: 50
         description: "Master's feel"
+      - level: 4
+        cost: 100
+        description: "Phase cancellation"
   - id: selling
     name: Selling
     description: "Read customers and close better deals"
@@ -1668,9 +1674,6 @@ skills:
 `faction_surge`, `faction_slump`, `faction_dominance`, `milestone`,
 `season_opening` (day 1), `daily_progress` (ranged by day percentage),
 and generic fallback messages. Loaded at startup by `Crier.pm`.
-
-**customer_offers.yml** (future): Per-faction customer offer text, tiered
-by match quality.
 
 **commission_triggers.yml**: Per-faction narrative text for commission
 issuance. Content-only — loaded by the Commission System when implemented.
@@ -2199,7 +2202,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Prospecting activity** | `Activity::Prospecting` | Push/collapse/breakthrough math, stop → shed entry, activity-owned persistence |
 | **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, settle rolls, irritation tracking, empty shed guard, skill effects |
 | **ShedItem model** | `Model::ShedItem` | `shed.json` CRUD, per-character queries |
-| **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skills 0–3 |
+| **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skills 0–4 |
 | **Character column expansion** | `Model::Character` | `action_points`, `action_points_max`, skill columns |
 | **Prospecting/Market controllers** | `Controller::Prospecting`, `Controller::Market` | Thin dispatch+render, no persistence |
 | **Shed controller** | `Controller::Shed` | `GET /shed` with query-string filtering (condition, artifact_id, behavior, min/max value, sort, order); `respond_to` JSON/HTML |
@@ -2370,7 +2373,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 magic_mountain/
 ├── AGENTS.md                      # Project guide for AI agents
 ├── GAME_ARCHITECTURE.md           # Target architecture spec (authoritative)
-├── FUTURES.md                     # Planned work beyond current implementation
+
 ├── Makefile                       # test, cover, indent targets
 ├── TUNING.md                      # Balance tuning reference
 ├── cpanfile                       # Perl dependencies (Mojolicious, YAML::XS, etc.)

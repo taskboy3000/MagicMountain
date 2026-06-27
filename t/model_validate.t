@@ -48,15 +48,15 @@ subtest 'action_points bounded by max' => sub {
     like($@, qr/invariant: action_points/, 'AP above max dies');
 };
 
-subtest 'skills clamped 0-3' => sub {
-    $char->setCol('skill_prospecting', 3);
-    is($char->getCol('skill_prospecting'), 3, 'skill 3 OK');
+subtest 'skills clamped 0-4' => sub {
+    $char->setCol('skill_prospecting', 4);
+    is($char->getCol('skill_prospecting'), 4, 'skill 4 OK (invariant relaxed)');
 
-    eval { $char->setCol('skill_prospecting', 4) };
-    like($@, qr/must be 0-3/, 'skill above 3 dies');
+    eval { $char->setCol('skill_prospecting', 5) };
+    like($@, qr/must be 0-4/, 'skill above 4 dies');
 
     eval { $char->setCol('skill_prospecting', -1) };
-    like($@, qr/must be 0-3/, 'skill below 0 dies');
+    like($@, qr/must be 0-4/, 'skill below 0 dies');
 };
 
 subtest 'non-invariant column passes through' => sub {

@@ -62,6 +62,24 @@ subtest 'score only increases after breakthrough-style cashout' => sub {
     like($@, qr/invariant: score/, 'score decrease dies');
 };
 
+subtest 'skill values 0-4 accepted, 5 rejected' => sub {
+    my $c = $model->create(
+        name => 'test4', account_id => 'a4', season_id => 's1',
+    );
+
+    $c->setCol('skill_upcycling', 0);
+    is($c->getCol('skill_upcycling'), 0, 'skill 0 OK');
+
+    $c->setCol('skill_upcycling', 4);
+    is($c->getCol('skill_upcycling'), 4, 'skill 4 OK');
+
+    eval { $c->setCol('skill_upcycling', 5) };
+    like($@, qr/must be 0-4/, 'skill above 4 dies');
+
+    eval { $c->setCol('skill_upcycling', -1) };
+    like($@, qr/must be 0-4/, 'skill below 0 dies');
+};
+
 subtest 'AP refresh respects action_points_max' => sub {
     my $c = $model->create(
         name => 'test3', account_id => 'a3', season_id => 's1',
