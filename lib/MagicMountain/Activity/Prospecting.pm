@@ -96,8 +96,12 @@ sub _decay_modifiers ($self, $artifact) {
 
 sub _apply_defaults ($self, $artifact, $char) {
     my $prosp = $char->getCol('skill_prospecting') // 0;
+    my $upcyc = $char->getCol('skill_upcycling')  // 0;
 
-    $artifact->{instability}                  = $artifact->{starting_instability} // 0;
+    my $rand_instability = int(rand(8));
+    $rand_instability -= $upcyc if $upcyc >= 4;
+    $rand_instability = 0 if $rand_instability < 0;
+    $artifact->{instability} = ($artifact->{starting_instability} // 0) + $rand_instability;
     $artifact->{push_count}                   = 0;
     $artifact->{has_evolved}                  = 0;
     $artifact->{value}                        = ($artifact->{base_value} // 5) + ($prosp >= 1 ? 2 : 0) + ($prosp >= 2 ? 2 : 0);
@@ -116,7 +120,7 @@ sub _apply_defaults ($self, $artifact, $char) {
     $artifact->{breakthrough_multiplier_min} //= 1.5;
     $artifact->{breakthrough_multiplier_max} //= 2.5;
     $artifact->{state_thresholds}           //= { stable => 0.30, strained => 0.65 };
-    $artifact->{stage}                       = 'stable';
+    $self->_update_stage($artifact);
     $artifact->{signal}                      = '';
     $artifact->{intro}                       = $artifact->{intro} // '';
     $artifact->{decay_modifiers}             = $self->_decay_modifiers($artifact);
@@ -167,7 +171,7 @@ sub begin ($self, $char, %params) {
     my $spec     = $self->_draw_artifact($char);
     my $artifact = { %$spec };
     $self->_apply_defaults($artifact, $char);
-    $artifact->{signal} = $self->_pick_signal($artifact, 'stable');
+    $artifact->{signal} = $self->_pick_signal($artifact, $artifact->{stage});
 
     $self->artifact($artifact);
     $self->phase('processing');

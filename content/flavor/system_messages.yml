@@ -8,3 +8,6 @@ unit_status:
   - "CAUTION: Mountain spatial instability is increasing"
   - "BATTERY: Degraded to 10% of factory spec. Service required."
   - "REGISTRATION: Could not contact registration authority.  Using LOCAL mode"
+  - "CAUTION: Unstable mineral pockets detected. Artifact integrity may vary significantly."
+  - "Seismic activity has destabilized shallow deposits. Handle extracted artifacts with care."
+  - "PROMETHEUS ALPHA: Geological surveys indicate pockets of heightened tectonic stress. Expected to impact recovery efforts."

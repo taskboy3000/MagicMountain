@@ -47,8 +47,9 @@ subtest 'begin — starts a new artifact' => sub {
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_is('/result' => 'start')
-      ->json_has('/artifact/id')
-      ->json_is('/artifact/stage' => 'stable');
+      ->json_has('/artifact/id');
+    my $stage = $t->tx->res->json->{artifact}{stage};
+    ok($stage eq 'stable' || $stage eq 'strained', "artifact stage is $stage");
 };
 
 subtest 'begin while processing fails' => sub {

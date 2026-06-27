@@ -194,7 +194,7 @@ subtest 'begin draws artifact and transitions to processing' => sub {
     is($char->{action_points}, 13, 'AP deducted (15 → 13)');
 
     my $artifact = $p->artifact;
-    ok($artifact->{instability} == 0, 'instability starts at 0');
+    ok($artifact->{instability} >= 0 && $artifact->{instability} <= 7, 'instability starts in range 0-7');
     ok($artifact->{push_count} == 0,  'push_count starts at 0');
     ok($artifact->{has_evolved} == 0, 'has_evolved is false');
 };
@@ -465,6 +465,7 @@ subtest 'upcycling skill reduces instability growth' => sub {
     $p->dispatch($char, 'begin');
 
     my $art = $p->artifact;
+    $art->{instability} = 0;
     $art->{instability_growth_min} = 2;
     $art->{instability_growth_max} = 2;
     $art->{can_evolve} = 0;
