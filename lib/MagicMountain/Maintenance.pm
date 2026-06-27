@@ -15,6 +15,24 @@ has next_run => sub ($self) {
 };
 
 has in_maintenance => 0;
+has _catching_up => 0;
+
+sub catch_up ($self, $missed_cycles) {
+    $self->in_maintenance(1);
+    $self->_catching_up(1);
+    for (1 .. $missed_cycles) {
+        $self->on_maintenance->($self);
+    }
+    $self->_catching_up(0);
+    $self->in_maintenance(0);
+}
+
+sub recent_maintenance_boundary ($self, $timestamp = undef) {
+    $timestamp //= $self->clock->();
+    my $boundary = $self->compute_next_maintenance_window($timestamp);
+    $boundary -= 86400;
+    return $boundary;
+}
 
 sub compute_next_maintenance_window ($self, $timestamp = undef) {
     $timestamp //= $self->clock->();

@@ -13,6 +13,10 @@ crier_messages:
   milestone:
     - "{faction} just received their {count}th artifact of the season. The Crier marks the occasion."
     - "A runner brings news: {faction} has taken in {count} artifacts this season. A notable tally."
+  time_warp:
+    - "WARNING: TIME WARP DETECTED. INVENTORY AFFECTED."
+    - "TEMPORAL ANOMALY: Maintenance log shows a gap. Assess inventory for decay."
+    - "ALERT: Cryo-sleep cycle detected. Deferred maintenance applied."
   season_opening:
     - "A new season dawns. The mountain stirs. Five factions circle."
     - "The gates open. Prospectors trickle in. The Bazaar readies itself."

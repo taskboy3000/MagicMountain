@@ -31,7 +31,12 @@ sub _pick ($self, $category, $params) {
     return $text;
 }
 
-sub generate ($self, $season) {
+sub generate ($self, $season, $opts = {}) {
+    if ($opts->{time_warp}) {
+        return $self->_pick('time_warp', {})
+            // $self->_pick('generic', {});
+    }
+
     my $current  = $season->getCol('faction_state') // {};
     my $snapshot = $season->getCol('crier_snapshot') // {};
     my $day      = $season->getCol('day') // 1;

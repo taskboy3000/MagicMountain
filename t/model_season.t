@@ -18,7 +18,7 @@ my $season = MagicMountain::Model::Season->new(file => $file);
 subtest 'columns extend defaults with length, day, end_of_day_hour, status, faction_state' => sub {
     is_deeply(
         $season->columns,
-        [qw{id updatedAt createdAt label length day end_of_day_hour status faction_state crier_message crier_snapshot}],
+        [qw{id updatedAt createdAt label length day end_of_day_hour status faction_state crier_message crier_snapshot last_maintenance}],
         'Season columns include all fields including faction_state and crier fields'
     );
 };

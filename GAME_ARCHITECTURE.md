@@ -1123,6 +1123,30 @@ receives the Maintenance object (`$self`). Implementation:
 8. Log transcript event with full faction_state.
 9. Preserve activity rows — in-progress prospecting survives rollover
 10. If `season.day > season_length`, emit a warning (season end is manual)
+11. Record `season.last_maintenance` as a Unix epoch timestamp for catch-up
+
+**Catch-up on server restart** (`_catch_up_maintenance`):
+
+When the application starts, it checks whether the active season's
+`last_maintenance` timestamp precedes the most recent end-of-day boundary.
+If so, it runs the `on_maintenance` callback once per missed cycle,
+advancing the season by the corresponding number of days.
+
+```
+last_maintenance < recent_boundary  →  missed = floor((boundary - last) / 86400) + 1
+                                      catch_up(missed)
+```
+
+During catch-up, the `on_maintenance` callback receives a `time_warp` signal.
+The Crier picks from a `time_warp` message template instead of the usual
+faction-diff logic, producing messages like "TIME WARP DETECTED".
+
+This handles both multi-day outages (server down for a week) and short
+overruns (server restarted minutes after midnight — the boundary check
+captures the window that was just missed).
+
+The `catch_up` method on `Maintenance.pm` sets the `in_maintenance` flag
+for the duration and clears it after all cycles complete.
 
 **Route gating during maintenance**:
 

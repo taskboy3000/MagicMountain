@@ -153,7 +153,8 @@ has maintenance => sub ($self) {
 
             $maint->app->shed_manager->apply_decay;
 
-            my $msg = $maint->app->crier->generate($season);
+            my $crier_opts = $maint->_catching_up ? { time_warp => 1 } : {};
+            my $msg = $maint->app->crier->generate($season, $crier_opts);
             $season->setCol('crier_message', $msg);
             $season->setCol('crier_snapshot', $season->getCol('faction_state'));
 
@@ -183,6 +184,7 @@ has maintenance => sub ($self) {
                     $day, $msg // 'no message'),
             }) if $maint->app->can('transcript') && $maint->app->transcript;
 
+            $season->setCol('last_maintenance', CORE::time);
             $season->save;
 
             my $length = $season->getCol('length');
@@ -343,6 +345,8 @@ sub startup ($self) {
         return $player_id;
     });
 
+    $self->_catch_up_maintenance;
+
     unless ($self->mode eq 'test') {
         Mojo::IOLoop->recurring(60 => sub {
             $self->maintenance->dailyMaintenance;
@@ -355,6 +359,23 @@ sub startup ($self) {
     }
 
     $self->buildRoutes;
+}
+
+sub _catch_up_maintenance ($self) {
+    my $season = $self->active_season;
+    return unless $season;
+
+    my $last = $season->getCol('last_maintenance');
+    return unless defined $last;
+
+    my $maint = $self->maintenance;
+    my $boundary = $maint->recent_maintenance_boundary;
+
+    if ($last < $boundary) {
+        my $missed = int(($boundary - $last) / 86400) + 1;
+        $self->log->info("Catch-up: $missed missed maintenance cycle(s)");
+        $maint->catch_up($missed);
+    }
 }
 
 sub buildRoutes ($self) {
