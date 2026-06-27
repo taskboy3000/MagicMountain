@@ -39,6 +39,30 @@ This constraint governs all UI design and content writing:
 
 The PB3K framing is not a lore decoration — it is a **design constraint** that prevents the UI from becoming a conventional game dashboard. Every feature must be implementable as a PB3K function or it does not belong in the device screen.
 
+The device screen is laid out as a fixed-chrome terminal display:
+
+```
+┌─ ProspectBoy 3000 // LOCAL NODE 07 ──── PB3K-0042 ─┐
+│  OPERATOR: player       DAY: 12/30   AP: 15  ...   │  ← status strip
+├─────────────────────────────────────────────────────┤
+│ [HOME] [PROSPECT] [BAZAAR] [FACTIONS] [CERTS] [...] │  ← nav bar
+├─────────────────────────────────────────────────────┤
+│  ┌─ Primary panel ──────────┐  ┌─ Secondary panel ┐ │
+│  │  (active view content)   │  │ (sub/reference)  │ │
+│  │                          │  │                  │ │
+│  └──────────────────────────┘  └──────────────────┘ │  ← two-pane content area
+├─────────────────────────────────────────────────────┤
+│  The air tastes faintly of ozone...                 │  ← context bar (town crier / status)
+└─────────────────────────────────────────────────────┘
+```
+
+Visual language:
+- **Monochrome amber** on black (`#c4b998` text, `#c49a4a` accents, `#0a0a0a` background) — references vintage terminal phosphor displays.
+- **Single monospace font** (IBM Plex Mono) throughout — no proportional fonts, no icon fonts. Small inline SVG icons for factions, artifacts, and portraits.
+- **Panels** are bordered containers with uppercase amber headers. Content is text and simple tables — no progress bars, no charts, no hover-reveal UI.
+- **204 No Content** renders as an empty panel (no "nothing here" message) — the PB3K simply has no data to display.
+- **Every interaction** is a button labeled with an action verb (PROSPECT, PUSH, STOP, OFFER) — no hyperlinks, no drag-and-drop, no double-click.
+
 ---
 
 ## 2. Core Gameplay Loop
