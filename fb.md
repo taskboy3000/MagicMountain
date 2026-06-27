@@ -1,13 +1,28 @@
-Review from the accessible repo files:
+Strong direction, but I’d change two things before implementation.
 
-The implementation is directionally right: it adds content/references.yml, a /reference/:id route, a Reference controller, a compact reference/show template, and reference_web.t coverage. That matches the PB3K registry idea.  
+The gameplay effect is likely positive: lightweight random events can add texture without bloating the loop. They should make prospecting/sales feel less spreadsheet-like and give the PB3K more voice.
 
-Main concern: Reference.pm still does lookup and display shaping in the controller: it pulls references_data, greps by ID, and constructs the icon URL. That is small, but architecturally it should probably move into a ReferenceRegistry service/view-model builder so the controller only does: get ID → ask registry → render.  
+Biggest concern: too many events are passive bonuses/penalties. That risks feeling like invisible variance. Best events should create a small decision:
 
-Second concern: references.yml is data-driven, which is good, but the text currently reads a little more like a lore encyclopedia than a terse PB3K field registry. I’d make entries shorter, more operational, and less declarative-history-heavy.  
+“This artifact is unstable but valuable. Stop or push?”
+“This buyer is irritable but paying hot rates. Offer more or cash out?”
 
-Good signs: the template is tiny and appears to simply render the entry, which is exactly the right direction. Tests cover auth, missing entries, fragment rendering, JSON rendering, and icon/body text presence.  
+Second concern: I would not allow YAML-defined Perl expressions for condition. That is dangerous and brittle. Use named condition keys instead:
 
-Suggested next pass for DeepSeek:
+condition: artifact_stage_unstable
+condition: faction_days_since_purchase_gte_3
+condition: customer_standing_gte_2
 
-Extract reference lookup/display construction into a ReferenceRegistry service. Keep controllers thin. Keep references.yml data-driven. Tighten entry prose toward short PB3K operational notes, not lore articles. Ensure clickable faction references are covered by tests and that missing IDs fail gracefully.
+Then Perl owns the condition registry. Much safer, more testable, more data-driven in the good way.
+
+I’d also be careful with the daily event log / Crier integration. It’s cool, but it violates the “no new infrastructure” spirit a bit. I’d defer it. Implement the event service first, then add Crier pattern detection only after the events feel good in play.
+
+My recommendation:
+
+1. Implement only prospecting + market event overlays first.
+2. Keep events transient and baked into artifact/customer state.
+3. Use a condition/effect registry, not eval.
+4. Start with maybe 6–10 total events.
+5. Add Crier/global pattern reporting later.
+
+Best part of the proposal: events fire alongside existing actions. That preserves your anti-attention-sink design. Worst risk: events become arbitrary noise instead of meaningful texture. Keep them rare enough that players notice.

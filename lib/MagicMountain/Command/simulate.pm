@@ -3,7 +3,6 @@ use Mojo::Base 'Mojolicious::Command', '-signatures';
 
 use Getopt::Long qw(GetOptionsFromArray);
 use File::Temp qw(tempdir);
-use File::Slurp qw(write_file);
 use YAML::XS qw(LoadFile);
 use MagicMountain::Model::Transcript;
 use MagicMountain::Model::Season;
