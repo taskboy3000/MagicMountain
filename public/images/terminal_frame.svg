@@ -33,21 +33,72 @@
   <!-- Property tag (bottom-right) -->
   <g transform="translate(70, 90.5)">
     <rect x="0" y="0" width="28" height="8" rx="0.5" fill="white" stroke="#3b5998" stroke-width="0.4"/>
-    <text x="1" y="2.8" font-family="monospace" font-size="1.0" fill="#3b5998" font-weight="bold">PROPERTY ID:</text>
-    <!-- Barcode bars -->
     <g fill="#111">
-      <rect x="1" y="3.5" width="0.6" height="3.5"/>
-      <rect x="2.2" y="3.5" width="0.3" height="3.5"/>
-      <rect x="3" y="3.5" width="0.7" height="3.5"/>
-      <rect x="4.3" y="3.5" width="0.3" height="3.5"/>
-      <rect x="5" y="3.5" width="0.5" height="3.5"/>
-      <rect x="6.2" y="3.5" width="0.8" height="3.5"/>
-      <rect x="7.5" y="3.5" width="0.3" height="3.5"/>
-      <rect x="8.2" y="3.5" width="0.6" height="3.5"/>
-      <rect x="9.3" y="3.5" width="0.4" height="3.5"/>
-      <rect x="10.2" y="3.5" width="0.7" height="3.5"/>
-      <rect x="11.4" y="3.5" width="0.3" height="3.5"/>
-      <rect x="12" y="3.5" width="0.5" height="3.5"/>
+      <rect x="3.20" y="1.5" width="0.16" height="5"/>
+      <rect x="3.42" y="1.5" width="0.16" height="5"/>
+      <rect x="3.64" y="1.5" width="0.36" height="5"/>
+      <rect x="4.06" y="1.5" width="0.36" height="5"/>
+      <rect x="4.58" y="1.5" width="0.16" height="5"/>
+      <rect x="4.80" y="1.5" width="0.16" height="5"/>
+      <rect x="5.02" y="1.5" width="0.16" height="5"/>
+      <rect x="5.24" y="1.5" width="0.36" height="5"/>
+      <rect x="5.76" y="1.5" width="0.36" height="5"/>
+      <rect x="6.18" y="1.5" width="0.16" height="5"/>
+      <rect x="6.40" y="1.5" width="0.36" height="5"/>
+      <rect x="6.82" y="1.5" width="0.16" height="5"/>
+      <rect x="7.14" y="1.5" width="0.16" height="5"/>
+      <rect x="7.36" y="1.5" width="0.16" height="5"/>
+      <rect x="7.58" y="1.5" width="0.36" height="5"/>
+      <rect x="8.00" y="1.5" width="0.16" height="5"/>
+      <rect x="8.22" y="1.5" width="0.36" height="5"/>
+      <rect x="8.64" y="1.5" width="0.16" height="5"/>
+      <rect x="8.96" y="1.5" width="0.36" height="5"/>
+      <rect x="9.38" y="1.5" width="0.16" height="5"/>
+      <rect x="9.60" y="1.5" width="0.36" height="5"/>
+      <rect x="10.02" y="1.5" width="0.16" height="5"/>
+      <rect x="10.24" y="1.5" width="0.16" height="5"/>
+      <rect x="10.56" y="1.5" width="0.16" height="5"/>
+      <rect x="10.78" y="1.5" width="0.36" height="5"/>
+      <rect x="11.20" y="1.5" width="0.16" height="5"/>
+      <rect x="11.42" y="1.5" width="0.36" height="5"/>
+      <rect x="11.94" y="1.5" width="0.16" height="5"/>
+      <rect x="12.16" y="1.5" width="0.16" height="5"/>
+      <rect x="12.38" y="1.5" width="0.36" height="5"/>
+      <rect x="12.80" y="1.5" width="0.36" height="5"/>
+      <rect x="13.22" y="1.5" width="0.16" height="5"/>
+      <rect x="13.44" y="1.5" width="0.36" height="5"/>
+      <rect x="13.96" y="1.5" width="0.16" height="5"/>
+      <rect x="14.18" y="1.5" width="0.16" height="5"/>
+      <rect x="14.40" y="1.5" width="0.36" height="5"/>
+      <rect x="14.82" y="1.5" width="0.16" height="5"/>
+      <rect x="15.04" y="1.5" width="0.36" height="5"/>
+      <rect x="15.46" y="1.5" width="0.16" height="5"/>
+      <rect x="15.78" y="1.5" width="0.16" height="5"/>
+      <rect x="16.00" y="1.5" width="0.36" height="5"/>
+      <rect x="16.52" y="1.5" width="0.36" height="5"/>
+      <rect x="16.94" y="1.5" width="0.16" height="5"/>
+      <rect x="17.16" y="1.5" width="0.16" height="5"/>
+      <rect x="17.38" y="1.5" width="0.16" height="5"/>
+      <rect x="17.60" y="1.5" width="0.16" height="5"/>
+      <rect x="17.92" y="1.5" width="0.16" height="5"/>
+      <rect x="18.14" y="1.5" width="0.36" height="5"/>
+      <rect x="18.56" y="1.5" width="0.36" height="5"/>
+      <rect x="18.98" y="1.5" width="0.16" height="5"/>
+      <rect x="19.20" y="1.5" width="0.16" height="5"/>
+      <rect x="19.52" y="1.5" width="0.16" height="5"/>
+      <rect x="19.74" y="1.5" width="0.36" height="5"/>
+      <rect x="20.16" y="1.5" width="0.36" height="5"/>
+      <rect x="20.58" y="1.5" width="0.16" height="5"/>
+      <rect x="20.80" y="1.5" width="0.16" height="5"/>
+      <rect x="21.12" y="1.5" width="0.16" height="5"/>
+      <rect x="21.34" y="1.5" width="0.36" height="5"/>
+      <rect x="21.76" y="1.5" width="0.36" height="5"/>
+      <rect x="22.18" y="1.5" width="0.16" height="5"/>
+      <rect x="22.40" y="1.5" width="0.16" height="5"/>
+      <rect x="22.62" y="1.5" width="0.16" height="5"/>
+      <rect x="22.84" y="1.5" width="0.36" height="5"/>
+      <rect x="23.26" y="1.5" width="0.36" height="5"/>
+      <rect x="23.78" y="1.5" width="0.16" height="5"/>
     </g>
   </g>
 </svg>

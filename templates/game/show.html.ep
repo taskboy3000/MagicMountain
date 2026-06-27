@@ -1,9 +1,21 @@
 <div id="terminal-frame">
 <div class="vents"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
 <div class="property-tag">
-  <div>PROPERTY ID:</div>
-  <div>PB3K-0042</div>
-  <div class="barcode"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+  <div class="barcode">
+    <span class="n s"></span><span class="n s"></span><span class="w s"></span><span class="w ws"></span><span class="n g"></span>
+    <span class="n s"></span><span class="n s"></span><span class="w ws"></span><span class="w s"></span><span class="n g"></span>
+    <span class="w s"></span><span class="n ws"></span><span class="n s"></span><span class="n s"></span><span class="w g"></span>
+    <span class="n s"></span><span class="w s"></span><span class="n ws"></span><span class="w s"></span><span class="n g"></span>
+    <span class="w s"></span><span class="n s"></span><span class="n ws"></span><span class="n s"></span><span class="w g"></span>
+    <span class="n s"></span><span class="w ws"></span><span class="n s"></span><span class="n s"></span><span class="w g"></span>
+    <span class="w s"></span><span class="n s"></span><span class="w ws"></span><span class="n s"></span><span class="n g"></span>
+    <span class="w s"></span><span class="n s"></span><span class="w s"></span><span class="n ws"></span><span class="n g"></span>
+    <span class="w ws"></span><span class="w s"></span><span class="n s"></span><span class="n s"></span><span class="n g"></span>
+    <span class="n ws"></span><span class="n s"></span><span class="w s"></span><span class="w s"></span><span class="n g"></span>
+    <span class="n ws"></span><span class="n s"></span><span class="w s"></span><span class="w s"></span><span class="n g"></span>
+    <span class="n ws"></span><span class="n s"></span><span class="w s"></span><span class="w s"></span><span class="n g"></span>
+    <span class="n s"></span><span class="n s"></span><span class="w s"></span><span class="w ws"></span><span class="n g"></span>
+  </div>
 </div>
 <div id="device-frame">
   <div id="device-header">

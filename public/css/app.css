@@ -231,14 +231,20 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 }
 .property-tag .barcode {
   display: flex;
-  gap: 0.5px;
-  margin-top: 0.5px;
+  height: 7px;
+  align-items: flex-end;
 }
 .property-tag .barcode span {
   display: block;
-  height: 7px;
+  height: 100%;
   background: #111;
+  flex-shrink: 0;
 }
+.property-tag .barcode span.n { width: 1px; }
+.property-tag .barcode span.w { width: 2.5px; }
+.property-tag .barcode span.s { margin-right: 0.5px; }
+.property-tag .barcode span.ws { margin-right: 1.5px; }
+.property-tag .barcode span.g { margin-right: 0.5px; }
 
 #device-header {
   border-bottom: 1px solid var(--mm-border);
