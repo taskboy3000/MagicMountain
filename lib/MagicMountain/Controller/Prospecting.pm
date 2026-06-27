@@ -15,7 +15,7 @@ sub show ($self) {
 
     my @actions = (
         { label => 'Push', attrs => { 'data-action-url' => '/prospecting/push', 'data-method' => 'POST', id => 'btn-push', class => 'mm-btn mm-btn-primary' } },
-        { label => 'Stop', attrs => { 'data-action-url' => '/prospecting/stop', 'data-method' => 'POST', id => 'btn-stop', class => 'mm-btn' } },
+        { label => 'Stop', attrs => { 'data-action-url' => '/prospecting/stop', 'data-method' => 'POST', id => 'btn-stop', class => 'mm-btn mm-btn-primary' } },
     );
 
     my $format = $self->param('_format');
