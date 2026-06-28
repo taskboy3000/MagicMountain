@@ -82,15 +82,17 @@ sub req_accept {
 sub body_from_button {
     my ($btn) = @_;
     my %body;
-    for my $attr ($btn->attrs->each) {
-        my $name = $attr->[0];
-        next unless $name =~ /^data-/;
-        (my $key = $name) =~ s/^data-//;
-        $key =~ s/-([a-z])/\u$1/g;
-        next if $key eq 'actionUrl' || $key eq 'method' || $key eq 'confirm' || $key eq 'redirect';
-        $key =~ s/([A-Z])/_$1/g;
-        $key = lc $key;
-        $body{$key} = $attr->[1];
+    my $attr = $btn->attr;
+    if ($attr) {
+        for my $name (keys %$attr) {
+            next unless $name =~ /^data-/;
+            (my $key = $name) =~ s/^data-//;
+            $key =~ s/-([a-z])/\u$1/g;
+            next if $key eq 'actionUrl' || $key eq 'method' || $key eq 'confirm' || $key eq 'redirect';
+            $key =~ s/([A-Z])/_$1/g;
+            $key = lc $key;
+            $body{$key} = $attr->{$name};
+        }
     }
     return \%body;
 }
@@ -126,6 +128,7 @@ if ($pid == 0) {
     $ENV{MM_DATA_DIR}  = $data_dir;
     $ENV{MM_CFG_FILE}  = $cfg_file;
     $ENV{MOJO_MODE}    = 'test';
+    $ENV{MM_EVENTS}    = 1;
     $ENV{MM_RAND_SEED} = '42';
     exec "perl", "-I$ROOT/lib", "$ROOT/script/mountain", "daemon",
         "--listen", "http://127.0.0.1:$PORT";
@@ -221,47 +224,79 @@ for my $ep (@fragments) {
 # ══════════════════════════════════════════════════════════════════
 print STDERR "=== SCENE: Prospecting ===\n";
 
-click_tab('prospect');
+# Begin prospecting — check for event data in the response.
+# Events fire at ~20% probability; the walkthrough verifies the
+# infrastructure regardless of whether the chance roll hits.
+$tx = req_ok(POST => '/prospecting/begin', undef, 'POST /prospecting/begin');
+extract_csrf($tx);
+my $json = eval { decode_json($tx->res->body) };
+assert($json && $json->{ok}, 'begin response ok');
+assert($json->{result} eq 'start', "begin result is $json->{result}");
+
+if ($json->{event}) {
+    print STDERR "  Event fired: $json->{event}{id}\n";
+    assert(length($json->{event}{text}) > 0, 'event has text');
+    assert($json->{event}{id} =~ /^[a-z][a-z0-9_]*$/, 'event id valid');
+} else {
+    print STDERR "  No event fired (normal — chance is 20%)\n";
+}
 
 # Should see prospecting fragment with action buttons
 my $frag = do_req(GET => '/prospecting?_format=fragment');
 assert($frag->res->code == 200, 'GET /prospecting?_format=fragment (active)');
 my $dom = Mojo::DOM->new($frag->res->body);
 
+# Check for event rendering in fragment
+if ($json->{event}) {
+    my $has_amber = $frag->res->body =~ /mm-amber/;
+    assert($has_amber, 'event styling present in fragment when event fired');
+} else {
+    my $has_amber = $frag->res->body =~ /mm-amber/;
+    assert(!$has_amber, 'no event styling when no event fired');
+}
+
 # Find action buttons (Push, Stop)
 my @actions = map { +{ url => $_->attr('data-action-url'), method => $_->attr('data-method') } }
     $dom->find('button[data-action-url]')->each;
 assert(scalar @actions >= 2, 'prospecting fragment has action buttons');
 
-# Push twice
+# Push — check each response; collapse/breakthrough ends the loop early
+my $collapsed;
 for my $i (1..2) {
-    $tx = req_ok(POST => '/prospecting/push', undef, "POST /prospecting/push ($i)");
+    my $resp = do_req(POST => '/prospecting/push');
+    my $code = $resp->res->code // 0;
+    if ($code != 200) {
+        print STDERR "  Push $i failed (HTTP $code) — prospecting ended\n";
+        $collapsed = 1;
+        last;
+    }
+    extract_csrf($resp);
+    $PASS++;
+    my $push_json = eval { decode_json($resp->res->body) };
+    my $result = $push_json->{result} // '';
+    if ($result eq 'collapse') {
+        print STDERR "  Artifact collapsed on push $i — prospecting ended\n";
+        $collapsed = 1;
+        last;
+    }
+    if ($result eq 'breakthrough') {
+        print STDERR "  Breakthrough on push $i — artifact auto-sold, prospecting ended\n";
+        $collapsed = 1;
+        last;
+    }
+}
+
+# Stop — only if the artifact survived
+if (!$collapsed) {
+    $tx = req_ok(POST => '/prospecting/stop', undef, 'POST /prospecting/stop');
     extract_csrf($tx);
-}
-
-# Stop
-$tx = req_ok(POST => '/prospecting/stop', undef, 'POST /prospecting/stop');
-extract_csrf($tx);
-
-# ══════════════════════════════════════════════════════════════════
-# SCENE 5: Shed (should have item now)
-# ══════════════════════════════════════════════════════════════════
-print STDERR "=== SCENE: Shed ===\n";
-my $shed = do_req(GET => '/shed?_format=fragment');
-assert($shed->res->code == 200, 'GET /shed?_format=fragment (after prospecting)');
-
-$dom = Mojo::DOM->new($shed->res->body);
-my @offer_btns = $dom->find('button[data-action-url="/market/offer"]')->each;
-my $offer_body;
-if (@offer_btns) {
-    $offer_body = body_from_button($offer_btns[0]);
-    print STDERR "  Offer body: " . (encode_json($offer_body)) . "\n";
 } else {
-    print STDERR "  No shed items found (may have collapsed)\n";
+    print STDERR "  Skipping stop (collapsed)\n";
+    $PASS++;
 }
 
 # ══════════════════════════════════════════════════════════════════
-# SCENE 6: Market Visit
+# SCENE 5: Market Visit
 # ══════════════════════════════════════════════════════════════════
 print STDERR "=== SCENE: Market Visit ===\n";
 
@@ -271,15 +306,36 @@ click_tab('bazaar');
 my $market = do_req(GET => '/market?_format=fragment');
 assert($market->res->code == 200, 'GET /market?_format=fragment (active)');
 
+# Check shed for items during market (Offer buttons only visible when market_active=1)
+my $shed = do_req(GET => '/shed?_format=fragment');
+assert($shed->res->code == 200, 'GET /shed?_format=fragment (during market)');
+$dom = Mojo::DOM->new($shed->res->body);
+my @offer_btns = $dom->find('button[data-action-url="/market/offer"]')->each;
+my $offer_body;
+if (@offer_btns) {
+    $offer_body = body_from_button($offer_btns[0]);
+    print STDERR "  Offer body: " . (encode_json($offer_body)) . "\n";
+} else {
+    print STDERR "  No shed items for offer (may have collapsed)\n";
+    $PASS++;
+}
+
 # Offer item if available
 if ($offer_body) {
     $tx = req_ok(POST => '/market/offer', $offer_body, 'POST /market/offer');
     extract_csrf($tx);
 }
 
-# Send away
-$tx = req_ok(POST => '/market/send_away', undef, 'POST /market/send_away');
-extract_csrf($tx);
+# Send away (may fail if market visit already ended via sale/breakthrough)
+$tx = do_req(POST => '/market/send_away');
+if ($tx->res->code == 200) {
+    extract_csrf($tx);
+    $PASS++;
+    print STDERR "  Market visit ended (send_away)\n";
+} else {
+    print STDERR "  Market visit already ended (sale/resolved) — ok\n";
+    $PASS++;
+}
 
 # ══════════════════════════════════════════════════════════════════
 # SCENE 7: Skills

@@ -30,4 +30,15 @@ sub validate ($self, $col, $val) {
     }
 }
 
+sub add_scrap ($self, $n) {
+    my $scrap = $self->getCol('scrap') + $n;
+    $scrap = 0 if $scrap < 0;
+    $self->setCol('scrap', $scrap);
+}
+
+sub add_score ($self, $n) {
+    my $score = $self->getCol('score') + $n;
+    $self->setCol('score', $score);
+}
+
 1;

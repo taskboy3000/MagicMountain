@@ -202,20 +202,51 @@ sub begin ($self, $char, %params) {
             $artifact->{id}, $artifact->{value}, $artifact->{instability}),
     });
 
-    return {
-        view => {
-            ok       => 1,
-            result   => 'start',
-            artifact => {
-                id     => $artifact->{id},
-                stage  => $artifact->{stage},
-                value  => $artifact->{value},
-                signal => $artifact->{signal},
-                intro  => $artifact->{intro},
+    my $event_view;
+    if ($self->app->can('random_events')) {
+        my $event = $self->app->random_events->draw(
+            pool    => 'prospecting',
+            trigger => 'begin',
+            context => {
+                artifact => $artifact,
+                char     => $char,
+                season   => $self->app->can('active_season') ? $self->app->active_season : undef,
             },
-            player => $self->_player_snapshot($char),
+        );
+        if ($event) {
+            $event_view = { id => $event->{id}, text => $event->{text} };
+            $artifact->{_event_text} = $event->{text};
+            $self->artifact($artifact);
+            $self->save;
+            $char->save;
+
+            my $name = $char->getCol('name') // 'unknown';
+            $self->app->log->info(
+                sprintf("Random event [%s] %s — %s", $event->{id}, $name, $event->{text})
+            );
+            $self->_log_event($char, {
+                type        => 'random_event',
+                event_id    => $event->{id},
+                narrative   => sprintf("%s encountered %s: %s", $name, $event->{id}, $event->{text}),
+            });
+        }
+    }
+
+    my $view = {
+        ok       => 1,
+        result   => 'start',
+        artifact => {
+            id     => $artifact->{id},
+            stage  => $artifact->{stage},
+            value  => $artifact->{value},
+            signal => $artifact->{signal},
+            intro  => $artifact->{intro},
         },
+        player => $self->_player_snapshot($char),
     };
+    $view->{event} = $event_view if $event_view;
+
+    return { view => $view };
 }
 
 # ── push ──────────────────────────────────────────────────────────────
@@ -237,7 +268,7 @@ sub push ($self, $char, %params) {
     $self->_update_stage($artifact);
 
     my $ratio           = $artifact->{instability} / $artifact->{max_instability};
-    my $collapse_chance = ($ratio ** 3) * 0.95;
+    my $collapse_chance = ($ratio ** 3) * 0.80;
     $collapse_chance    = 1.0  if $collapse_chance > 1.0;
 
 

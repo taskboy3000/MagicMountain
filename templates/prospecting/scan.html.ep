@@ -14,5 +14,9 @@
 % if ($artifact->signal) {
     <p style="font-style:italic;color:var(--mm-text-dim);font-size:0.78rem"><%= $artifact->signal %></p>
 % }
+% if (my $ev = stash 'event') {
+    <hr style="border-color:var(--mm-bg-light);margin-top:1rem;margin-bottom:0.5rem">
+    <p style="color:var(--mm-amber);font-size:0.72rem;font-family:var(--mm-font);text-transform:uppercase;letter-spacing:0.05em"><%= $ev->{text} %></p>
+% }
   </div>
 </div>

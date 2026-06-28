@@ -37,6 +37,16 @@ use_ok('TestCharacter');
         )->{skills};
         return $skills;
     }
+    sub random_events {
+        my $self = shift;
+        $self->{_random_events} //= do {
+            bless { app => $self }, 'FakeRandomEvents';
+        };
+    }
+}
+{
+    package FakeRandomEvents;
+    sub draw { undef }
 }
 {
     package FakeTranscript;
@@ -507,7 +517,7 @@ subtest 'upcycling skill 3 increases evolution chance by 0.02' => sub {
     # Set ratio high enough to pass evolution_threshold check
     $art->{instability} = $art->{max_instability} * 0.5;
 
-    # Seed so collapse doesn't trigger (ratio^3 = 0.125 * 0.95 = 0.118, need rand > 0.118)
+    # Seed so collapse doesn't trigger (ratio^3 = 0.125 * 0.80 = 0.10, need rand > 0.10)
     srand(99);
     my $r = $p->dispatch($char, 'push');
     # If we got a breakthrough, the 0.02 bonus was applied (0.03 + 0.02 = 0.05 base evo chance)
