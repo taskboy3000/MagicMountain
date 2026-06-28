@@ -8,7 +8,7 @@
 % for my $e (@$entries) {
         <tr>
           <td>#<%= $e->{rank} %></td>
-          <td><%= $e->{name} %></td>
+          <td><%= $e->{name} %><% if ($e->{badge}) { %> <span class="mm-npc-badge"><%= $e->{badge} %></span><% } %></td>
           <td><%= $e->{score} %></td>
         </tr>
 % }

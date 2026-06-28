@@ -1,5 +1,6 @@
-package MagicMountain::Service::GameOrchestrator;
+package MagicMountain::Service::SeasonManager;
 use Mojo::Base '-base', '-signatures';
+use YAML::XS qw(LoadFile);
 
 has app => sub { die "app is required" };
 
@@ -50,6 +51,8 @@ sub ensure_season ($self, $player_id) {
             status          => 'active',
         );
         $season->save;
+
+        $self->seed_bots($season);
     }
 
     return ($season, $season_recap);
@@ -81,76 +84,44 @@ sub ensure_character ($self, $account, $season) {
     return $char_model;
 }
 
-sub prospecting_view ($self, $char) {
-    my $id = $char->getCol('pending_activity_id') or return undef;
-    $self->app->prospecting->load;
-    my $type = $self->app->prospecting->table->{$id}{type} // '';
-    return undef unless $type eq 'prospecting';
+sub seed_bots ($self, $season) {
+    my $bots_cfg = $self->app->config->{bots} // {};
+    my $count    = $bots_cfg->{count} // 0;
+    return unless $count > 0;
 
-    my $activity = $self->app->prospecting->get($id);
-    return undef unless $activity && $activity->phase ne 'idle';
+    my $profile_list = $bots_cfg->{profiles} // [];
+    return unless @$profile_list;
 
-    my $a = $activity->artifact;
-    return {
-        id     => $a->{id},
-        stage  => $a->{stage},
-        value  => $a->{value},
-        signal => $a->{signal},
-        intro  => $a->{intro},
-    };
-}
+    my $file = $self->app->home . '/content/bots.yml';
+    return unless -e $file;
+    my $profiles = LoadFile($file);
+    my %by_id = map { $_->{id} => $_ } @$profiles;
 
-sub market_view ($self, $char) {
-    my $id = $char->getCol('pending_activity_id') or return undef;
-    $self->app->prospecting->load;
-    my $type = $self->app->prospecting->table->{$id}{type} // '';
-    return undef unless $type eq 'market_visit';
+    my $bot_ap = $bots_cfg->{action_points} // $self->app->config->{default_action_points} // 15;
+    my $season_id = $season->getCol('id');
+    my $accts = $self->app->accounts;
+    my $chars = $self->app->characters;
 
-    my $activity = $self->app->market->get($id);
-    return undef unless $activity && $activity->phase ne 'idle';
+    for my $i (1 .. $count) {
+        my $profile_id = $profile_list->[($i - 1) % @$profile_list]{id};
+        my $profile    = $by_id{$profile_id} or next;
 
-    my $c = $activity->customer;
-    my $pressure_state = $c ? $activity->budget_pressure_state($c)->{state} : undef;
+        my $name = sprintf("bot-%s-%03d", $profile_id, $i);
+        my $a = $accts->create(username => $name);
+        $a->save;
 
-    return {
-        customer => {
-            faction_id      => $c->{faction_id},
-            faction_name    => $c->{faction_name},
-            disposition     => $c->{disposition} // 'unknown',
-            ($c->{pending_counter}
-                ? (pending_counter => $c->{pending_counter})
-                : ()),
-        },
-        irritation     => $c->{irritation} // 0,
-        pressure_state => $pressure_state,
-    };
-}
-
-sub shed_items ($self, $char) {
-    my $char_id = $char->getCol('id') or return [];
-    my $items = $self->app->shed->find(
-        sub { $_[0]->{char_id} eq $char_id }
-    );
-    my @result;
-    for my $item (@$items) {
-        push @result, {
-            id                   => $item->getCol('id'),
-            artifact_id          => $item->getCol('artifact_id'),
-            condition            => $item->getCol('condition'),
-            days_in_shed         => $item->getCol('days_in_shed'),
-            estimated_value_min  => $item->getCol('estimated_value_min'),
-            estimated_value_max  => $item->getCol('estimated_value_max'),
-        };
+        $chars->create(
+            name              => $name,
+            account_id        => $a->getCol('id'),
+            season_id         => $season_id,
+            score             => 0,
+            scrap             => 0,
+            action_points     => $bot_ap,
+            action_points_max => $bot_ap,
+            is_bot            => 1,
+            bot_profile_id    => $profile_id,
+        )->save;
     }
-    return \@result;
-}
-
-sub player_skills ($self, $char) {
-    my $skills = $self->app->skills_data;
-    for my $s (@$skills) {
-        $s->{current_level} = $char->getCol('skill_' . $s->{id}) // 0;
-    }
-    return $skills;
 }
 
 1;

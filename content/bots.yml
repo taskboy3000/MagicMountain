@@ -51,4 +51,3 @@
   push_policy: { name: "value_target", params: { min: 30 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0 } }
   skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }
-  skill_profile: { prospecting: 0, upcycling: 0, selling: 0 }

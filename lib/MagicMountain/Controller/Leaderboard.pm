@@ -18,6 +18,8 @@ sub index ($self) {
             rank  => $i + 1,
             name  => $sorted[$i]->getCol('name'),
             score => $sorted[$i]->getCol('score') // 0,
+            bot   => $sorted[$i]->getCol('is_bot') ? 1 : 0,
+            badge => $sorted[$i]->getCol('is_bot') ? 'NPC' : undef,
         };
     }
 

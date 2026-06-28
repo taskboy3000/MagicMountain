@@ -72,6 +72,10 @@ sub run ($self, @args) {
         }
     }
 
+    require MagicMountain::Service::SeasonManager;
+    MagicMountain::Service::SeasonManager->new(app => $self->app)
+        ->seed_bots($season);
+
     say "Season created:";
     say "  id:              " . $season->getCol('id');
     say "  label:           " . $season->getCol('label');

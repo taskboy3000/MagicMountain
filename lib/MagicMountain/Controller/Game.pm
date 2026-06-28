@@ -3,7 +3,7 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 use Mojo::JSON qw(encode_json);
 use YAML::XS qw(LoadFile);
 
-use MagicMountain::Service::GameOrchestrator;
+use MagicMountain::Service::SeasonManager;
 
 sub show ($self) {
     my $player_id = $self->current_player;
@@ -24,15 +24,15 @@ sub show ($self) {
     my $sess = $self->app->session_store->find_by_player_id($player_id);
     my $node_number = $sess ? $sess->getCol('node_number') // '07' : '07';
 
-    my $orch = MagicMountain::Service::GameOrchestrator->new(app => $self->app);
-    my ($season, $season_recap) = $orch->ensure_season($player_id);
-    my $char_model = $orch->ensure_character($account, $season);
+    my $season_mgr = MagicMountain::Service::SeasonManager->new(app => $self->app);
+    my ($season, $season_recap) = $season_mgr->ensure_season($player_id);
+    my $char_model = $season_mgr->ensure_character($account, $season);
 
     my $row = $char_model->row;
-    my $prospecting_view = $orch->prospecting_view($char_model);
-    my $market_view      = $orch->market_view($char_model);
-    my $skills           = $orch->player_skills($char_model);
-    my $shed_items       = $orch->shed_items($char_model);
+    my $prospecting_view = $char_model->prospecting_view;
+    my $market_view      = $char_model->market_view;
+    my $skills           = $char_model->player_skills;
+    my $shed_items       = $char_model->shed_items;
 
     my $activity;
     my $id = $row->{pending_activity_id};

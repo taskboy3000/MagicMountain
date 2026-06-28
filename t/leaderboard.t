@@ -34,8 +34,8 @@ $t->get_ok('/leaderboard')
   ->status_is(200)
   ->json_is('/ok' => 1)
   ->json_has('/leaderboard')
-  ->json_is('/leaderboard/0/rank'  => 1)->json_is('/leaderboard/0/name'  => 'bob')  ->json_is('/leaderboard/0/score' => 50)
-  ->json_is('/leaderboard/1/rank'  => 2)->json_is('/leaderboard/1/name'  => 'alice')->json_is('/leaderboard/1/score' => 30)
-  ->json_is('/leaderboard/2/rank'  => 3)->json_is('/leaderboard/2/name'  => 'carol')  ->json_is('/leaderboard/2/score' => 20);
+  ->json_is('/leaderboard/0/rank'  => 1)->json_is('/leaderboard/0/name'  => 'bob')  ->json_is('/leaderboard/0/score' => 50)->json_is('/leaderboard/0/bot' => 0)->json_is('/leaderboard/0/badge' => undef)
+  ->json_is('/leaderboard/1/rank'  => 2)->json_is('/leaderboard/1/name'  => 'alice')->json_is('/leaderboard/1/score' => 30)->json_is('/leaderboard/1/bot' => 0)->json_is('/leaderboard/1/badge' => undef)
+  ->json_is('/leaderboard/2/rank'  => 3)->json_is('/leaderboard/2/name'  => 'carol')  ->json_is('/leaderboard/2/score' => 20)->json_is('/leaderboard/2/bot' => 0)->json_is('/leaderboard/2/badge' => undef);
 
 done_testing;;

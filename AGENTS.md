@@ -110,6 +110,10 @@ make cover && make report                                      # coverage (85%+ 
 - **Formatting**: Run `make indent && make clean` before every commit.
 - **Coverage**: Run `make cover && make report` before every commit. All
   `lib/*.pm` files must stay at or above **85%** statement coverage.
+- **TUNING.md**: When adding or changing defaults in `defaultConfig` (in
+  `MagicMountain.pm`), update `docs/TUNING.md §1` to match. When adding
+  parameters to content YAML files, update the corresponding section.
+  `TUNING.md` is the admin-facing reference — it must stay accurate.
 - **Dead code elimination**: Remove unreachable code on sight. Annotate false
   positives with `# DEAD-SUPPRESS: <reason>`.
 - **Self-describing buttons**: Every action button carries `data-action-url`

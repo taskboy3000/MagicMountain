@@ -59,6 +59,23 @@ subtest 'transcript has expected events' => sub {
     ok($types{sim_end},       'sim_end logged');
 };
 
+subtest 'maintenance ran during simulation' => sub {
+    my $app = $t->app;
+    my $outfile = "$data_dir/maint_test.jsonl";
+    my $cmd = MagicMountain::Command::simulate->new(app => $app);
+    eval { $cmd->run('--count', 2, '--days', 5, '--seed', 17, '--output', $outfile) };
+    diag("Simulation error: $@") if $@;
+
+    my @lines = read_file($outfile);
+    my $snapshot_count = 0;
+    for my $line (@lines) {
+        my $ev = decode_json($line);
+        $snapshot_count++ if ($ev->{type} // '') eq 'faction_snapshot';
+    }
+    cmp_ok $snapshot_count, '==', 4,
+        '4 maintenance cycles for a 5-day simulation';
+};
+
 subtest 'sale events include budget pressure fields' => sub {
     my $app = $t->app;
     my $outfile = "$data_dir/budget_test.jsonl";

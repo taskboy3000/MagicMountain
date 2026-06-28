@@ -12,12 +12,45 @@ what it affects. Refer to this when adjusting game balance.
 
 | Key | Default | What it controls |
 |-----|---------|------------------|
+| `secrets` | `[override-me]` | Session cookie signing key. **Set a real value in production.** |
 | `end_of_day_hour` | `0` (midnight) | Hour (0–23) when daily maintenance fires. AP refresh, decay, Crier. |
 | `maintenance_window_minutes` | `5` | How long write routes return 503 during maintenance. |
 | `session_timeout_minutes` | `60` | Minutes of inactivity before a session expires. |
 | `default_season_length` | `30` | Days in a season before end is recommended (not enforced — admin-triggered). |
-| `default_action_points` | `15` | Daily AP cap for all players. |
-| `secrets` | `[override-me]` | Session cookie signing key. **Set a real value in production.** |
+| `default_season_label_prefix` | `Season` | Prefix for auto-generated season labels (e.g. "Season 1"). |
+| `default_action_points` | `20` | Daily AP cap for all players. |
+| `default_daily_turns` | `10` | Daily turn cap (legacy; AP is the primary resource). |
+
+### Rate Limiting
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `rate_limit_max_attempts` | `5` | Max failed logins per IP before block. |
+| `rate_limit_max_attempts_per_name` | `5` | Max failed logins per username before block. |
+| `rate_limit_window_minutes` | `15` | Sliding window for rate limit counting. |
+| `rate_limit_block_minutes` | `15` | How long a blocked IP/username stays blocked. |
+| `rate_limit_cleanup_interval` | `300` | Seconds between stale rate-limit entry cleanup. |
+| `rate_limit_trusted_proxies` | `0` | Number of trusted reverse-proxy hops for IP detection. |
+
+### Market Dynamics
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `market_trait_saturation_rate` | `0.01` | Per-sale increase in trait saturation (1% each). |
+| `market_max_saturation_discount` | `0.50` | Maximum price discount from trait saturation (50%). |
+| `market_post_appetite_penalty` | `0.50` | Price penalty multiplier after faction appetite is exhausted. |
+| `market_desperation_bonus` | `1.30` | Price bonus multiplier for artifacts that have sat unsold (idle). |
+| `market_counter_offers` | `1` | Enable (`1`) / disable (`0`) counter-offers from buyers. |
+| `market_multi_item` | `1` | Enable (`1`) / disable (`0`) multi-item sales per visit. |
+| `faction_max_stars` | `5` | Maximum standing stars with any faction. |
+
+### Bots / NPCs
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `bots.count` | `0` | Number of AI NPC competitors to seed at season start. 0 = disabled. |
+| `bots.profiles` | `[]` | Array of `{id: profile_id}` entries from `content/bots.yml`. Cycled through if count exceeds profile list. |
+| `bots.action_points` | *(falls back to `default_action_points`)* | Daily AP for bot characters (defaults to same as human players). |
 
 ---
 

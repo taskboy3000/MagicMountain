@@ -10,23 +10,7 @@ use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
 use MagicMountain::Model::Session;
 use MagicMountain::Model::ShedItem;
-use MagicMountain::Bot::PushPolicy;
-use MagicMountain::Bot::SellPolicy;
-
-my %PRESSURE_RANK = (
-    mood_comfortable   => 0,
-    mood_interested    => 1,
-    mood_wary          => 2,
-    mood_strained      => 3,
-    mood_leaving       => 4,
-    mood_over_absolute => 5,
-);
-
-sub _pressure_at_or_beyond {
-    my ($state, $threshold) = @_;
-    return 0 unless $state && $threshold;
-    return ($PRESSURE_RANK{$state} // 0) >= ($PRESSURE_RANK{$threshold} // 0);
-}
+use MagicMountain::Model::Transcript;
 
 has description => 'Run a bot simulation season with configurable policies.';
 has usage => "usage: $0 simulate [OPTIONS]\n"
@@ -202,6 +186,7 @@ sub run ($self, @args) {
     });
 
     $app->shed_manager->log_transcript(1);
+    $app->bot_runner->transcript($transcript);
 
     # Run simulation
     my $maint = $app->maintenance;
@@ -210,7 +195,12 @@ sub run ($self, @args) {
         $app->seasons->load;
         for my $char (@chars) {
             my $profile = $char_profile{$char->getCol('id')};
-            $self->_run_bot_day($app, $char, $profile, $transcript) if $profile;
+            next unless $profile;
+            my $result = $app->bot_runner->run_day($char, $profile);
+            $app->log->warn(sprintf("Bot %s run failed: %s",
+                $char->getCol('name') // '?',
+                $result->{error} // 'unknown'))
+                unless $result->{ok};
         }
         $maint->on_maintenance->($maint) if $day < $days;
         @chars = @{ $app->characters->find(sub { $_[0]->{season_id} eq $s->getCol('id') }) };
@@ -236,205 +226,6 @@ sub run ($self, @args) {
         $app->log->info(sprintf("Transcript written to %s", $output));
     } else {
         print "Transcript: $transcript_file\n";
-    }
-}
-
-sub _run_bot_day ($self, $app, $char, $profile, $transcript) {
-    my $prospecting = $app->prospecting;
-    my $market      = $app->market;
-    my $shed        = $app->shed;
-    my $profile_id  = $profile->{id};
-    my $push_pol    = $profile->{push_policy};
-    my $sell_pol    = $profile->{sell_policy};
-    my $char_name   = $char->getCol('name');
-
-    # Prospecting phase
-    while (($char->getCol('action_points') // 0) >= 2) {
-        my $activity = $prospecting->create(char_id => $char->getCol('id'));
-        my $result = $activity->dispatch($char, 'begin');
-        last unless $result->{view}{ok};
-
-        while (1) {
-            my $r = $activity->dispatch($char, 'push');
-            my $view = $r->{view};
-            last unless $view->{ok};
-
-            if ($view->{result} eq 'collapse' || $view->{result} eq 'breakthrough') {
-                last;
-            }
-
-            if ($view->{result} eq 'push') {
-                my $art = $activity->artifact;
-                my $should_stop = MagicMountain::Bot::PushPolicy::evaluate($char, $art, $push_pol);
-                if ($should_stop) {
-                    $activity->dispatch($char, 'stop');
-                    $transcript->log_event({
-                        type       => 'policy_push_stop',
-                        player     => $char_name,
-                        profile_id => $profile_id,
-                        policy     => $push_pol->{name},
-                        params     => $push_pol->{params},
-                        stage      => $art->{stage},
-                        value      => $art->{value},
-                        push_count => $art->{push_count},
-                        narrative  => sprintf("%s stopped pushing via %s (stage=%s, value=%d, pushes=%d).",
-                            $char_name, $push_pol->{name},
-                            $art->{stage} // '?',
-                            $art->{value} // 0,
-                            $art->{push_count} // 0),
-                    });
-                    last;
-                }
-            }
-        }
-    }
-
-    # Market phase
-    while (($char->getCol('action_points') // 0) >= 1) {
-        my $shed_items = $shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
-        last unless @$shed_items;
-
-        # Hoarder check before entering market
-        if ($sell_pol->{name} eq 'hoarder') {
-            $transcript->log_event({
-                type       => 'policy_skip_market',
-                player     => $char_name,
-                profile_id => $profile_id,
-                reason     => 'hoarder',
-                narrative  => sprintf("%s skipped market (hoarder policy).", $char_name),
-            });
-            last;
-        }
-
-        my $activity = $market->create(char_id => $char->getCol('id'));
-        my $result = $activity->dispatch($char, 'begin');
-        last unless $result->{view}{ok};
-
-        # Check if we accept this customer
-        if (!MagicMountain::Bot::SellPolicy::accept_customer($char, $activity->customer, $sell_pol)) {
-            $activity->dispatch($char, 'send_away');
-            $transcript->log_event({
-                type       => 'policy_send_away',
-                player     => $char_name,
-                profile_id => $profile_id,
-                reason     => $sell_pol->{name},
-                narrative  => sprintf("%s sent away customer (%s policy).",
-                    $char_name, $sell_pol->{name}),
-            });
-            last;
-        }
-
-        my $sell_params        = $sell_pol->{params} // {};
-        my $max_irritation     = $sell_params->{max_irritation} // 3;
-        my $max_pressure_state = $sell_params->{max_pressure_state} // 'mood_wary';
-        my $n_mismatches       = 0;
-
-        my $keep_offering = 1;
-        while ($keep_offering) {
-            my $current_items = $shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
-            last unless @$current_items;
-
-            for my $item (@$current_items) {
-                if (!MagicMountain::Bot::SellPolicy::should_offer_item($char, $item, $sell_pol)) {
-                    $transcript->log_event({
-                        type       => 'policy_skip_item',
-                        player     => $char_name,
-                        profile_id => $profile_id,
-                        reason     => $sell_pol->{name},
-                        value      => $item->getCol('decayed_value') // 0,
-                        narrative  => sprintf("%s skipped item %s (value=%d, %s policy).",
-                            $char_name, $item->getCol('artifact_id') // '?',
-                            $item->getCol('decayed_value') // 0, $sell_pol->{name}),
-                    });
-                    next;
-                }
-
-                my $r = $activity->dispatch($char, 'offer', shed_item_id => $item->getCol('id'));
-                my $view = $r->{view};
-                $view->{player}{name} = $char_name;
-                $view->{player}{profile_id} = $profile_id;
-
-                if ($view->{result} eq 'sold') {
-                    $keep_offering = 0;
-                    last;
-                }
-
-                if ($view->{result} eq 'sold_more') {
-                    if (_pressure_at_or_beyond($view->{pressure_state}, $max_pressure_state)) {
-                        $activity->dispatch($char, 'send_away');
-                        $keep_offering = 0;
-                    } elsif ($view->{irritation} >= $max_irritation) {
-                        $activity->dispatch($char, 'send_away');
-                        $keep_offering = 0;
-                    }
-                    last;
-                }
-
-                if ($view->{result} eq 'counter_offer') {
-                    my $decayed = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
-                    if (MagicMountain::Bot::SellPolicy::should_accept_counter($char, $view->{counter_value}, $decayed, $sell_pol)) {
-                        my $r2 = $activity->dispatch($char, 'accept_counter');
-                        my $v2 = $r2->{view};
-                        if ($v2->{result} eq 'sold_more') {
-                            if (_pressure_at_or_beyond($v2->{pressure_state}, $max_pressure_state)) {
-                                $activity->dispatch($char, 'send_away');
-                                $keep_offering = 0;
-                            } elsif ($v2->{irritation} >= $max_irritation) {
-                                $activity->dispatch($char, 'send_away');
-                                $keep_offering = 0;
-                            }
-                            last;
-                        }
-                        $keep_offering = 0;
-                        last;
-                    }
-                    # Reject counter — try next item
-                    $n_mismatches++;
-                    if (!MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
-                        $transcript->log_event({
-                            type        => 'policy_stop_offer',
-                            player      => $char_name,
-                            profile_id  => $profile_id,
-                            reason      => $sell_pol->{name},
-                            narrative   => sprintf("%s stopped offering (%s policy).",
-                                $char_name, $sell_pol->{name}),
-                        });
-                        $keep_offering = 0;
-                        last;
-                    }
-                    next;
-                }
-
-                if ($view->{result} eq 'over_budget') {
-                    # Try a cheaper item — this one exceeded absolute
-                    next;
-                }
-
-                if ($view->{result} eq 'customer_left') {
-                    $keep_offering = 0;
-                    last;
-                }
-
-                if ($view->{result} eq 'no_match') {
-                    $n_mismatches++;
-                    if (!MagicMountain::Bot::SellPolicy::try_another($char, $view, $activity->customer, $sell_pol)) {
-                        $transcript->log_event({
-                            type        => 'policy_stop_offer',
-                            player      => $char_name,
-                            profile_id  => $profile_id,
-                            reason      => $sell_pol->{name},
-                            narrative   => sprintf("%s stopped offering (%s policy).",
-                                $char_name, $sell_pol->{name}),
-                        });
-                        $keep_offering = 0;
-                        last;
-                    }
-                    next;
-                }
-            }
-            # For loop exhausted all items — exit
-            $keep_offering = 0;
-        }
     }
 }
 

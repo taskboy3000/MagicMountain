@@ -172,8 +172,9 @@ Mojo::IOLoop (every 60s) → Maintenance::dailyMaintenance
   ├── Set in_maintenance flag (gates write routes → HTTP 503)
   ├── Advance next_run to next day
   ├── Invoke on_maintenance callback
-  │     (extension point for: increment season.day, refresh AP,
-  │      apply artifact decay, update leaderboard, check season end)
+  │     (extension point for: run NPC bot daily actions (before day advance),
+  │      increment season.day, refresh AP, apply artifact decay,
+  │      generate Crier message, capture faction snapshots, check season end)
   └── Clear in_maintenance flag
 ```
 
@@ -250,7 +251,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
 | **Shed** (inventory manager) | ShedItem rows in `shed.json`, decay logic in `ShedManager.pm`, query/filter by traits | Market, Faction objects, Account model |
 | **Market** (customer generator) | Faction objects, content reference, customer generation | Character model, Account model, Shed |
-| **Model::Character** | File path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–4) | Market, Faction, Content, Shed, game math, artifact logic |
+| **Model::Character** | App reference (for association accessors), file path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–4), association accessors: `prospecting_view()`, `market_view()`, `shed_items()`, `player_skills()` | Game math, artifact logic, state mutation outside of CRUD |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
 | **Model::Season** | File path, column definitions, JSON CRUD, finalize class method | Per-player character data, game logic |
@@ -266,9 +267,10 @@ Each module has strict constraints on what it may and must never hold.
 | **SeasonReport** (recap builder) | Plain data inputs, `log` coderef | Model objects, app reference, game logic, formatting, HTML |
 | **Service::SkillTraining** (service) | App reference, `skills_data` helper, Model::Character queries | Game rules, view logic, URL construction |
 | **Service::Navigation** (service) | App reference, tab/fragment mappings, nav state logic | Game rules, persistence, template rendering |
-| **Service::GameOrchestrator** (service) | App reference, character/season queries | Game rules, persistence operations, view model assembly |
+| **Service::SeasonManager** (service) | App reference, character/season queries | — |
 | **Service::Suggestion** (service) | App reference, activity/shed state queries | Game rules, persistence operations |
 | **Service::RandomEvents** (service) | App reference, condition/effect dispatch tables, YAML event pools, range resolution, weighted selection | Character models, Market, Faction objects, transcript references, persistence operations (read-only — callers persist event counts) |
+| **Service::BotRunner** (service) | App reference (`prospecting`, `market`, `shed`), optional `transcript` for bot event logging | Direct model mutation except through Activity dispatch. Writes bot events to separate transcript file. |
 | **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
 | **Bot** (automated player) | Policy name, parameters, activity access | Direct persistence (uses same models and activities as controllers) |
@@ -362,6 +364,8 @@ Survives across seasons. Contains no gameplay data.
 | current_location | string | Current location ID in the location graph (default: `camp`) |
 | current_view | string | Last active view (idle/shed/factions/skills/account/market/prospecting). Managed by Nav controller — synced on every `/nav` response. Activity-only views invalidate when activity ends. |
 | loyalty_visits_since | integer | Consecutive market visits without seeing the player's top faction. Used by loyalty access guarantee (see §6.5 step 1). |
+| is_bot | integer | 0 or 1. Whether this character is an NPC competitor. Bots use the same Activity dispatch path as humans. |
+| bot_profile_id | string | Profile ID from `content/bots.yml` (e.g. `greed_desperate`). Null for human characters. |
 
 > `turns_remaining` has been replaced by `action_points` / `action_points_max`.
 > The old "lazy rollover" design using `last_refreshed_day` was already removed
@@ -636,19 +640,19 @@ see section 6.6.
 ```
 PlayerAccount ─── persists forever ──────────────────────►
        │
-       ├── Season 1 ─── SeasonalCharacter ──► deleted ──►
+       ├── Season 1 ─── Model::Character ──► deleted ──►
        │                     │
        │                     ├── ShedItem (created after prospecting stop)
        │                     ├── Skill levels (bought with scrap, columns on character)
        │                     ├── Activity (created/loaded per request, deleted on idle)
        │                     └── ArtifactDispositions (survive)
        │
-       ├── Season 2 ─── SeasonalCharacter ──► deleted ──►
+       ├── Season 2 ─── Model::Character ──► deleted ──►
        │
        └── SeasonRecords (permanent archive)
 ```
 
-A SeasonalCharacter may be deleted ONLY after:
+A Model::Character may be deleted ONLY after:
 1. Season finalization creates a SeasonRecord
 2. All SeasonRecords are verified as stored
 3. All owned ShedItems are discarded (artifacts are forfeit at season end)
@@ -1122,7 +1126,7 @@ This callback is the single place where day-advancement logic lives. It
 receives the Maintenance object (`$self`). Implementation:
 
 1. Increment `season.day` by 1
-2. For every SeasonalCharacter: reset `action_points` to `action_points_max`
+2. For every Model::Character: reset `action_points` to `action_points_max`
 3. Apply artifact decay to every ShedItem (see 6.4)
 4. Generate Town Crier message: diff current `faction_state` against
    `crier_snapshot`, select highest-priority message template, fill with
@@ -1198,7 +1202,7 @@ Admin-triggered via `end-season` CLI or `POST /season/end` web button
    character before SeasonRecords are built. This ensures no artifact value
    is lost to the aether — even unsold inventory contributes to final score.
    Clearance amount is recorded in `story_highlights.clearance_bonus`.
-3. For each SeasonalCharacter:
+3. For each Model::Character:
    a. Collect final stats (score includes clearance, scrap includes clearance,
       standing, faction_sales, skills)
    b. Collect significant ArtifactDisposition records
@@ -1207,7 +1211,7 @@ Admin-triggered via `end-season` CLI or `POST /season/end` web button
    d. Store SeasonRecord (append-only, survives deletion)
 4. Verify ALL SeasonRecords are stored successfully
 5. Discard all ShedItems for this season (already liquidated in step 2)
-6. Delete ALL SeasonalCharacter rows for this season
+6. Delete ALL Model::Character rows for this season
 7. Clear SeasonFactionState (via `nullCol`)
 8. Set Season.status = "archived"
 
@@ -1531,7 +1535,7 @@ controllers are added for inventory management and skill purchases.
    configurable inactivity timeout (default 60 minutes, set via
    `session_timeout_minutes` in `magic_mountain.yml`)
 4. Mojolicious session cookie stores `playerId`
-5. When a player first accesses the game, a SeasonalCharacter is created for
+5. When a player first accesses the game, a Model::Character is created for
    them (either by the join-season flow or the next maintenance cycle)
 6. Controllers access character data via `Model::Character` — no intermediate
    coordinator
@@ -1916,7 +1920,7 @@ Both `prospecting` and `market_visit` are null when idle.
 Bots are automated players that invoke the same service classes as the web
 controllers. The simulate CLI command reads artifact content, iterates through
 a population of bots, and calls `Activity::Prospecting`, `Activity::MarketVisit`,
-`Shed`, and `SeasonalCharacter` mutators directly — producing game outcomes
+`Shed`, and `Model::Character` mutators directly — producing game outcomes
 identical to human play. The simulation framework lives across three layers:
 
 - **`MagicMountain::Bot::PushPolicy`** — stateless evaluation of push/stop
@@ -2256,9 +2260,10 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **ShedItem value_label** | `Model::ShedItem.pm` (`value_label`) | Fuzzy tier label displayed to player instead of raw estimated min/max ranges. Uses `ValueTier::describe($decayed_value)`. |
 | **Service::SkillTraining** | `Service/SkillTraining.pm` | Extracted from Skills controller. Validates scrap, level caps; executes purchase and persists. Controllers delegate to service. |
 | **Service::Navigation** | `Service/Navigation.pm` | Extracted from Nav controller. Resolves tabs, active/inactive states, fragment URLs, current view. Controllers delegate view logic. |
-| **Service::GameOrchestrator** | `Service/GameOrchestrator.pm` | Extracted from Game controller. Assembles game state: resolves characters, seasons, activities into a unified view model. |
+| **Service::SeasonManager** | `Service/SeasonManager.pm` | Extracted from Game controller. Manages season/character lifecycle: auto-creates seasons, finds or creates characters, seeds bot NPCs. |
 | **Service::Suggestion** | `Service/Suggestion.pm` | Extracted from Home controller. Produces contextual action suggestions based on activity/shed/AP state. |
 | **Random events (Phase 1)** | `Service/RandomEvents.pm`, `content/events/prospecting.yml`, `t/service_random_events.t`, `t/prospecting_events.t` | YAML-driven personal events fire during `Prospecting::begin` (20% base chance). Condition/effect dispatch tables with pool-specific registries. Six passive events including catch-up rubberbanding via `score_lte`. Load-time validation (unknown names die). Test-mode gate (`MM_EVENTS` override). 55 new tests. |
+| **NPC competitors (Phase 1)** | `Service/BotRunner.pm`, `Model/Character.pm` (`is_bot`, `bot_profile_id`), `SeasonManager.pm` (`seed_bots`), `MagicMountain.pm` (maintenance bot run, `bot_runner` helper), `Controller/Sessions.pm` (bot login exclusion), `Controller/Leaderboard.pm` (`bot`/`badge` fields) | Bots prospect, push, stop, and sell via the same Activity dispatch as human players. Bot profiles from `content/bots.yml`. Configurable bot count + AP via `bots` config key. Bot run during maintenance (before day advance). Bot transcript in `transcript_bots.jsonl`. Leaderboard `[NPC]` badge. No PvP or rival operations. |
 | **Collapse curve adjustment** | `Activity/Prospecting.pm` line 240 | Collapse multiplier reduced from 0.95 to 0.80 (~16% reduction across all instability levels). |
 | **Event logging** | `Activity/Prospecting.pm` | Personal events logged to server log (INFO) and transcript (`random_event` type with `event_id`, `char_id`, `day`). |
 | **JS session recovery** | `public/js/game.js` | Any `!ok` response redirects to `/game` (removed `!data.csrf_token` guard that prevented redirects on CSRF-present error responses). |
@@ -2371,7 +2376,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
     descriptions in `content/skills.yml`. Adding or rebalancing a skill is a
     content edit, not a code change.
 
-19. **SeasonalCharacter deletion after formal SeasonRecord creation**: The
+19. **Model::Character deletion after formal SeasonRecord creation**: The
     deletion is safe because the meaningful history has already been archived.
 
 ---
@@ -2423,7 +2428,7 @@ magic_mountain/
 │       ├── RateLimiter.pm            # IP/account-based rate limiting
 │       ├── SeasonReport.pm           # Post-season recap builder (data → sections)
 │       ├── Service/
-│       │   ├── GameOrchestrator.pm   # Game state assembly (characters, seasons, activities)
+│       │   ├── SeasonManager.pm       # Season/character lifecycle (ensure_season, ensure_character, seed_bots)
 │       │   ├── Navigation.pm         # Tab/view resolution, fragment URL mapping
 │       │   ├── RandomEvents.pm        # Random event system: YAML pools, condition/effect dispatch tables, range resolution, weighted selection
 │       │   ├── SkillTraining.pm      # Skill purchase validation and execution
@@ -2595,7 +2600,8 @@ magic_mountain/
 │   ├── seasons.json
 │   ├── sessions.json
 │   ├── shed.json
-│   └── transcript.jsonl
+│   ├── transcript.jsonl
+│   └── transcript_bots.jsonl           # Bot NPC activity log (separate from player transcript)
 │
 ├── docs/                             # Design documentation
 ├── cover_db/                         # Coverage reports (generated)

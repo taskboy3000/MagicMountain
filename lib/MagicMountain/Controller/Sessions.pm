@@ -41,6 +41,16 @@ sub create ($self) {
 
     my $player_id = $account->getCol('id');
 
+    $self->app->characters->load;
+    my ($bot_char) = @{ $self->app->characters->find(
+        sub { $_[0]->{account_id} eq $player_id && $_[0]->{is_bot} }
+    ) };
+    if ($bot_char) {
+        $rl->record_failure($ip);
+        $rl->record_name_failure(lc $name);
+        return $self->render(json => { ok => 0, error => 'Bot account' }, status => 403);
+    }
+
     my $existing = $self->app->session_store->find_by_player_id($player_id);
     if ($existing) {
         $existing->touch;

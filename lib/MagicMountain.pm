@@ -6,6 +6,7 @@ use Mojo::Base 'Mojolicious', -signatures;
 use Mojo::Home;
 use Mojo::IOLoop;
 use Time::HiRes;
+use List::Util 'shuffle';
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::AuditLog;
@@ -23,6 +24,7 @@ use MagicMountain::ShedManager;
 use MagicMountain::Crier;
 use MagicMountain::RateLimiter;
 use MagicMountain::Service::RandomEvents;
+use MagicMountain::Service::BotRunner;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -51,6 +53,7 @@ has defaultConfig => sub ($self) {
         market_counter_offers           => 1,
         market_multi_item               => 1,
         faction_max_stars               => 5,
+        bots                            => { count => 0 },
     }
 };
 
@@ -82,7 +85,8 @@ has seasons => sub ($self) {
 has characters => sub ($self) {
     MagicMountain::Model::Character->new(
         file => $self->dataDir . '/characters.json',
-        log  => $self->app->log
+        log  => $self->app->log,
+        app  => $self,
     );
 };
 
@@ -138,6 +142,41 @@ has maintenance => sub ($self) {
         on_maintenance  => sub ($maint) {
             my $season = $maint->app->active_season;
             return unless $season;
+
+            unless ($maint->_catching_up) {
+                my $bots_cfg = $maint->app->config->{bots} // {};
+                if (($bots_cfg->{count} // 0) > 0) {
+                    my $bot_transcript = MagicMountain::Model::Transcript->new(
+                        file => $maint->app->dataDir . '/transcript_bots.jsonl'
+                    );
+                    $maint->app->bot_runner->transcript($bot_transcript);
+
+                    my $bot_chars = $maint->app->characters->find(sub {
+                        $_[0]->{season_id} eq $season->getCol('id')
+                        && $_[0]->{is_bot}
+                    });
+
+                    if (@$bot_chars) {
+                        srand(join('', unpack('C*', $season->getCol('id') // '')) + $season->getCol('day'));
+                        my @shuffled = List::Util::shuffle(@$bot_chars);
+                        my $saved_transcript = $maint->app->{transcript};
+                        $maint->app->{transcript} = $bot_transcript;
+                        for my $bot_char (@shuffled) {
+                            eval {
+                                $maint->app->bot_runner->run_day($bot_char);
+                            };
+                            if ($@) {
+                                $maint->app->log->warn(sprintf(
+                                    "Bot %s daily run failed: %s",
+                                    $bot_char->getCol('name') // '?', $@
+                                ));
+                            }
+                        }
+                        $maint->app->{transcript} = $saved_transcript;
+                    }
+                }
+            }
+
             my $day    = $season->getCol('day') + 1;
             $maint->app->log->info(sprintf("Maintenance: %s day %d -> %d",
                 $season->getCol('label') // '?', $day - 1, $day));
@@ -239,6 +278,10 @@ has rate_limiter => sub ($self) {
 
 has random_events => sub ($self) {
     MagicMountain::Service::RandomEvents->new(app => $self);
+};
+
+has bot_runner => sub ($self) {
+    MagicMountain::Service::BotRunner->new(app => $self);
 };
 
 sub startup ($self) {

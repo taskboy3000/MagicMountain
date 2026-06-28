@@ -573,9 +573,12 @@ sub send_away ($self, $char, %params) {
         $char->setCol('faction_snubs', $snubs);
     }
 
-    my $ap = $char->getCol('action_points') // 0;
-    my $max = $char->getCol('action_points_max') // 99;
-    $char->setCol('action_points', ($ap + 1) < $max ? ($ap + 1) : $max);
+    my $spent = $self->customer->{spent_so_far} // 0;
+    if ($spent == 0) {
+        my $ap  = $char->getCol('action_points') // 0;
+        my $max = $char->getCol('action_points_max') // 99;
+        $char->setCol('action_points', ($ap + 1) < $max ? ($ap + 1) : $max);
+    }
 
     my $season = $self->app->active_season;
     if ($season && $faction_id) {
