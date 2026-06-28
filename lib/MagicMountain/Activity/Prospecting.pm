@@ -219,6 +219,16 @@ sub begin ($self, $char, %params) {
             $self->artifact($artifact);
             $self->save;
             $char->save;
+
+            my $name = $char->getCol('name') // 'unknown';
+            $self->app->log->info(
+                sprintf("Random event [%s] %s — %s", $event->{id}, $name, $event->{text})
+            );
+            $self->_log_event($char, {
+                type        => 'random_event',
+                event_id    => $event->{id},
+                narrative   => sprintf("%s encountered %s: %s", $name, $event->{id}, $event->{text}),
+            });
         }
     }
 
