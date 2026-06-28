@@ -237,7 +237,7 @@ sub push ($self, $char, %params) {
     $self->_update_stage($artifact);
 
     my $ratio           = $artifact->{instability} / $artifact->{max_instability};
-    my $collapse_chance = ($ratio ** 3) * 0.95;
+    my $collapse_chance = ($ratio ** 3) * 0.80;
     $collapse_chance    = 1.0  if $collapse_chance > 1.0;
 
 
