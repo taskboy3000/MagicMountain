@@ -12,7 +12,7 @@
         <span class="mm-badge"><%= $cur %>/<%= $max %></span>
         <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $s->{description} || '' %></div>
       </div>
-      <div>
+      <div style="min-width:8rem;text-align:right">
 % if (!$at_max && defined $next_cost) {
 %   my $disabled = $scrap < $next_cost;
 %   my $purchase = { label => "Upgrade ($next_cost)", attrs => { 'data-action-url' => '/skills/purchase', 'data-method' => 'POST', class => 'mm-btn mm-btn-primary buy-skill-btn', 'data-skill-id' => $s->{id}, ($disabled ? (disabled => undef) : ()) } };

@@ -72,6 +72,11 @@ Login/join season
   → Each day: 15–20 Action Points (AP, configurable via `default_action_points`, default 20)
     → Prospecting (costs 2 AP)
       → Artifact is drawn from weighted pool
+      → Random event may fire (personal, per-character, 20% base chance per begin)
+        → Events apply immediate effects: scrap, score, artifact value/instability,
+          behavior tags, or AP adjustments. Conditions gate eligibility (score,
+          skill level, day, artifact stage). Catch-up events use score_lte to
+          help trailing players.
       → Push (repeatable, no AP cost)
         → Instability grows, value grows
         → Three stages: stable → strained → unstable
@@ -263,6 +268,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Service::Navigation** (service) | App reference, tab/fragment mappings, nav state logic | Game rules, persistence, template rendering |
 | **Service::GameOrchestrator** (service) | App reference, character/season queries | Game rules, persistence operations, view model assembly |
 | **Service::Suggestion** (service) | App reference, activity/shed state queries | Game rules, persistence operations |
+| **Service::RandomEvents** (service) | App reference, condition/effect dispatch tables, YAML event pools, range resolution, weighted selection | Character models, Market, Faction objects, transcript references, persistence operations (read-only — callers persist event counts) |
 | **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
 | **Bot** (automated player) | Policy name, parameters, activity access | Direct persistence (uses same models and activities as controllers) |
@@ -676,7 +682,7 @@ Each push operation:
    - `ratio > strained_threshold` → "unstable"
    - Default thresholds: `stable: 0.30`, `strained: 0.65` (set in `state_thresholds` per artifact spec)
 
-4. **Collapse check**: `collapse_chance = (ratio³) × 0.95`
+4. **Collapse check**: `collapse_chance = (ratio³) × 0.80`
    - Clamped to maximum 100% (no minimum floor — near-zero ratio gives near-zero chance)
    - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
     - Collapse is total loss: artifact destroyed, player gets nothing,
@@ -1002,11 +1008,15 @@ calculations. The desperation and saturation states are maintained in
 days_since_purchase=0) and daily maintenance (daily_intake=0,
 days_since_purchase++).
 
+#### Implemented
+
+- **Random events (Phase 1)**: Personal events fire during `Prospecting::begin` (20% base chance). Three event pools defined: `content/events/prospecting.yml` (implemented), `content/events/market_visit.yml` (planned), `content/events/global.yml` (planned). Events use YAML-driven condition/effect dispatch tables with `Service::RandomEvents`. Six prospecting events shipped including catch-up rubberbanding via `score_lte`.
+
 #### Planned (not yet implemented)
 
 - **Desperate Recruiter**: When a faction trails significantly in influence,
-  random events offer premium standing gains or bonus scrap. Gated behind
-  `faction_sales[faction_id] >= 1`.
+  faction-specific events offer premium standing gains or bonus scrap. Gated
+  behind `faction_sales[faction_id] >= 1`.
 
 ---
 
@@ -2248,6 +2258,11 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Service::Navigation** | `Service/Navigation.pm` | Extracted from Nav controller. Resolves tabs, active/inactive states, fragment URLs, current view. Controllers delegate view logic. |
 | **Service::GameOrchestrator** | `Service/GameOrchestrator.pm` | Extracted from Game controller. Assembles game state: resolves characters, seasons, activities into a unified view model. |
 | **Service::Suggestion** | `Service/Suggestion.pm` | Extracted from Home controller. Produces contextual action suggestions based on activity/shed/AP state. |
+| **Random events (Phase 1)** | `Service/RandomEvents.pm`, `content/events/prospecting.yml`, `t/service_random_events.t`, `t/prospecting_events.t` | YAML-driven personal events fire during `Prospecting::begin` (20% base chance). Condition/effect dispatch tables with pool-specific registries. Six passive events including catch-up rubberbanding via `score_lte`. Load-time validation (unknown names die). Test-mode gate (`MM_EVENTS` override). 55 new tests. |
+| **Collapse curve adjustment** | `Activity/Prospecting.pm` line 240 | Collapse multiplier reduced from 0.95 to 0.80 (~16% reduction across all instability levels). |
+| **Event logging** | `Activity/Prospecting.pm` | Personal events logged to server log (INFO) and transcript (`random_event` type with `event_id`, `char_id`, `day`). |
+| **JS session recovery** | `public/js/game.js` | Any `!ok` response redirects to `/game` (removed `!data.csrf_token` guard that prevented redirects on CSRF-present error responses). |
+| **Walkthrough hardening** | `bin/walkthrough` | Event detection, collapse/breakthrough handling, market visit resilience, `body_from_button` fix for Mojolicious 9.40. |
 | **Reference registry** | `Controller/Reference.pm`, `content/references.yml`, `templates/reference/show.html.ep` | `GET /reference/:id` returns in-universe reference card fragment. Faction short names in UI trigger lookup. Data-driven from YAML. |
 | **Reference link wiring** | `templates/factions/registry.html.ep`, `templates/market/negotiation.html.ep`, `public/js/game.js` | Faction short names (secondary panel) and faction names (negotiation panel) carry `data-reference-id` and `class="ref-link"`. Click handler in game.js merges into existing `panel-primary` delegation — fetches `/reference/:id?_format=fragment` and swaps into primary panel. |
 | **Session-loss recovery** | `public/js/game.js` | `redirect: 'manual'` on fetch prevents Mojo 302 from being silently followed. Try/catch on `resp.json()` redirects to `/game` on non-JSON response. `!g.ok` guard in `loadGame()`. `!data.csrf_token` guard in `handleAction()`. |
@@ -2263,6 +2278,9 @@ The new codebase (`lib/`) is a ground-up rebuild.
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
+| Random events Phase 2 (choice events) | Medium | Player choices during prospecting begin, skill-gated options |
+| Random events Phase 3 (market visit events) | Medium | Passive events at `MarketVisit::begin`, customer state mutations |
+| Random events Phase 4 (global events) | Medium | Once-per-day global modifiers, Crier narration, Season `daily_modifiers` column |
 | Commission system | Low | Faction notices, active commissions |
 | Desperate Recruiter (underdog catch-up) | Low | Premium standing/bonus for selling to trailing factions |
 
@@ -2407,6 +2425,7 @@ magic_mountain/
 │       ├── Service/
 │       │   ├── GameOrchestrator.pm   # Game state assembly (characters, seasons, activities)
 │       │   ├── Navigation.pm         # Tab/view resolution, fragment URL mapping
+│       │   ├── RandomEvents.pm        # Random event system: YAML pools, condition/effect dispatch tables, range resolution, weighted selection
 │       │   ├── SkillTraining.pm      # Skill purchase validation and execution
 │       │   └── Suggestion.pm         # Contextual home-dashboard suggestions
 │       ├── ShedManager.pm            # Artifact decay logic
@@ -2504,7 +2523,10 @@ magic_mountain/
 │   ├── bots.yml                      # Bot profile definitions
 │   ├── factions.yml                  # Faction definitions and interests
 │   ├── prospecting.yml               # Artifact specs and weights
+│   ├── references.yml                # In-universe reference registry entries
 │   ├── skills.yml                    # Skill tree and costs
+│   ├── events/                       # Random event pools (one file per pool)
+│   │   └── prospecting.yml           # Personal prospecting events (Phase 1 implemented)
 │   └── flavor/                       # Narrative text definitions
 │       ├── advisories.yml            # System advisory messages (idle, season end, etc.)
 │       ├── commission_triggers.yml   # Commission issuance text
