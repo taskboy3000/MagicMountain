@@ -37,6 +37,16 @@ use_ok('TestCharacter');
         )->{skills};
         return $skills;
     }
+    sub random_events {
+        my $self = shift;
+        $self->{_random_events} //= do {
+            bless { app => $self }, 'FakeRandomEvents';
+        };
+    }
+}
+{
+    package FakeRandomEvents;
+    sub draw { undef }
 }
 {
     package FakeTranscript;

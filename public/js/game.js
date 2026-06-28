@@ -30,10 +30,7 @@ async function handleAction(btn) {
   }
   const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
   if (!data) return;
-  if (!data.ok) {
-    if (!data.csrf_token) { window.location.href = '/game'; return; }
-    return;
-  }
+  if (!data.ok) { window.location.href = '/game'; return; }
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);

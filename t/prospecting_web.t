@@ -6,6 +6,8 @@ use File::Slurp qw(write_file);
 use FindBin;
 use lib ("$FindBin::Bin/../lib");
 
+$ENV{MOJO_MODE} = 'test';
+
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
 use MagicMountain::Model::Season;

@@ -202,20 +202,41 @@ sub begin ($self, $char, %params) {
             $artifact->{id}, $artifact->{value}, $artifact->{instability}),
     });
 
-    return {
-        view => {
-            ok       => 1,
-            result   => 'start',
-            artifact => {
-                id     => $artifact->{id},
-                stage  => $artifact->{stage},
-                value  => $artifact->{value},
-                signal => $artifact->{signal},
-                intro  => $artifact->{intro},
+    my $event_view;
+    if ($self->app->can('random_events')) {
+        my $event = $self->app->random_events->draw(
+            pool    => 'prospecting',
+            trigger => 'begin',
+            context => {
+                artifact => $artifact,
+                char     => $char,
+                season   => $self->app->can('active_season') ? $self->app->active_season : undef,
             },
-            player => $self->_player_snapshot($char),
+        );
+        if ($event) {
+            $event_view = { id => $event->{id}, text => $event->{text} };
+            $artifact->{_event_text} = $event->{text};
+            $self->artifact($artifact);
+            $self->save;
+            $char->save;
+        }
+    }
+
+    my $view = {
+        ok       => 1,
+        result   => 'start',
+        artifact => {
+            id     => $artifact->{id},
+            stage  => $artifact->{stage},
+            value  => $artifact->{value},
+            signal => $artifact->{signal},
+            intro  => $artifact->{intro},
         },
+        player => $self->_player_snapshot($char),
     };
+    $view->{event} = $event_view if $event_view;
+
+    return { view => $view };
 }
 
 # ── push ──────────────────────────────────────────────────────────────

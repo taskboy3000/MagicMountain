@@ -1,0 +1,57 @@
+# Prospecting events — fire during begin, apply immediately.
+# trigger: begin only in v1. Conditions: scalar predicates, AND-only.
+# Effects: scalar or [min,max] range. See docs/proposal_events_v2.md.
+
+- id: loose_scrap_cache
+  weight: 8
+  trigger: begin
+  min_day: 2
+  text: >
+    Your boot knocks loose a panel that was never meant to be found.
+    Behind it: wire, foil, chipped ceramic, and a few useful parts.
+  effects:
+    - scrap_delta: [5, 25]
+
+- id: seismic_echo
+  weight: 8
+  trigger: begin
+  min_day: 3
+  text: "SENSORY ALERT — Low-frequency resonance detected. Substrate analysis suggests a dense pocket nearby."
+  effects:
+    - value_delta: 4
+
+- id: unstable_pocket
+  weight: 5
+  trigger: begin
+  text: "STABILITY WARNING — Localized field distortion. Artifact containment may be compromised."
+  effects:
+    - instability_delta: 2
+
+- id: secondary_signal
+  weight: 4
+  trigger: begin
+  text: "ANOMALY DETECTED — Artifact appears to have a secondary behavioral signature."
+  effects:
+    - behavior_add: signal
+
+- id: mountain_exhales
+  weight: 2
+  trigger: begin
+  max_day: 15
+  text: "GEOPHYSICAL EVENT — The mountain vents. A loose artifact surfaces nearby."
+  effects:
+    - ap_delta: 1
+
+- id: late_break
+  weight: 6
+  trigger: begin
+  min_day: 8
+  conditions:
+    - score_lte: 200
+  text: >
+    OPPORTUNITY ADVISORY — Anomalous signal cluster in an under-prospected
+    zone. Faction intelligence suggests high-value extraction for operators
+    with room to advance.
+  effects:
+    - scrap_delta: [10, 30]
+    - score_delta: [5, 15]

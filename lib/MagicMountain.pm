@@ -22,6 +22,7 @@ use MagicMountain::Activity::Prospecting;
 use MagicMountain::ShedManager;
 use MagicMountain::Crier;
 use MagicMountain::RateLimiter;
+use MagicMountain::Service::RandomEvents;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -234,6 +235,10 @@ has rate_limiter => sub ($self) {
         window_minutes        => $self->config->{rate_limit_window_minutes},
         block_minutes         => $self->config->{rate_limit_block_minutes},
     );
+};
+
+has random_events => sub ($self) {
+    MagicMountain::Service::RandomEvents->new(app => $self);
 };
 
 sub startup ($self) {
