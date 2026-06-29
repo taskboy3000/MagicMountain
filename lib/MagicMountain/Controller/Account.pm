@@ -19,12 +19,17 @@ sub show ($self) {
     for my $s (@seasons) {
         next unless $player_id;
         if ($s->{status} eq 'active') {
+            $self->app->characters->load;
+            my ($char) = @{ $self->app->characters->find(sub {
+                $_[0]->{account_id} eq $player_id && $_[0]->{season_id} eq $s->{id}
+            }) };
             push @archive, {
                 id     => $s->{id},
                 label  => $s->{label} // '?',
                 status => 'active',
                 day    => $s->{day} // 1,
                 length => $s->{length} // 30,
+                final_score => $char ? ($char->getCol('score') // 0) : 0,
             };
         } else {
             my $recs = $self->app->season_records->find(
