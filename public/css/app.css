@@ -325,6 +325,20 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   padding: 0.5rem 0.6rem;
 }
 
+/* ── Unregistered (login) state ─────────────────────────────────── */
+#device-frame.unregistered #device-header,
+#device-frame.unregistered #context-bar { display: none; }
+#device-frame.unregistered #main-area {
+  justify-content: center;
+  align-items: center;
+}
+#device-frame.unregistered #panel-primary {
+  flex: unset;
+  overflow: unset;
+  padding: unset;
+}
+#device-frame.unregistered #panel-secondary { display: none; }
+
 /* ── Context bar ──────────────────────────────────────────────── */
 #context-bar {
   border-top: 1px solid var(--mm-border);

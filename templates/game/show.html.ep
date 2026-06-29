@@ -17,11 +17,13 @@
     <span class="n s"></span><span class="n s"></span><span class="w s"></span><span class="w ws"></span><span class="n g"></span>
   </div>
 </div>
-<div id="device-frame">
+<div id="device-frame" class="<%= $authenticated ? '' : 'unregistered' %>">
+% if ($authenticated) {
   <div id="device-header">
     <div id="device-name">ProspectBoy 3000 // LOCAL NODE <%= $node_number %></div>
-    <div id="device-meta">OS v2.1.4  │  REGISTERED TO: <span id="device-owner"><%= $authenticated ? $player_name : '—' %></span></div>
+    <div id="device-meta">OS v2.1.4  │  REGISTERED TO: <span id="device-owner"><%= $player_name %></span></div>
   </div>
+% }
 
 % if ($authenticated) {
   <div id="status-strip">
@@ -43,7 +45,7 @@
       <!-- populated by JS -->
 % } else {
       <div class="mm-panel" style="max-width:20rem;margin:1rem auto">
-        <div class="mm-panel-header">SOFTWARE REGISTRATION</div>
+        <div class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</div>
         <div class="mm-panel-body">
           <form id="login-form">
             <div style="margin-bottom:0.5rem">
