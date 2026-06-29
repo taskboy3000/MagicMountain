@@ -178,6 +178,7 @@ sub _set_remember_cookie ($self, $remember_token, $account) {
         secure   => $self->req->is_secure,
         sameSite => 'Lax',
         path     => '/',
+        expires  => time + 86400 * 30,
     });
 }
 
