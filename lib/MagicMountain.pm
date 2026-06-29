@@ -316,15 +316,23 @@ sub startup ($self) {
         $self->config->{rate_limit_max_attempts_per_name} = 999999;
     }
 
-    if (grep { /^(override-me|surewhynot)$/ } @{ $self->config->{secrets} // [] }) {
-        $self->log->warn("*** Default secrets detected! Set strong secrets in magic_mountain.yml ***");
+    my $local_cfg = $self->home . '/magic_mountain.local.yml';
+    if (!-e $local_cfg && -w $self->home && ($self->config->{secrets} // [])->[0] =~ /^(override-me|surewhynot)$/) {
+        my $random = unpack('H*', do { open my $fh, '<', '/dev/urandom'; my $b; read $fh, $b, 32; close $fh; $b });
+        YAML::XS::DumpFile($local_cfg, {
+            secrets      => [ $random ],
+            admin_secret => $random,
+        });
+        $self->log->info("Generated $local_cfg with random secret");
     }
-    if (($self->config->{admin_secret} // '') eq 'override-me') {
-        $self->log->warn("*** Default admin_secret detected! Set a strong secret in magic_mountain.yml ***");
+    if (-e $local_cfg) {
+        my $local = YAML::XS::LoadFile($local_cfg);
+        for my $key (keys %$local) {
+            $self->config->{$key} = $local->{$key};
+        }
     }
 
-    $self->app->log->debug("Secrets: " . join(", ", @{ $self->config->{secrets} }));
-    $self->secrets([ $self->config->{secrets} ] );
+    $self->secrets($self->config->{secrets});
     $self->sessions->cookie_name('mm_session');
     $self->sessions->default_expiration(86400);
 

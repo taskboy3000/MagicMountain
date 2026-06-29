@@ -110,6 +110,10 @@ make cover && make report                                      # coverage (85%+ 
 - **Commit messages**: First explain the reasoning (why), then summarize the changes (what).
   Example: "Restrict display names to safe characters — prevents log injection and
   account confusion. Trims whitespace, validates [a-zA-Z0-9_-]{1,24} on creation."
+- **Commit discipline**: Never commit before the user reviews the changes. Stage files
+  for review, wait for explicit commit instruction. Group related changes into coherent
+  commits — avoid committing fixup commits that should be squashed. Git history should
+  tell a clean story.
 - **Formatting**: Run `make indent && make clean` before every commit.
 - **Coverage**: Run `make cover && make report` before every commit. All
   `lib/*.pm` files must stay at or above **85%** statement coverage.

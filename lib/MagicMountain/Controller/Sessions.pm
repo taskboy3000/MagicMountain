@@ -1,6 +1,5 @@
 package MagicMountain::Controller::Sessions;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
-use Mojo::JSON 'encode_json';
 
 sub login_form ($self) {
     $self->redirect_to('game');
@@ -31,25 +30,31 @@ sub create ($self) {
         }, status => 429);
     }
 
-    # Check for existing session
-    my $player_id = $self->session('playerId');
-    if ($player_id) {
-        my $existing_acct = $self->app->accounts->get($player_id);
-        if ($existing_acct && $existing_acct->getCol('username') eq $name) {
-            # Already logged in — redirect to game
-            return $self->render(json => { ok => 1, csrf_token => $self->csrf_token, player => { id => $player_id, displayName => $name } });
-        }
-    }
-
-    # Check for remember-me cookie
-    my $remember_data = $self->_read_remember_cookie;
+    # Check for existing valid session or remember-me cookie (skip if token provided)
     my $auth = $self->app->auth_service;
+    my $submitted_token = uc ($body->{token} // '');
+    unless ($submitted_token) {
+        my $player_id = $self->session('playerId');
+        if ($player_id) {
+            $self->app->session_store->load;
+            my $sess = $self->app->session_store->find_by_player_id($player_id);
+            if ($sess) {
+                my $existing_acct = $self->app->accounts->get($player_id);
+                if ($existing_acct && $existing_acct->getCol('username') eq $name) {
+                    $sess->touch;
+                    return $self->render(json => { ok => 1, csrf_token => $self->csrf_token, player => { id => $player_id, displayName => $name } });
+                }
+            }
+        }
 
-    if ($remember_data && $remember_data->{account_id}) {
-        my $remember_acct = $self->app->accounts->get($remember_data->{account_id});
-        if ($remember_acct && $remember_acct->getCol('username') eq $name) {
-            if (!$remember_acct->getCol('banned') && $auth->verify_remember_token($remember_acct, $remember_data->{token})) {
-                return $self->render(json => $self->_build_session($remember_acct, $ip));
+        # Check for remember-me cookie
+        my $remember_data = $self->_read_remember_cookie;
+        if ($remember_data && $remember_data->{account_id}) {
+            my $remember_acct = $self->app->accounts->get($remember_data->{account_id});
+            if ($remember_acct && $remember_acct->getCol('username') eq $name) {
+                if (!$remember_acct->getCol('banned') && $auth->verify_remember_token($remember_acct, $remember_data->{token})) {
+                    return $self->render(json => $self->_build_session($remember_acct, $ip));
+                }
             }
         }
     }
@@ -111,7 +116,6 @@ sub create ($self) {
     }
 
     # Check for token in request body
-    my $submitted_token = uc ($body->{token} // '');
     if ($submitted_token) {
         my $verify = $auth->verify_login($account, $submitted_token);
         if ($verify->{error}) {
@@ -226,10 +230,7 @@ sub _build_session ($self, $account, $ip, @rest) {
 }
 
 sub _set_remember_cookie ($self, $remember_token, $account) {
-    my $value = encode_json({
-        account_id => $account->getCol('id'),
-        token      => $remember_token,
-    });
+    my $value = join '|', $account->getCol('id'), $remember_token;
     $self->signed_cookie(mm_remember => $value, {
         httponly => 1,
         secure   => $self->req->is_secure,
@@ -242,8 +243,9 @@ sub _set_remember_cookie ($self, $remember_token, $account) {
 sub _read_remember_cookie ($self) {
     my $data = $self->signed_cookie('mm_remember') // '';
     return undef unless length $data > 0;
-    my $parsed = eval { decode_json($data) };
-    return ref $parsed eq 'HASH' ? $parsed : undef;
+    my ($account_id, $token) = split /\|/, $data, 2;
+    return undef unless $account_id && $token;
+    return { account_id => $account_id, token => $token };
 }
 
 sub _clear_nav_state ($self, $player_id) {

@@ -136,7 +136,7 @@ sub verify_login ($self, $account, $token) {
 sub verify_remember_token ($self, $account, $token) {
     my $hash = $account->getCol('remember_token_hash') // '';
     return 0 unless length $hash > 0;
-    return Crypt::Bcrypt::verify($token, $hash);
+    return bcrypt_check($token, $hash);
 }
 
 sub verify_recovery_code ($self, $account, $code) {

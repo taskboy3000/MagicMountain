@@ -219,4 +219,24 @@ subtest 'unknown displayName returns generic error on recovery' => sub {
       ->json_is('/ok' => 0);
 };
 
+subtest 'mm_remember cookie uses pipe format (no JSON quotes to break parser)' => sub {
+    # Log in to set cookies
+    $t->post_ok('/sessions', json => { displayName => 'rememberformat' })
+      ->status_is(200);
+
+    my $cookie_obj = $t->tx->res->cookie('mm_remember');
+    ok $cookie_obj, 'mm_remember response cookie present';
+    if ($cookie_obj) {
+        my $value = $cookie_obj->value;
+        ok $value !~ /["{}]/, 'mm_remember cookie value has no JSON characters';
+        like $value, qr/\|/, 'mm_remember cookie value contains pipe separator';
+    }
+
+    # Logout and re-login — remember-me should work
+    $t->delete_ok('/sessions')->status_is(200);
+    $t->post_ok('/sessions', json => { displayName => 'rememberformat' })
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+};
+
 done_testing;
