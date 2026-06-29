@@ -224,6 +224,17 @@ artifact has no decay_modifiers.
 
 ---
 
+## 10. Account Config
+
+**File**: `MagicMountain.pm` defaultConfig, `magic_mountain.yml`
+
+| Parameter | Default | What it affects |
+|-----------|---------|-----------------|
+| `admin_email` | `root@localhost` | Shown on the recovery code page as contact for admin token reset. |
+| `bcrypt_cost` | `10` | Cost factor for bcrypt token hashing. Higher = slower to verify. |
+
+---
+
 ## Quick-Start: What to Tune First
 
 | Goal | Tune this |

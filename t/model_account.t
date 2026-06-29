@@ -19,8 +19,8 @@ my $acct = MagicMountain::Model::Account->new(file => $file);
 subtest 'columns extend defaults' => sub {
     is_deeply(
         $acct->columns,
-        [qw{id updatedAt createdAt username token_hash remember_token_hash banned}],
-        'Account columns include token_hash, remember_token_hash, banned'
+        [qw{id updatedAt createdAt username token_hash remember_token_hash recovery_code_hash banned}],
+        'Account columns include token_hash, remember_token_hash, recovery_code_hash, banned'
     );
 };
 

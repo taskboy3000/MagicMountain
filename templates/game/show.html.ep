@@ -78,16 +78,105 @@
 <script>
 let _pendingDisplayName = '';
 
+function showTokenPrompt() {
+  const panel = document.getElementById('panel-primary');
+  panel.innerHTML = `
+    <div class="mm-panel" style="max-width:20rem;margin:1rem auto">
+      <div class="mm-panel-header">TOKEN REQUIRED</div>
+      <div class="mm-panel-body">
+        <p style="color:var(--mm-text-dim);font-size:0.78rem;margin-bottom:0.5rem">Enter your token for <strong>${_pendingDisplayName}</strong></p>
+        <form id="token-form">
+          <input type="text" id="token-input" class="mm-input" placeholder="Your token" autofocus required style="width:100%;box-sizing:border-box;margin-bottom:0.5rem">
+          <button type="submit" class="mm-btn mm-btn-primary" style="width:100%">Verify</button>
+        </form>
+        <p style="font-size:0.7rem;color:var(--mm-text-dim);margin-top:0.5rem;text-align:center;cursor:pointer" id="forgot-token-link">Lost your token? Use recovery code.</p>
+        <div id="token-error" style="display:none;color:var(--mm-red);font-size:0.78rem;margin-bottom:0.5rem"></div>
+      </div>
+    </div>`;
+  document.getElementById('token-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const tokenInput = document.getElementById('token-input');
+    const errEl = document.getElementById('token-error');
+    const token = tokenInput ? tokenInput.value.trim() : '';
+    if (!token) return;
+    const resp = await fetch('/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: _pendingDisplayName, token })
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Invalid token';
+      errEl.style.display = 'block';
+      return;
+    }
+    window.location.href = '/game';
+  });
+  document.getElementById('forgot-token-link').addEventListener('click', showRecoveryForm);
+}
+
+function showRecoveryForm() {
+  const panel = document.getElementById('panel-primary');
+  panel.innerHTML = `
+    <div class="mm-panel" style="max-width:20rem;margin:1rem auto">
+      <div class="mm-panel-header">RECOVER ACCOUNT</div>
+      <div class="mm-panel-body">
+        <p style="color:var(--mm-text-dim);font-size:0.78rem;margin-bottom:0.5rem">Enter your recovery code for <strong>${_pendingDisplayName}</strong></p>
+        <form id="recovery-form">
+          <input type="text" id="recovery-input" class="mm-input" placeholder="Recovery code" autofocus required style="width:100%;box-sizing:border-box;margin-bottom:0.5rem">
+          <button type="submit" class="mm-btn mm-btn-primary" style="width:100%">Recover Account</button>
+        </form>
+        <p style="font-size:0.7rem;color:var(--mm-text-dim);margin-top:0.5rem;text-align:center;cursor:pointer" id="back-to-token-link">Back to token login.</p>
+        <p style="font-size:0.7rem;color:var(--mm-text-dim);margin-top:0.3rem;text-align:center">If you lose both, contact an admin.</p>
+        <div id="recovery-error" style="display:none;color:var(--mm-red);font-size:0.78rem;margin-bottom:0.5rem"></div>
+      </div>
+    </div>`;
+  document.getElementById('recovery-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const input = document.getElementById('recovery-input');
+    const errEl = document.getElementById('recovery-error');
+    const code = input ? input.value.trim() : '';
+    if (!code) return;
+    const resp = await fetch('/sessions/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: _pendingDisplayName, recoveryCode: code })
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Invalid recovery code';
+      errEl.style.display = 'block';
+      return;
+    }
+    showCredentials(data);
+  });
+  document.getElementById('back-to-token-link').addEventListener('click', showTokenPrompt);
+}
+
+function showCredentials(data) {
+  const panel = document.getElementById('panel-primary');
+  panel.innerHTML = `
+    <div class="mm-panel" style="max-width:24rem;margin:2rem auto;text-align:center">
+      <div class="mm-panel-header">CREDENTIALS</div>
+      <div class="mm-panel-body">
+        <p style="color:var(--mm-text-dim);font-size:0.78rem">Your access token:</p>
+        <p style="font-size:1.4rem;color:var(--mm-amber);letter-spacing:0.15em;margin:0.5rem 0;font-weight:600;word-break:break-all">${data.token}</p>
+        <p style="color:var(--mm-text-dim);font-size:0.78rem;margin-top:1rem">Your recovery code:</p>
+        <p style="font-size:1.4rem;color:var(--mm-amber);letter-spacing:0.15em;margin:0.5rem 0;font-weight:600;word-break:break-all">${data.recovery_code}</p>
+        <p style="font-size:0.72rem;color:var(--mm-red)">Write both down. You will need them to log in from a new device.</p>
+        <button class="mm-btn mm-btn-primary" style="width:100%;margin-top:0.75rem" onclick="window.location.href='/game'">Continue</button>
+      </div>
+    </div>`;
+}
+
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const nameInput = document.getElementById('display-name');
   const name = nameInput ? nameInput.value.trim() : '';
   const errEl = document.getElementById('error-msg');
-  const tokenInput = document.getElementById('token-input');
   errEl.style.display = 'none';
   if (!name && !_pendingDisplayName) return;
   const body = { displayName: _pendingDisplayName || name };
-  if (tokenInput && tokenInput.value.trim()) body.token = tokenInput.value.trim();
   const resp = await fetch('/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -97,39 +186,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   if (!data.ok) {
     if (data.need_token) {
       _pendingDisplayName = data.display_name;
-      const panel = document.getElementById('panel-primary');
-      panel.innerHTML = `
-        <div class="mm-panel" style="max-width:20rem;margin:1rem auto">
-          <div class="mm-panel-header">TOKEN REQUIRED</div>
-          <div class="mm-panel-body">
-            <p style="color:var(--mm-text-dim);font-size:0.78rem;margin-bottom:0.5rem">Enter your token for <strong>${_pendingDisplayName}</strong></p>
-            <form id="token-form">
-              <input type="text" id="token-input" class="mm-input" placeholder="Your token" autofocus required style="width:100%;box-sizing:border-box;margin-bottom:0.5rem">
-              <button type="submit" class="mm-btn mm-btn-primary" style="width:100%">Verify</button>
-              <p style="font-size:0.7rem;color:var(--mm-text-dim);margin-top:0.5rem;text-align:center">Lost your token? Contact an admin.</p>
-            </form>
-            <div id="token-error" style="display:none;color:var(--mm-red);font-size:0.78rem;margin-bottom:0.5rem"></div>
-          </div>
-        </div>`;
-      document.getElementById('token-form').addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        const tokenInput = document.getElementById('token-input');
-        const errEl = document.getElementById('token-error');
-        const token = tokenInput ? tokenInput.value.trim() : '';
-        if (!token) return;
-        const resp = await fetch('/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ displayName: _pendingDisplayName, token })
-        });
-        const data = await resp.json();
-        if (!data.ok) {
-          errEl.textContent = data.error || 'Invalid token';
-          errEl.style.display = 'block';
-          return;
-        }
-        window.location.href = '/game';
-      });
+      showTokenPrompt();
       return;
     }
     errEl.textContent = data.error || 'Login failed';
@@ -137,18 +194,8 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     return;
   }
   _pendingDisplayName = '';
-  if (data.show_token && data.token) {
-    const panel = document.getElementById('panel-primary');
-    panel.innerHTML = `
-      <div class="mm-panel" style="max-width:24rem;margin:2rem auto;text-align:center">
-        <div class="mm-panel-header">ACCOUNT CREATED</div>
-        <div class="mm-panel-body">
-          <p style="color:var(--mm-text-dim);font-size:0.78rem">Your access token — write this down:</p>
-          <p style="font-size:1.4rem;color:var(--mm-amber);letter-spacing:0.15em;margin:1rem 0;font-weight:600;word-break:break-all">${data.token}</p>
-          <p style="font-size:0.72rem;color:var(--mm-red)">You will need this to log in from a new device.</p>
-          <button class="mm-btn mm-btn-primary" style="width:100%;margin-top:0.75rem" onclick="window.location.href='/game'">Continue</button>
-        </div>
-      </div>`;
+  if (data.show_credentials && data.token && data.recovery_code) {
+    showCredentials(data);
     return;
   }
   window.location.href = '/game';

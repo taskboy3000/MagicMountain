@@ -68,8 +68,9 @@ sub create ($self) {
         # Log in immediately — session created so user can play
         $self->_set_remember_cookie($result->{remember_token}, $account);
         my $resp = $self->_build_session($account, $ip, 1);
-        $resp->{token} = $result->{token};
-        $resp->{show_token} = 1;
+        $resp->{token}          = $result->{token};
+        $resp->{recovery_code}  = $result->{recovery_code};
+        $resp->{show_credentials} = 1;
         return $self->render(json => $resp);
     }
 
@@ -124,6 +125,53 @@ sub create ($self) {
     });
 }
 
+sub recover ($self) {
+    my $ip   = $self->tx->remote_address;
+    my $body = $self->req->json;
+    my $name = $body->{displayName} // '';
+    my $code = uc ($body->{recoveryCode} // '');
+
+    return $self->render(json => { ok => 0, error => 'displayName required' }, status => 400) unless $name;
+    return $self->render(json => { ok => 0, error => 'Recovery code required' }, status => 400) unless $code;
+
+    my $account = $self->app->accounts->find_by_username($name);
+    unless ($account) {
+        $self->app->audit_log->log('recovery_failed', player_name => $name);
+        return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
+    }
+
+    if ($account->getCol('banned')) {
+        $self->app->audit_log->log('recovery_failed',
+            player_name => $name, player_id => $account->getCol('id'));
+        return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
+    }
+
+    unless ($self->app->auth_service->verify_recovery_code($account, $code)) {
+        $self->app->rate_limiter->record_failure($ip);
+        $self->app->rate_limiter->record_name_failure(lc $name);
+        $self->app->audit_log->log('recovery_failed',
+            player_name => $name, player_id => $account->getCol('id'));
+        return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
+    }
+
+    my $result = $self->app->auth_service->recover_account($account);
+    $self->_set_remember_cookie($result->{remember_token}, $account);
+
+    $self->app->rate_limiter->record_success($ip);
+    $self->app->rate_limiter->record_name_success(lc $name);
+
+    $self->app->audit_log->log('account_recovered',
+        player_id   => $account->getCol('id'),
+        player_name => $name,
+    );
+
+    my $resp = $self->_build_session($account, $ip);
+    $resp->{token}          = $result->{token};
+    $resp->{recovery_code}  = $result->{recovery_code};
+    $resp->{show_credentials} = 1;
+    return $self->render(json => $resp);
+}
+
 sub _build_session ($self, $account, $ip, @rest) {
     my $player_id = $account->getCol('id');
 
@@ -174,9 +222,9 @@ sub _set_remember_cookie ($self, $remember_token, $account) {
     });
     $self->cookie(mm_remember => $value, {
         signed   => 1,
-        httpOnly => 1,
+        httponly => 1,
         secure   => $self->req->is_secure,
-        sameSite => 'Lax',
+        samesite => 'Lax',
         path     => '/',
         expires  => time + 86400 * 30,
     });

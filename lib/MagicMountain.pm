@@ -55,6 +55,7 @@ has defaultConfig => sub ($self) {
         market_multi_item               => 1,
         faction_max_stars               => 5,
         bots                            => { count => 0 },
+        admin_email                     => 'root@localhost',
         bcrypt_cost                     => 10,
         admin_secret                    => 'override-me',
     }
@@ -485,6 +486,7 @@ sub buildRoutes ($self) {
         return 1;
     });
     $rate_limited->post('/sessions')->to('sessions#create')->name('login');
+    $rate_limited->post('/sessions/recover')->to('sessions#recover')->name('recover');
 
     # Admin bridge — X-Admin-Secret header auth, no session/CSRF required
     my $admin_bridge = $no_maintenance->under('/admin' => sub ($c) {

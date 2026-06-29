@@ -41,19 +41,23 @@ subtest 'GET / redirects to /game' => sub {
       ->header_like(Location => qr{/game});
 };
 
-subtest 'new account gets token' => sub {
+subtest 'new account gets credentials' => sub {
     $t->post_ok('/sessions', json => { displayName => 'alice' })
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_has('/token')
-      ->json_is('/show_token' => 1);
+      ->json_has('/recovery_code')
+      ->json_is('/show_credentials' => 1);
 
     $_alice_token = $t->tx->res->json->{token};
     ok $_alice_token, 'token received';
+    my $alice_recovery = $t->tx->res->json->{recovery_code};
+    ok $alice_recovery, 'recovery code received';
 
     my $account = $t->app->accounts->find_by_username('alice');
     ok $account, 'account created';
     ok $account->getCol('token_hash'), 'token_hash set';
+    ok $account->getCol('recovery_code_hash'), 'recovery_code_hash set';
     is $account->getCol('banned'), 0, 'banned is 0';
 };
 
@@ -159,6 +163,60 @@ subtest 'login rejected for banned account' => sub {
       ->status_is(403)
       ->json_is('/ok' => 0)
       ->json_is('/error' => 'Account banned');
+};
+
+subtest 'recovery code works and rotates credentials' => sub {
+    $t->delete_ok('/sessions')->status_is(200);
+
+    my $carol_acct = $t->app->accounts->create(username => 'carol');
+    $carol_acct->save;
+    my $carol_token = $auth_service->reset_token($carol_acct);
+    my $recovery_code = $auth_service->generate_recovery_code;
+    my $recovery_hash = $auth_service->hash_token($recovery_code);
+    $carol_acct->setCol('recovery_code_hash', $recovery_hash);
+    $carol_acct->save;
+
+    # Wrong recovery code fails
+    $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => 'XXXXXX' })
+      ->status_is(403)
+      ->json_is('/ok' => 0);
+
+    # Correct recovery code succeeds
+    $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => $recovery_code })
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_has('/token')
+      ->json_has('/recovery_code')
+      ->json_is('/show_credentials' => 1);
+
+    my $new_token = $t->tx->res->json->{token};
+    my $new_recovery = $t->tx->res->json->{recovery_code};
+    ok $new_token, 'new token received after recovery';
+    ok $new_recovery, 'new recovery code received after recovery';
+
+    # Old recovery code no longer works
+    $t->delete_ok('/sessions')->status_is(200);
+    $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => $recovery_code })
+      ->status_is(403)
+      ->json_is('/ok' => 0);
+
+    # New token works
+    $t->post_ok('/sessions', json => { displayName => 'carol', token => $new_token })
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+
+    $t->delete_ok('/sessions')->status_is(200);
+
+    # New recovery code also works
+    $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => $new_recovery })
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+};
+
+subtest 'unknown displayName returns generic error on recovery' => sub {
+    $t->post_ok('/sessions/recover', json => { displayName => 'nonexistent', recoveryCode => 'ABC123' })
+      ->status_is(403)
+      ->json_is('/ok' => 0);
 };
 
 done_testing;

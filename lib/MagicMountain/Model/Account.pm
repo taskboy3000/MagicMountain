@@ -4,7 +4,7 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'username', 'token_hash', 'remember_token_hash', 'banned' ];
+    return [ @$cols, 'username', 'token_hash', 'remember_token_hash', 'recovery_code_hash', 'banned' ];
 };
 
 sub create ($self, %params) {

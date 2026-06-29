@@ -68,9 +68,15 @@ sub generate_remember_token ($self) {
     return $self->_random_hex(32);
 }
 
+sub generate_recovery_code ($self) {
+    return $self->generate_token;
+}
+
 sub new_account ($self, $display_name) {
     my $token = $self->generate_token;
     my $token_hash = $self->hash_token($token);
+    my $recovery_code = $self->generate_recovery_code;
+    my $recovery_hash = $self->hash_token($recovery_code);
     my $remember_token = $self->generate_remember_token;
     my $remember_hash = $self->hash_token($remember_token);
 
@@ -78,9 +84,15 @@ sub new_account ($self, $display_name) {
         username            => $display_name,
         token_hash          => $token_hash,
         remember_token_hash => $remember_hash,
+        recovery_code_hash  => $recovery_hash,
     );
     $account->save;
-    return { account => $account, token => $token, remember_token => $remember_token };
+    return {
+        account       => $account,
+        token         => $token,
+        recovery_code => $recovery_code,
+        remember_token => $remember_token,
+    };
 }
 
 sub login_or_create ($self, $display_name) {
@@ -121,6 +133,35 @@ sub verify_remember_token ($self, $account, $token) {
     return Crypt::Bcrypt::verify($token, $hash);
 }
 
+sub verify_recovery_code ($self, $account, $code) {
+    my $hash = $account->getCol('recovery_code_hash') // '';
+    return 0 unless length $hash > 0;
+    return bcrypt_check($code, $hash);
+}
+
+sub recover_account ($self, $account) {
+    my $token = $self->generate_token;
+    my $token_hash = $self->hash_token($token);
+    my $recovery_code = $self->generate_recovery_code;
+    my $recovery_hash = $self->hash_token($recovery_code);
+    my $remember_token = $self->generate_remember_token;
+    my $remember_hash = $self->hash_token($remember_token);
+
+    $account->setCol('token_hash', $token_hash);
+    $account->setCol('recovery_code_hash', $recovery_hash);
+    $account->setCol('remember_token_hash', $remember_hash);
+    $account->save;
+
+    $self->app->session_store->delete_by_player_id($account->getCol('id'));
+
+    return {
+        account        => $account,
+        token          => $token,
+        recovery_code  => $recovery_code,
+        remember_token => $remember_token,
+    };
+}
+
 sub admin_authenticate ($self, $secret) {
     my $expected = $self->app->config->{admin_secret} // 'override-me';
     return 0 if $expected eq 'override-me' || $expected eq 'surewhynot';
@@ -132,6 +173,7 @@ sub reset_token ($self, $account) {
     my $token_hash = $self->hash_token($token);
     $account->setCol('token_hash', $token_hash);
     $account->setCol('remember_token_hash', '');
+    $account->setCol('recovery_code_hash', '');
     $account->save;
 
     $self->app->session_store->delete_by_player_id($account->getCol('id'));
