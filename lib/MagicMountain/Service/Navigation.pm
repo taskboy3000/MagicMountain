@@ -10,7 +10,6 @@ my %BASE_TAB = (
         bazaar   => { active => 1, reason => undef },
         factions => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
-        account  => { active => 1, reason => undef },
     },
     prospecting => {
         home     => { active => 1, reason => undef },
@@ -18,7 +17,6 @@ my %BASE_TAB = (
         bazaar   => { active => 0, reason => 'Finish your current expedition first' },
         factions => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
-        account  => { active => 1, reason => undef },
     },
     market => {
         home     => { active => 1, reason => undef },
@@ -26,7 +24,6 @@ my %BASE_TAB = (
         bazaar   => { active => 1, reason => undef },
         factions => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
-        account  => { active => 1, reason => undef },
     },
 );
 
@@ -43,7 +40,7 @@ my %TAB_ID_FOR = (
 
 sub build_tabs ($self, $char, $type, $ap, $shed_count) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
-    my @tab_ids  = qw(home prospect bazaar factions skills account);
+    my @tab_ids  = qw(home prospect bazaar factions skills);
     my @tabs;
     for my $id (@tab_ids) {
         my $entry = { %{ $base->{$id} } };
@@ -66,6 +63,41 @@ sub build_tabs ($self, $char, $type, $ap, $shed_count) {
         };
     }
     return \@tabs;
+}
+
+sub secondary_tabs ($self, $char) {
+    my $muted = $char->getCol('settings_muted') // 0;
+    return [
+        {
+            id     => 'account',
+            type   => 'nav',
+            active => 1,
+            label  => 'ACCOUNT',
+            fragment_url => '/account?_format=fragment',
+            target => 'secondary-content',
+        },
+        {
+            id      => 'orientation',
+            type    => 'action',
+            active  => 1,
+            label_live => '?',
+            label   => '?',
+            fragment_url => '/orientation?_format=fragment',
+            target  => 'primary-content',
+        },
+        {
+            id            => 'mute',
+            type          => 'toggle',
+            active        => 1,
+            toggle_state  => $muted,
+            key           => 'mute',
+            label_live    => $muted ? '[)]' : ')))]',
+            label         => $muted ? '[)]' : ')))]',
+            labels        => { on => '[)]', off => ')))]' },
+            action_url    => '/nav/toggle',
+            method        => 'POST',
+        },
+    ];
 }
 
 sub tab_id_for ($self, $view) {

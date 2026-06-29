@@ -33,7 +33,6 @@ my %TAB_FRAGMENT_URL = (
     bazaar   => '/market?_format=fragment',
     factions => '/factions?_format=fragment',
     skills   => '/skills?_format=fragment',
-    account  => '/account?_format=fragment',
 );
 
 my %TAB_LABEL = (
@@ -42,7 +41,6 @@ my %TAB_LABEL = (
     bazaar   => 'BAZAAR',
     factions => 'FACTIONS',
     skills   => 'CERTS',
-    account  => 'ACCOUNT',
 );
 
 my %TAB_TO_VIEW = (
@@ -50,7 +48,6 @@ my %TAB_TO_VIEW = (
     bazaar   => 'market',
     factions => 'factions',
     skills   => 'skills',
-    account  => 'account',
 );
 
 sub show ($self) {
@@ -62,19 +59,19 @@ sub show ($self) {
     ) };
 
     my $nav = MagicMountain::Service::Navigation->new(app => $self->app);
-    my $tabs = $nav->build_tabs($char, $type, $ap, $shed_count);
+    my $primary_tabs = $nav->build_tabs($char, $type, $ap, $shed_count);
 
-    my $view = _resolve_requested_view($self, $tabs);
+    my $view = _resolve_requested_view($self, $primary_tabs);
     if (!$view) {
-        $view = $nav->resolve_view($char->getCol('current_view'), $type, $tabs);
+        $view = $nav->resolve_view($char->getCol('current_view'), $type, $primary_tabs);
     }
 
     my $current_tab = $nav->tab_id_for($view);
-    for my $tab (@$tabs) {
+    for my $tab (@$primary_tabs) {
         $tab->{current} = 1 if $tab->{id} eq $current_tab;
     }
 
-    for my $tab (@$tabs) {
+    for my $tab (@$primary_tabs) {
         $tab->{label}        = $TAB_LABEL{$tab->{id}};
         $tab->{fragment_url} = $TAB_FRAGMENT_URL{$tab->{id}};
         if ($tab->{id} eq 'bazaar' && $tab->{active} && !$type) {
@@ -85,8 +82,9 @@ sub show ($self) {
         }
     }
 
-    my $secondary  = $SECONDARY{$view} // 'factions';
-    my $context    = $self->_context_text($char, $view);
+    my $secondary_tabs = $nav->secondary_tabs($char);
+    my $secondary      = $SECONDARY{$view} // 'factions';
+    my $context        = $self->_context_text($char, $view);
 
     my $stored = $char->getCol('current_view');
     if (!defined $stored || $stored ne $view) {
@@ -100,9 +98,22 @@ sub show ($self) {
         primary_fragment_url   => $FRAGMENT_URL{$view},
         secondary_view         => $secondary,
         secondary_fragment_url => $FRAGMENT_URL{$secondary} . '&panel=secondary',
-        tabs                   => $tabs,
+        primary_tabs           => $primary_tabs,
+        secondary_tabs         => $secondary_tabs,
         context                => $context,
     });
+}
+
+sub toggle ($self) {
+    my $char = $self->_require_character or return;
+    my $key  = $self->req->json->{key} // '';
+    die "invalid toggle key" unless $key eq 'mute';
+
+    my $current = $char->getCol('settings_muted') // 0;
+    $char->setCol('settings_muted', $current ? 0 : 1);
+    $char->save;
+
+    $self->show;
 }
 
 sub _resolve_requested_view ($self, $tabs) {

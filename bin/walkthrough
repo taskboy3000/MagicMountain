@@ -174,7 +174,7 @@ sub click_tab {
     assert($tx->res->code == 200, "nav before tab:$tab_id");
     my $nav = eval { decode_json($tx->res->body) };
     return unless $nav;
-    my ($tab) = grep { $_->{id} eq $tab_id } @{ $nav->{tabs} // [] };
+    my ($tab) = grep { $_->{id} eq $tab_id } @{ $nav->{primary_tabs} // [] };
     return unless $tab;
     if ($tab->{action_url}) {
         $tx = req_ok(POST => $tab->{action_url}, undef, "POST $tab->{action_url} (tab:$tab_id)");
@@ -207,7 +207,7 @@ sub fetch_nav {
 # Fetch initial nav to see idle tabs
 my $nav = fetch_nav();
 assert(defined $nav && $nav->{current_view} eq 'home', 'nav current_view home');
-assert(defined $nav && ref $nav->{tabs} eq 'ARRAY', 'nav has tabs');
+assert(defined $nav && ref $nav->{primary_tabs} eq 'ARRAY', 'nav has primary_tabs');
 
 # Fetch all fragment endpoints (accept 200 or 204)
 print STDERR "--- Fragment endpoints ---\n";
@@ -361,7 +361,7 @@ if (@skill_btns) {
 # ══════════════════════════════════════════════════════════════════
 print STDERR "=== SCENE: Nav final check ===\n";
 $nav = fetch_nav();
-assert(defined $nav && ref $nav->{tabs} eq 'ARRAY', 'nav returns tabs after all actions');
+assert(defined $nav && ref $nav->{primary_tabs} eq 'ARRAY', 'nav returns primary_tabs after all actions');
 
 # ══════════════════════════════════════════════════════════════════
 # SCENE 9: Logout

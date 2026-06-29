@@ -72,7 +72,7 @@ subtest 'GET /game shows game page when authenticated' => sub {
       ->status_is(200)
       ->content_like(qr/<!DOCTYPE html>/, 'layout template rendered')
       ->content_like(qr/id="device-frame"/, 'device frame present')
-      ->content_like(qr/id="nav-bar"/, 'nav bar present');
+      ->content_like(qr/id="primary-nav"/, 'primary nav present');
 };
 
 subtest 'touch updates last_active' => sub {
@@ -132,8 +132,7 @@ subtest 'logout destroys session record' => sub {
 
 subtest 'GET /game shows login form after logout' => sub {
     $t->get_ok('/game')->status_is(200)
-      ->content_like(qr/ProspectBoy 3000/)
-      ->content_like(qr/SOFTWARE REGISTRATION/);
+      ->content_like(qr/PROSPECTBOY 3000 REGISTRATION/);
 };
 
 subtest 'GET /player redirects to /login after logout' => sub {
@@ -150,8 +149,7 @@ subtest 'GET /player with no session redirects to /login' => sub {
 subtest 'GET /game with no session shows login form' => sub {
     my $t3 = Test::Mojo->new('MagicMountain');
     $t3->get_ok('/game')->status_is(200)
-      ->content_like(qr/ProspectBoy 3000/)
-      ->content_like(qr/SOFTWARE REGISTRATION/);
+      ->content_like(qr/PROSPECTBOY 3000 REGISTRATION/);
 };
 
 subtest 'DELETE /player deletes account, character, and session' => sub {

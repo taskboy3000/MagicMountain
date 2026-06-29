@@ -159,9 +159,9 @@ subtest 'nav tabs include action_url on prospect tab' => sub {
     my $t = setup_with_char;
     $t->get_ok('/nav')
       ->status_is(200)
-      ->json_has('/tabs')
-      ->json_has('/tabs/1/action_url')
-      ->json_hasnt('/tabs/0/action_url');
+      ->json_has('/primary_tabs')
+      ->json_has('/primary_tabs/1/action_url')
+      ->json_hasnt('/primary_tabs/0/action_url');
 };
 
 done_testing;

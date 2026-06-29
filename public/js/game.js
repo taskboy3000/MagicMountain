@@ -2,7 +2,7 @@ let CSRF_TOKEN = '';
 
 // ── Audio: procedural keyboard click ────────────────────────────
 let _audioCtx = null;
-let _muted = localStorage.getItem('mm_muted') === '1';
+let _muted = false;  // initialized from server toggle state
 
 function _initAudio() {
   if (_audioCtx) return _audioCtx;
@@ -17,7 +17,6 @@ function playClick() {
 
   const v = () => 1 + (Math.random() - 0.5) * 0.15;
 
-  // Subtle resonant lowpass with light variation
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
   lp.frequency.setValueAtTime(5500 * v(), now);
@@ -45,13 +44,12 @@ function playClick() {
   l.start(now); l.stop(now + 0.018);
 }
 
-// ── Sale register ring ─────────────────────────────────────────
 function playSale() {
   if (_muted) return;
   const ctx = _initAudio();
   const now = ctx.currentTime;
 
-  const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+  const notes = [523, 659, 784, 1047];
   const start = 0;
   const step = 0.065;
   const dur  = 0.14;
@@ -70,7 +68,6 @@ function playSale() {
   }
 }
 
-// ── Failure tone ──────────────────────────────────────────────
 function playFail() {
   if (_muted) return;
   const ctx = _initAudio();
@@ -78,8 +75,8 @@ function playFail() {
 
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(196, now);            // G3
-  osc.frequency.exponentialRampToValueAtTime(73, now + 0.35); // D2
+  osc.frequency.setValueAtTime(196, now);
+  osc.frequency.exponentialRampToValueAtTime(73, now + 0.35);
 
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
@@ -96,17 +93,9 @@ function playFail() {
   osc.start(now); osc.stop(now + 0.40);
 }
 
-function toggleMute() {
-  _muted = !_muted;
-  localStorage.setItem('mm_muted', _muted ? '1' : '0');
-  _initAudio();
-  if (!_muted) playClick();
-  updateMuteButton();
-}
-
-function updateMuteButton() {
-  const btn = document.getElementById('mute-btn');
-  if (btn) btn.textContent = _muted ? '[)]' : ')))]';
+function applyMuteState(muted) {
+  _muted = !!muted;
+  if (!_muted) _initAudio();
 }
 
 async function api(path, { body, method } = {}) {
@@ -126,7 +115,7 @@ async function api(path, { body, method } = {}) {
   return data;
 }
 
-// ── Generic action handler ──────────────────────────────────────
+// ── Generic action handler (POST + JSON) ──────────────────────────
 async function handleAction(btn) {
   const actionUrl = btn.dataset.actionUrl;
   if (!actionUrl) return;
@@ -134,7 +123,7 @@ async function handleAction(btn) {
   const method = btn.dataset.method || 'POST';
   const body = {};
   for (const key of Object.keys(btn.dataset)) {
-    if (key === 'actionUrl' || key === 'method' || key === 'confirm' || key === 'redirect') continue;
+    if (key === 'actionUrl' || key === 'method' || key === 'confirm' || key === 'redirect' || key === 'toggle') continue;
     body[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = btn.dataset[key];
   }
   const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
@@ -145,28 +134,41 @@ async function handleAction(btn) {
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);
+  // If toggle response includes tabs, re-render navs
+  if (data.primary_tabs) { renderNav(data.primary_tabs, 'primary-nav'); renderNav(data.secondary_tabs || [], 'secondary-nav'); setMuteFromTabs(data.secondary_tabs); }
+  if (data.context !== undefined) document.getElementById('context-bar').textContent = data.context || '';
   await applyNav();
+}
+
+// ── Generic fragment fetch (GET + HTML into target) ──────────────
+async function handleFragmentFetch(btn) {
+  const url = btn.dataset.fragmentUrl;
+  const target = btn.dataset.target || 'secondary-content';
+  if (!url) return;
+  const resp = await fetch(url);
+  if (resp.status === 200) {
+    document.getElementById(target).innerHTML = await resp.text();
+  }
 }
 
 // ── Boot ────────────────────────────────────────────────────────
 async function loadGame() {
-  updateMuteButton();
   const g = await api('/game');
   if (!g || !g.ok) return;
   populateStatusStrip(g);
   if (g.season_recap) {
     const resp = await fetch('/season/recap?_format=fragment');
     if (resp.status === 200) {
-      document.getElementById('panel-primary').innerHTML = await resp.text();
-      document.getElementById('panel-secondary').innerHTML = '';
+      document.getElementById('primary-content').innerHTML = await resp.text();
+      document.getElementById('secondary-content').innerHTML = '';
       return;
     }
   }
   if (g.show_orientation) {
     const resp = await fetch('/orientation?_format=fragment');
     if (resp.status === 200) {
-      document.getElementById('panel-primary').innerHTML = await resp.text();
-      document.getElementById('panel-secondary').innerHTML = '';
+      document.getElementById('primary-content').innerHTML = await resp.text();
+      document.getElementById('secondary-content').innerHTML = '';
     }
     return;
   }
@@ -205,28 +207,45 @@ async function applyNav(requestedView) {
   if (g.season_recap) {
     const resp = await fetch('/season/recap?_format=fragment');
     if (resp.status === 200) {
-      document.getElementById('panel-primary').innerHTML = await resp.text();
-      document.getElementById('panel-secondary').innerHTML = '';
-      renderNavBar(nav.tabs);
+      document.getElementById('primary-content').innerHTML = await resp.text();
+      document.getElementById('secondary-content').innerHTML = '';
+      renderNav(nav.primary_tabs, 'primary-nav');
+      renderNav(nav.secondary_tabs || [], 'secondary-nav');
+      setMuteFromTabs(nav.secondary_tabs);
       document.getElementById('context-bar').textContent = nav.context || '';
       return;
     }
   }
-  renderNavBar(nav.tabs);
+  renderNav(nav.primary_tabs, 'primary-nav');
+  renderNav(nav.secondary_tabs || [], 'secondary-nav');
+  setMuteFromTabs(nav.secondary_tabs);
   document.getElementById('context-bar').textContent = nav.context || '';
   await Promise.all([
-    fetchThenRender(nav.primary_fragment_url, 'panel-primary'),
-    fetchThenRender(nav.secondary_fragment_url, 'panel-secondary'),
+    fetchThenRender(nav.primary_fragment_url, 'primary-content'),
+    fetchThenRender(nav.secondary_fragment_url, 'secondary-content'),
   ]);
 }
 
-function renderNavBar(tabs) {
-  const bar = document.getElementById('nav-bar');
+function renderNav(tabs, containerId) {
+  const bar = document.getElementById(containerId);
+  if (!bar) return;
   bar.innerHTML = tabs.map(t => {
-    const extras = t.action_url ? ` data-action-url="${t.action_url}" data-method="POST"` : '';
-    const cls = `nav-btn${t.active ? ' active' : ' inactive'}${t.current ? ' current' : ''}`;
-    return `<button class="${cls}" data-view="${t.id}"${t.reason ? ` title="${t.reason}"` : ''}${extras}>${t.label}</button>`;
+    let html = `<button class="nav-btn${t.active ? ' active' : ' inactive'}${t.current ? ' current' : ''}" data-view="${t.id}"`;
+    if (t.fragment_url) html += ` data-fragment-url="${t.fragment_url}"`;
+    if (t.action_url)   html += ` data-action-url="${t.action_url}"`;
+    if (t.method)       html += ` data-method="${t.method}"`;
+    if (t.target)       html += ` data-target="${t.target}"`;
+    if (t.key)          html += ` data-key="${t.key}"`;
+    if (t.reason)       html += ` title="${t.reason}"`;
+    html += `>${t.label_live || t.label}</button>`;
+    return html;
   }).join('');
+}
+
+function setMuteFromTabs(tabs) {
+  if (!tabs) return;
+  const mute = tabs.find(t => t.key === 'mute');
+  if (mute) applyMuteState(mute.toggle_state);
 }
 
 async function fetchThenRender(url, targetId) {
@@ -238,15 +257,26 @@ async function fetchThenRender(url, targetId) {
 }
 
 // ── Event delegation ─────────────────────────────────────────────
-document.getElementById('nav-bar').addEventListener('click', async (e) => {
+document.getElementById('primary-nav').addEventListener('click', async (e) => {
   const btn = e.target.closest('.nav-btn');
   if (!btn || btn.classList.contains('inactive')) return;
+  e.stopPropagation();
   playClick();
   if (btn.dataset.actionUrl) { await handleAction(btn); return; }
+  if (btn.dataset.fragmentUrl) { await handleFragmentFetch(btn); return; }
   applyNav(btn.dataset.view);
 });
 
-document.getElementById('panel-secondary').addEventListener('click', async (e) => {
+document.getElementById('secondary-nav').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.nav-btn');
+  if (!btn || btn.classList.contains('inactive')) return;
+  e.stopPropagation();
+  playClick();
+  if (btn.dataset.actionUrl) { await handleAction(btn); return; }
+  if (btn.dataset.fragmentUrl) { await handleFragmentFetch(btn); return; }
+});
+
+document.getElementById('secondary-content').addEventListener('click', async (e) => {
   const link = e.target.closest('.season-recap-link');
   if (link) {
     e.preventDefault();
@@ -254,7 +284,7 @@ document.getElementById('panel-secondary').addEventListener('click', async (e) =
     if (!url) return;
     const resp = await fetch(url);
     if (resp.status !== 200) return;
-    document.getElementById('panel-primary').innerHTML = await resp.text();
+    document.getElementById('primary-content').innerHTML = await resp.text();
     return;
   }
   const ref = e.target.closest('[data-reference-id]');
@@ -262,14 +292,14 @@ document.getElementById('panel-secondary').addEventListener('click', async (e) =
     const id = ref.dataset.referenceId;
     const resp = await fetch(`/reference/${id}?_format=fragment`);
     if (resp.status !== 200) return;
-    document.getElementById('panel-secondary').innerHTML = await resp.text();
+    document.getElementById('secondary-content').innerHTML = await resp.text();
     return;
   }
   const btn = e.target.closest('[data-action-url]');
   if (btn) { playClick(); handleAction(btn); }
 });
 
-document.getElementById('panel-primary').addEventListener('click', async (e) => {
+document.getElementById('primary-content').addEventListener('click', async (e) => {
   const link = e.target.closest('.season-recap-link');
   if (link) {
     e.preventDefault();
@@ -277,7 +307,7 @@ document.getElementById('panel-primary').addEventListener('click', async (e) => 
     if (!url) return;
     const resp = await fetch(url);
     if (resp.status !== 200) return;
-    document.getElementById('panel-primary').innerHTML = await resp.text();
+    document.getElementById('primary-content').innerHTML = await resp.text();
     return;
   }
   const ref = e.target.closest('[data-reference-id]');
@@ -285,7 +315,7 @@ document.getElementById('panel-primary').addEventListener('click', async (e) => 
     const id = ref.dataset.referenceId;
     const resp = await fetch(`/reference/${id}?_format=fragment`);
     if (resp.status !== 200) return;
-    document.getElementById('panel-secondary').innerHTML = await resp.text();
+    document.getElementById('secondary-content').innerHTML = await resp.text();
     return;
   }
   const btn = e.target.closest('[data-action-url]');

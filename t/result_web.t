@@ -143,10 +143,10 @@ subtest 'nav returns result view when current_view is result' => sub {
       ->json_is('/current_view', 'result')
       ->json_is('/primary_fragment_url', '/result?_format=fragment')
       ->json_is('/secondary_view', 'factions')
-      ->json_has('/tabs');
+      ->json_has('/primary_tabs');
 
     my $json = $t->tx->res->json;
-    my ($home_tab) = grep { $_->{id} eq 'home' } @{ $json->{tabs} };
+    my ($home_tab) = grep { $_->{id} eq 'home' } @{ $json->{primary_tabs} };
     ok $home_tab->{current}, 'home tab highlighted when viewing result';
 };
 

@@ -35,14 +35,11 @@
   </div>
 % }
 
-% if ($authenticated) {
-  <div id="nav-bar"></div>
-% }
-
   <div id="main-area">
     <div id="panel-primary">
 % if ($authenticated) {
-      <!-- populated by JS -->
+      <div id="primary-nav"></div>
+      <div id="primary-content"></div>
 % } else {
       <div class="mm-panel" style="max-width:20rem;margin:1rem auto">
         <div class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</div>
@@ -60,14 +57,9 @@
 % }
     </div>
 % if ($authenticated) {
-    <div id="secondary-column" style="flex:1;display:flex;flex-direction:column;border-left:1px solid var(--mm-border);min-height:0">
-      <div class="secondary-nav">
-        <button class="nav-btn active"
-          onclick="fetch('/orientation?_format=fragment').then(r=>r.text()).then(h=>document.getElementById('panel-primary').innerHTML=h)">?</button>
-        <button id="mute-btn" class="nav-btn active" style="margin-left:auto"
-          onclick="toggleMute()">)))]</button>
-      </div>
-      <div id="panel-secondary" style="flex:1;overflow-y:auto;padding:0.5rem 0.6rem"></div>
+    <div id="panel-secondary">
+      <div id="secondary-nav"></div>
+      <div id="secondary-content"></div>
     </div>
 % } else {
     <div id="panel-secondary"></div>

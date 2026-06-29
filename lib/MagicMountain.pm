@@ -518,6 +518,7 @@ sub buildRoutes ($self) {
     $auth->get('/leaderboard/factions')->to('leaderboard#factions');
     $auth->get('/result')->to('result#show')->name('result_show');
     $auth->get('/nav')->to('nav#show');
+    $auth->post('/nav/toggle')->to('nav#toggle')->name('nav_toggle');
 
     # Orientation
     $auth->get('/orientation')->to('orientation#show');

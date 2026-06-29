@@ -148,18 +148,20 @@ sub setup_market {
     return $t;
 }
 
+sub _csrf { my $t = shift; $t->tx->res->json->{csrf_token} // '' }
+
 subtest 'idle state — all tabs active' => sub {
     my $t = setup_idle;
     $t->get_ok('/nav')
       ->status_is(200)
       ->json_is('/current_view', 'home')
-      ->json_has('/tabs')
+      ->json_has('/primary_tabs')
       ->json_has('/primary_fragment_url')
       ->json_has('/secondary_fragment_url')
       ->json_has('/context');
 
     my $json = $t->tx->res->json;
-    for my $tab (@{ $json->{tabs} }) {
+    for my $tab (@{ $json->{primary_tabs} }) {
         is $tab->{active}, 1, "tab $tab->{id} is active in idle"
             or diag explain $tab;
         like $tab->{fragment_url}, qr{^/}, "tab $tab->{id} has fragment_url";
@@ -173,11 +175,11 @@ subtest 'idle no AP — bazaar inactive' => sub {
       ->json_is('/current_view', 'home');
 
     my $json = $t->tx->res->json;
-    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
+    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{primary_tabs} };
     ok !$bazaar->{active}, 'bazaar inactive when no AP';
     is $bazaar->{reason}, 'No AP remaining', 'correct reason';
 
-    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{tabs} };
+    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{primary_tabs} };
     ok !$prospect->{active}, 'prospect inactive when no AP';
     is $prospect->{reason}, 'Not enough AP (2 required)', 'correct reason for prospect';
 };
@@ -190,7 +192,7 @@ subtest 'idle empty shed — bazaar inactive' => sub {
 
     my $json = $t->tx->res->json;
     # Shed is empty, AP >= 1 — bazaar inactive due to no items
-    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
+    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{primary_tabs} };
     ok !$bazaar->{active}, 'bazaar inactive when shed empty';
     is $bazaar->{reason}, 'No artifacts in shed', 'correct reason';
 };
@@ -203,7 +205,7 @@ subtest 'prospecting — bazaar inactive' => sub {
       ->json_has('/context');
 
     my $json = $t->tx->res->json;
-    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
+    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{primary_tabs} };
     ok !$bazaar->{active}, 'bazaar inactive during prospecting';
     is $bazaar->{reason}, 'Finish your current expedition first', 'correct reason';
     is $json->{secondary_view}, 'factions', 'secondary is factions during prospecting';
@@ -217,7 +219,7 @@ subtest 'market visit — prospect inactive' => sub {
       ->json_has('/context');
 
     my $json = $t->tx->res->json;
-    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{tabs} };
+    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{primary_tabs} };
     ok !$prospect->{active}, 'prospect inactive during market';
     is $prospect->{reason}, 'Complete your market visit first', 'correct reason';
     is $json->{secondary_view}, 'shed', 'secondary is shed during market';
@@ -289,11 +291,11 @@ subtest 'AP=1 — bazaar active but prospect inactive' => sub {
       ->status_is(200);
 
     my $json = $t->tx->res->json;
-    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{tabs} };
+    my ($prospect) = grep { $_->{id} eq 'prospect' } @{ $json->{primary_tabs} };
     ok !$prospect->{active}, 'prospect inactive when AP=1 (needs 2)';
     is $prospect->{reason}, 'Not enough AP (2 required)', 'correct reason for prospect';
 
-    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{tabs} };
+    my ($bazaar) = grep { $_->{id} eq 'bazaar' } @{ $json->{primary_tabs} };
     ok $bazaar->{active}, 'bazaar active when AP=1';
 };
 
@@ -345,4 +347,56 @@ subtest 'market context text when no active activity returns empty' => sub {
     ok defined($json->{context}), 'context is defined in idle';
 };
 
-done_testing;
+subtest 'secondary_tabs include account, orientation, mute' => sub {
+    my $t = setup_idle;
+    $t->get_ok('/nav')
+      ->status_is(200);
+
+    my $json = $t->tx->res->json;
+    ok $json->{secondary_tabs}, 'secondary_tabs present';
+    is scalar @{ $json->{secondary_tabs} }, 3, 'three secondary tabs';
+
+    my ($account) = grep { $_->{id} eq 'account' } @{ $json->{secondary_tabs} };
+    ok $account, 'account tab present';
+    is $account->{type}, 'nav', 'account is nav type';
+    is $account->{target}, 'secondary-content', 'account targets secondary-content';
+
+    my ($orientation) = grep { $_->{id} eq 'orientation' } @{ $json->{secondary_tabs} };
+    ok $orientation, 'orientation tab present';
+    is $orientation->{type}, 'action', 'orientation is action type';
+
+    my ($mute) = grep { $_->{id} eq 'mute' } @{ $json->{secondary_tabs} };
+    ok $mute, 'mute tab present';
+    is $mute->{type}, 'toggle', 'mute is toggle type';
+    ok exists $mute->{toggle_state}, 'mute has toggle_state';
+    ok exists $mute->{key}, 'mute has key field for POST body';
+    is $mute->{key}, 'mute', 'mute key matches backend toggle handler';
+};
+
+subtest 'primary_tabs do not include account' => sub {
+    my $t = setup_idle;
+    $t->get_ok('/nav')
+      ->status_is(200);
+
+    my $json = $t->tx->res->json;
+    my ($account) = grep { $_->{id} eq 'account' } @{ $json->{primary_tabs} };
+    ok !$account, 'account not in primary_tabs';
+};
+
+subtest 'toggle mute flips settings_muted' => sub {
+    my $t = setup_idle;
+    my $csrf = _csrf($t);
+
+    my $json = $t->tx->res->json;
+    my ($mute_before) = grep { $_->{id} eq 'mute' } @{ $json->{secondary_tabs} };
+    my $before = $mute_before->{toggle_state};
+
+    $t->post_ok('/nav/toggle' => {'X-CSRF-Token' => $csrf} => json => { key => 'mute' })
+      ->status_is(200);
+
+    my $after_json = $t->tx->res->json;
+    my ($mute_after) = grep { $_->{id} eq 'mute' } @{ $after_json->{secondary_tabs} };
+    is $mute_after->{toggle_state}, $before ? 0 : 1, 'toggle_state flipped';
+};
+
+done_testing();
