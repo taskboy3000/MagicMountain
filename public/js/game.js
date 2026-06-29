@@ -73,17 +73,19 @@ function playStop() {
   const ctx = _initAudio();
   const now = ctx.currentTime;
 
-  const osc = ctx.createOscillator();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(294, now);                       // D4
-
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.001, now);
-  g.gain.linearRampToValueAtTime(0.07, now + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-
-  osc.connect(g); g.connect(ctx.destination);
-  osc.start(now); osc.stop(now + 0.15);
+  for (let i = 0; i < 2; i++) {
+    const t = now + i * 0.5;
+    const vol = i === 0 ? 0.07 : 0.053;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(147, t);                       // D3
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.25);
+  }
 }
 
 function playFail() {
