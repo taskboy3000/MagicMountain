@@ -1,5 +1,63 @@
 let CSRF_TOKEN = '';
 
+// ── Audio: procedural keyboard click ────────────────────────────
+let _audioCtx = null;
+let _muted = localStorage.getItem('mm_muted') === '1';
+
+function _initAudio() {
+  if (_audioCtx) return _audioCtx;
+  _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function playClick() {
+  if (_muted) return;
+  const ctx = _initAudio();
+  const now = ctx.currentTime;
+
+  const v = () => 1 + (Math.random() - 0.5) * 0.15;
+
+  // Subtle resonant lowpass with light variation
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(5500 * v(), now);
+  lp.Q.setValueAtTime(1.5 + Math.random() * 1.5, now);
+  lp.connect(ctx.destination);
+
+  const h = ctx.createOscillator();
+  h.type = 'square';
+  h.frequency.setValueAtTime(3200 * v(), now);
+  h.frequency.exponentialRampToValueAtTime(800 * v(), now + 0.005);
+  const hg = ctx.createGain();
+  hg.gain.setValueAtTime(0.06 * v(), now);
+  hg.gain.exponentialRampToValueAtTime(0.001, now + 0.008);
+  h.connect(hg); hg.connect(lp);
+  h.start(now); h.stop(now + 0.008);
+
+  const l = ctx.createOscillator();
+  l.type = 'sine';
+  l.frequency.setValueAtTime(140 * v(), now);
+  l.frequency.exponentialRampToValueAtTime(60, now + 0.015);
+  const lg = ctx.createGain();
+  lg.gain.setValueAtTime(0.10 * v(), now);
+  lg.gain.exponentialRampToValueAtTime(0.001, now + 0.018);
+  l.connect(lg); lg.connect(ctx.destination);
+  l.start(now); l.stop(now + 0.018);
+}
+
+function toggleMute() {
+  _muted = !_muted;
+  localStorage.setItem('mm_muted', _muted ? '1' : '0');
+  _initAudio();
+  if (!_muted) playClick();
+  updateMuteButton();
+}
+
+function updateMuteButton() {
+  const btn = document.getElementById('mute-btn');
+  if (btn) btn.textContent = _muted ? '[)]' : ')))]';
+}
+
 async function api(path, { body, method } = {}) {
   if (!method) method = body ? 'POST' : 'GET';
   const headers = { Accept: 'application/json' };
@@ -39,6 +97,7 @@ async function handleAction(btn) {
 
 // ── Boot ────────────────────────────────────────────────────────
 async function loadGame() {
+  updateMuteButton();
   const g = await api('/game');
   if (!g || !g.ok) return;
   populateStatusStrip(g);
@@ -129,6 +188,7 @@ async function fetchThenRender(url, targetId) {
 document.getElementById('nav-bar').addEventListener('click', async (e) => {
   const btn = e.target.closest('.nav-btn');
   if (!btn || btn.classList.contains('inactive')) return;
+  playClick();
   if (btn.dataset.actionUrl) { await handleAction(btn); return; }
   applyNav(btn.dataset.view);
 });
@@ -153,7 +213,7 @@ document.getElementById('panel-secondary').addEventListener('click', async (e) =
     return;
   }
   const btn = e.target.closest('[data-action-url]');
-  if (btn) handleAction(btn);
+  if (btn) { playClick(); handleAction(btn); }
 });
 
 document.getElementById('panel-primary').addEventListener('click', async (e) => {
@@ -176,7 +236,7 @@ document.getElementById('panel-primary').addEventListener('click', async (e) => 
     return;
   }
   const btn = e.target.closest('[data-action-url]');
-  if (btn) handleAction(btn);
+  if (btn) { playClick(); handleAction(btn); }
 });
 
 loadGame();
