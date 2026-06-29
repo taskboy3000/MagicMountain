@@ -19,6 +19,7 @@ test-js:
 
 clean:
 	rm -rf t/cover_db coverage
+	find . -name '*.bak' -o -name '*.tdy' -exec rm {} \;
 
 cover:
 	rm -rf cover_db
