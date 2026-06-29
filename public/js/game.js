@@ -68,6 +68,24 @@ function playSale() {
   }
 }
 
+function playStop() {
+  if (_muted) return;
+  const ctx = _initAudio();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(294, now);                       // D4
+
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.07, now + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(now); osc.stop(now + 0.15);
+}
+
 function playFail() {
   if (_muted) return;
   const ctx = _initAudio();
@@ -131,6 +149,7 @@ async function handleAction(btn) {
   if (!data.ok) { window.location.href = '/game'; return; }
   if (data.result === 'sold' || data.result === 'sold_more' || data.result === 'breakthrough') playSale();
   if (data.result === 'collapse' || data.result === 'sent_away' || data.result === 'customer_left' || data.result === 'over_budget') playFail();
+  if (data.result === 'stopped') playStop();
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);
