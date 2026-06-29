@@ -25,7 +25,7 @@
           </td>
           <td>
 % if ($s->{status} eq 'active') {
-            <span class="mm-badge mm-badge-green">Day <%= $s->{day} %>/<%= $s->{length} %></span>
+            <span class="mm-badge mm-badge-green">Active</span>
 % } else {
             <span class="mm-badge">Complete</span>
 % }

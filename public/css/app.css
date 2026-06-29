@@ -86,7 +86,7 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 }
 
 /* ── Ledger (shed rows) ───────────────────────────────────────── */
-.mm-ledger { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.mm-ledger { width: 100%; border-collapse: collapse; }
 .mm-ledger-wrap { overflow-x: auto; }
 .mm-ledger td, .mm-ledger th {
   padding: 0.3rem 0.4rem;
