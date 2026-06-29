@@ -1,4 +1,10 @@
 package MagicMountain::Service::Authentication;
+# Security posture: tokens are 6-char (30 bits) from [A-Z2-9]. Weak
+# offline but adequate: no PII, no payments, no privileged roles.
+# Rate limiting (5/15min) prevents online brute-force. Bcrypt cost 10
+# slows offline cracking. If this ever handles PII or real money,
+# increase entropy to 128+ bits and use argon2id.
+
 use Mojo::Base '-base', '-signatures';
 use Crypt::Bcrypt qw(bcrypt bcrypt_check);
 

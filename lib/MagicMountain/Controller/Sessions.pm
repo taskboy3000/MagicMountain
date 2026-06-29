@@ -6,14 +6,20 @@ sub login_form ($self) {
     $self->redirect_to('game');
 }
 
+sub _normalize_name ($self, $raw) {
+    my $name = $raw // '';
+    $name =~ s/^\s+|\s+$//g;
+    return $name;
+}
+
 sub create ($self) {
     my $ip   = $self->tx->remote_address;
     my $body = $self->req->json;
-    my $name = $body->{displayName} // '';
+    my $name = $self->_normalize_name($body->{displayName} // '');
     my $rl   = $self->app->rate_limiter;
 
     return $self->render(json => { ok => 0, error => 'displayName is required' }, status => 400)
-        unless $name;
+        unless length $name > 0;
 
     # Account-name rate limit
     if (!$rl->check_name(lc $name)) {
@@ -52,6 +58,10 @@ sub create ($self) {
     my $account = $self->app->accounts->find_by_username($name);
 
     if (!$account) {
+        # Validate display name for new accounts
+        return $self->render(json => { ok => 0, error => 'Display name must be 1-24 characters: letters, numbers, underscores, dashes' }, status => 400)
+            unless length $name <= 24 && $name =~ /^[a-zA-Z0-9_-]+$/;
+
         # New account — generate token
         my $result = $auth->new_account($name);
         $account = $result->{account};
@@ -128,7 +138,7 @@ sub create ($self) {
 sub recover ($self) {
     my $ip   = $self->tx->remote_address;
     my $body = $self->req->json;
-    my $name = $body->{displayName} // '';
+    my $name = $self->_normalize_name($body->{displayName} // '');
     my $code = uc ($body->{recoveryCode} // '');
 
     return $self->render(json => { ok => 0, error => 'displayName required' }, status => 400) unless $name;
@@ -220,8 +230,7 @@ sub _set_remember_cookie ($self, $remember_token, $account) {
         account_id => $account->getCol('id'),
         token      => $remember_token,
     });
-    $self->cookie(mm_remember => $value, {
-        signed   => 1,
+    $self->signed_cookie(mm_remember => $value, {
         httponly => 1,
         secure   => $self->req->is_secure,
         samesite => 'Lax',
@@ -255,7 +264,6 @@ sub destroy ($self) {
         $self->app->session_store->delete_by_player_id($player_id);
         $self->app->audit_log->log('logout', player_id => $player_id);
     }
-    $self->cookie(mm_remember => '', { path => '/', expires => 1 });
     $self->session(expires => 1);
     $self->render(json => { ok => 1 });
 }
@@ -267,7 +275,6 @@ sub logout ($self) {
         $self->app->session_store->delete_by_player_id($player_id);
         $self->app->audit_log->log('logout', player_id => $player_id);
     }
-    $self->cookie(mm_remember => '', { path => '/', expires => 1 });
     $self->session(expires => 1);
     $self->redirect_to('game');
 }

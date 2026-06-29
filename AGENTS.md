@@ -107,6 +107,9 @@ make cover && make report                                      # coverage (85%+ 
 - **Tests**: Use `Test::Mojo` for integration. Use `tempdir(CLEANUP => 1)` with
   `$ENV{MM_DATA_DIR}` for isolated state. Never `write_file` directly to `*.json`
   — always use Model objects (`->create`, `->save`) to set up test state.
+- **Commit messages**: First explain the reasoning (why), then summarize the changes (what).
+  Example: "Restrict display names to safe characters — prevents log injection and
+  account confusion. Trims whitespace, validates [a-zA-Z0-9_-]{1,24} on creation."
 - **Formatting**: Run `make indent && make clean` before every commit.
 - **Coverage**: Run `make cover && make report` before every commit. All
   `lib/*.pm` files must stay at or above **85%** statement coverage.
