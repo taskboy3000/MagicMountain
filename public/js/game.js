@@ -45,6 +45,57 @@ function playClick() {
   l.start(now); l.stop(now + 0.018);
 }
 
+// ── Sale register ring ─────────────────────────────────────────
+function playSale() {
+  if (_muted) return;
+  const ctx = _initAudio();
+  const now = ctx.currentTime;
+
+  const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+  const start = 0;
+  const step = 0.065;
+  const dur  = 0.14;
+
+  for (let i = 0; i < notes.length; i++) {
+    const t = now + start + i * step;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(notes[i], t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t);
+    g.gain.linearRampToValueAtTime(0.09, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t + dur);
+  }
+}
+
+// ── Failure tone ──────────────────────────────────────────────
+function playFail() {
+  if (_muted) return;
+  const ctx = _initAudio();
+  const now = ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(196, now);            // G3
+  osc.frequency.exponentialRampToValueAtTime(73, now + 0.35); // D2
+
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(800, now);
+  lp.frequency.exponentialRampToValueAtTime(300, now + 0.35);
+
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.07, now + 0.02);
+  g.gain.setValueAtTime(0.07, now + 0.08);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.40);
+
+  osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+  osc.start(now); osc.stop(now + 0.40);
+}
+
 function toggleMute() {
   _muted = !_muted;
   localStorage.setItem('mm_muted', _muted ? '1' : '0');
@@ -89,6 +140,8 @@ async function handleAction(btn) {
   const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
   if (!data) return;
   if (!data.ok) { window.location.href = '/game'; return; }
+  if (data.result === 'sold' || data.result === 'sold_more' || data.result === 'breakthrough') playSale();
+  if (data.result === 'collapse' || data.result === 'sent_away' || data.result === 'customer_left' || data.result === 'over_budget') playFail();
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);
