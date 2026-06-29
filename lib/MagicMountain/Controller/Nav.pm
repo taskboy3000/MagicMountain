@@ -27,14 +27,6 @@ my %FRAGMENT_URL = (
     account     => '/account?_format=fragment',
 );
 
-my %TAB_FRAGMENT_URL = (
-    home     => '/home?_format=fragment',
-    prospect => '/prospecting?_format=fragment',
-    bazaar   => '/market?_format=fragment',
-    factions => '/factions?_format=fragment',
-    skills   => '/skills?_format=fragment',
-);
-
 my %TAB_LABEL = (
     home     => 'HOME',
     prospect => 'PROSPECT',
@@ -72,8 +64,7 @@ sub show ($self) {
     }
 
     for my $tab (@$primary_tabs) {
-        $tab->{label}        = $TAB_LABEL{$tab->{id}};
-        $tab->{fragment_url} = $TAB_FRAGMENT_URL{$tab->{id}};
+        $tab->{label} = $TAB_LABEL{$tab->{id}};
         if ($tab->{id} eq 'bazaar' && $tab->{active} && !$type) {
             $tab->{action_url} = '/market/begin';
         }

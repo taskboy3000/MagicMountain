@@ -537,6 +537,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/accept_counter')->to('market#accept_counter');
     $auth_write->post('/market/stand_pat')->to('market#stand_pat');
     $auth_write->post('/result/dismiss')->to('result#dismiss')->name('result_dismiss');
+    $auth_write->post('/result/continue')->to('result#do_continue')->name('result_continue');
     # DEAD-SUPPRESS: future season history UI
     # $auth_write->post('/season/end')->to('season#end');
 }

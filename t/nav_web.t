@@ -164,7 +164,12 @@ subtest 'idle state — all tabs active' => sub {
     for my $tab (@{ $json->{primary_tabs} }) {
         is $tab->{active}, 1, "tab $tab->{id} is active in idle"
             or diag explain $tab;
-        like $tab->{fragment_url}, qr{^/}, "tab $tab->{id} has fragment_url";
+        if ($tab->{id} eq 'prospect' || $tab->{id} eq 'bazaar') {
+            ok $tab->{action_url}, "tab $tab->{id} has action_url";
+        } else {
+            ok !exists($tab->{action_url}), "tab $tab->{id} has no action_url";
+            ok !exists($tab->{fragment_url}), "tab $tab->{id} has no fragment_url — triggers applyNav, not handleFragmentFetch";
+        }
     }
 };
 

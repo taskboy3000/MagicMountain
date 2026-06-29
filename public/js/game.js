@@ -277,6 +277,11 @@ document.getElementById('secondary-nav').addEventListener('click', async (e) => 
 });
 
 document.getElementById('secondary-content').addEventListener('click', async (e) => {
+  const view = e.target.closest('[data-view]');
+  if (view && !view.closest('.season-recap-link')) {
+    e.preventDefault();
+    if (view.dataset.view) { applyNav(view.dataset.view); return; }
+  }
   const link = e.target.closest('.season-recap-link');
   if (link) {
     e.preventDefault();

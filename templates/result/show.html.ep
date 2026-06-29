@@ -7,7 +7,13 @@
     <p><%= $result->{value} %> scrap</p>
 % }
     <p><%= $result->{message} %></p>
-    <button class="mm-btn mm-btn-primary" data-action-url="/result/dismiss"
-            data-method="POST">Continue</button>
+    <div style="display:flex;gap:0.5rem;margin-top:0.5rem">
+% if ($can_continue) {
+      <button class="mm-btn mm-btn-primary" data-action-url="/result/continue"
+              data-method="POST" style="flex:1">Continue <%= $activity_type eq 'prospecting' ? 'Prospecting' : 'Market' %></button>
+% }
+      <button class="mm-btn" data-action-url="/result/dismiss"
+              data-method="POST" style="flex:<%= $can_continue ? '0.5' : '1' %>">Dismiss</button>
+    </div>
   </div>
 </div>
