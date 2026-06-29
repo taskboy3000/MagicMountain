@@ -74,11 +74,11 @@ function playStop() {
   const now = ctx.currentTime;
 
   for (let i = 0; i < 2; i++) {
-    const t = now + i * 0.5;
-    const vol = i === 0 ? 0.07 : 0.053;
+    const t = now + i * 0.25;
+    const vol = i === 0 ? 0.07 : 0.035;
     const osc = ctx.createOscillator();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(147, t);                       // D3
+    osc.frequency.setValueAtTime(294, t);                       // D4
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.001, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.008);
