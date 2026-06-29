@@ -4,6 +4,7 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 my %OUTCOME_ACTIVITY = (
     breakthrough => 'prospecting',
     collapse     => 'prospecting',
+    stopped      => 'prospecting',
     sold         => 'market',
     sold_more    => 'market',
     sent_away    => 'market',

@@ -353,6 +353,17 @@ sub stop ($self, $char, %params) {
     $char->setCol('pending_activity_id', undef);
     $char->save;
 
+    $char->setCol('result', {
+        outcome      => 'stopped',
+        icon         => 'HALT',
+        outcome_text => 'Extraction Complete',
+        value        => $artifact->{value},
+        message      => 'Artifact modification stopped at optimum stability levels.',
+        item_name    => $artifact->{id},
+    });
+    $char->setCol('current_view', 'result');
+    $char->save;
+
     $self->_log_event($char, {
         type        => 'stop',
         artifact_id => $artifact->{id},
@@ -372,16 +383,11 @@ sub stop ($self, $char, %params) {
 
     return {
         view => {
-            ok        => 1,
-            result    => 'stopped',
-            shed_item => {
-                id                   => $item->getCol('id'),
-                artifact_id          => $artifact->{id},
-                estimated_value_min  => $est_min,
-                estimated_value_max  => $est_max,
-                condition            => 'fresh',
-            },
-            player => $self->_player_snapshot($char),
+            ok      => 1,
+            result  => 'stopped',
+            reward  => 0,
+            message => 'Artifact modification stopped at optimum stability levels.',
+            player  => $self->_player_snapshot($char),
         },
     };
 }
