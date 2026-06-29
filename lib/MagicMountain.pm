@@ -557,6 +557,7 @@ sub ensureActiveSeason ($self) {
             day             => 1,
             end_of_day_hour => $self->config->{end_of_day_hour},
             status          => 'active',
+            last_maintenance => CORE::time,
         );
         $season->save;
         return 1;
