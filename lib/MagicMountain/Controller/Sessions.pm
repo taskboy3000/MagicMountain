@@ -100,7 +100,7 @@ sub create ($self) {
     }
 
     # Check for token in request body
-    my $submitted_token = $body->{token} // '';
+    my $submitted_token = uc ($body->{token} // '');
     if ($submitted_token) {
         my $verify = $auth->verify_login($account, $submitted_token);
         if ($verify->{error}) {

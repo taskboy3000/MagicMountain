@@ -25,9 +25,10 @@ sub _random_int ($self, $max) {
     return unpack('L', $bytes) % $max;
 }
 
-sub _random_word ($self) {
-    my $words = $self->wordlist;
-    return $words->[ $self->_random_int(scalar @$words) ];
+my @TOKEN_CHARS = split '', 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+sub _token_char ($self) {
+    return $TOKEN_CHARS[ $self->_random_int(scalar @TOKEN_CHARS) ];
 }
 
 sub _bcrypt_cost ($self) {
@@ -35,9 +36,7 @@ sub _bcrypt_cost ($self) {
 }
 
 sub generate_token ($self) {
-    my @parts;
-    push @parts, $self->_random_word for 1 .. 3;
-    return join '-', @parts;
+    return join '', map { $self->_token_char } 1 .. 6;
 }
 
 sub _salt ($self) {

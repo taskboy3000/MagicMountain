@@ -111,9 +111,24 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
             <div id="token-error" style="display:none;color:var(--mm-red);font-size:0.78rem;margin-bottom:0.5rem"></div>
           </div>
         </div>`;
-      document.getElementById('token-form').addEventListener('submit', (ev) => {
+      document.getElementById('token-form').addEventListener('submit', async (ev) => {
         ev.preventDefault();
-        document.getElementById('login-form').dispatchEvent(new Event('submit'));
+        const tokenInput = document.getElementById('token-input');
+        const errEl = document.getElementById('token-error');
+        const token = tokenInput ? tokenInput.value.trim() : '';
+        if (!token) return;
+        const resp = await fetch('/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ displayName: _pendingDisplayName, token })
+        });
+        const data = await resp.json();
+        if (!data.ok) {
+          errEl.textContent = data.error || 'Invalid token';
+          errEl.style.display = 'block';
+          return;
+        }
+        window.location.href = '/game';
       });
       return;
     }
