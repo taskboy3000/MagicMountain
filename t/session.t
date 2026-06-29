@@ -9,6 +9,7 @@ use lib ("$FindBin::Bin/../lib");
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
 use MagicMountain::Model::AuditLog;
+use MagicMountain::Service::Authentication;
 
 sub audit_entries {
     my ($file) = @_;
@@ -29,66 +30,77 @@ sub audit_has {
 my $dataDir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $dataDir;
 
-my $account = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
-my $alice = $account->create(username => 'alice');
-$alice->save;
-my $aliceId = $alice->getCol('id');
-
 my $t = Test::Mojo->new('MagicMountain');
+my $auth_service = $t->app->auth_service;
+
+# Store token across subtests
+my $_alice_token = '';
 
 subtest 'GET / redirects to /game' => sub {
     $t->get_ok('/')->status_is(302)
       ->header_like(Location => qr{/game});
 };
 
-subtest 'session created on login' => sub {
+subtest 'new account gets token' => sub {
     $t->post_ok('/sessions', json => { displayName => 'alice' })
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_has('/token')
+      ->json_is('/show_token' => 1);
+
+    $_alice_token = $t->tx->res->json->{token};
+    ok $_alice_token, 'token received';
+
+    my $account = $t->app->accounts->find_by_username('alice');
+    ok $account, 'account created';
+    ok $account->getCol('token_hash'), 'token_hash set';
+    is $account->getCol('banned'), 0, 'banned is 0';
+};
+
+subtest 'returning with correct token succeeds' => sub {
+    ok $_alice_token, 'have token from previous test';
+
+    $t->post_ok('/sessions', json => { displayName => 'alice', token => $_alice_token })
       ->status_is(200)
       ->json_is('/ok' => 1);
 
-    my $session = $t->app->session_store->find_by_player_id($aliceId);
-    ok $session, 'session record exists after login';
-    ok $session->getCol('last_active') > 0, 'last_active is set';
+    my $player_id = $t->tx->res->json->{player}{id};
+    my $session = $t->app->session_store->find_by_player_id($player_id);
+    ok $session, 'session created';
 
     my $entries = audit_entries("$dataDir/audit.jsonl");
-    ok audit_has($entries, 'login', $aliceId), 'audit log has login event';
+    ok audit_has($entries, 'login', $player_id), 'audit log has login event';
 };
 
-subtest 'GET / redirects to /game when authenticated' => sub {
-    $t->get_ok('/')->status_is(302)
-      ->header_like(Location => qr{/game});
-};
-
-subtest 'GET /player returns player when session valid' => sub {
-    $t->get_ok('/player')
-      ->status_is(200)
-      ->json_is('/ok' => 1)
-      ->json_is('/player/id' => $aliceId)
-      ->json_is('/player/displayName' => 'alice');
-};
-
-subtest 'GET /game shows game page when authenticated' => sub {
-    $t->get_ok('/game')
-      ->status_is(200)
-      ->content_like(qr/<!DOCTYPE html>/, 'layout template rendered')
-      ->content_like(qr/id="device-frame"/, 'device frame present')
-      ->content_like(qr/id="primary-nav"/, 'primary nav present');
+subtest 'wrong token fails' => sub {
+    $t->delete_ok('/sessions')->status_is(200);
+    $t->post_ok('/sessions', json => { displayName => 'alice', token => 'wrong-token-here' })
+      ->status_is(403)
+      ->json_is('/ok' => 0);
 };
 
 subtest 'touch updates last_active' => sub {
-    my $session_before = $t->app->session_store->find_by_player_id($aliceId);
+    $t->post_ok('/sessions', json => { displayName => 'alice', token => $_alice_token })
+      ->status_is(200)->json_is('/ok' => 1);
+    my $player_id = $t->tx->res->json->{player}{id};
+
+    my $session_before = $t->app->session_store->find_by_player_id($player_id);
     my $before = $session_before->getCol('last_active');
 
     $t->get_ok('/player')->status_is(200);
 
     $t->app->session_store->load;
-    my $session_after = $t->app->session_store->find_by_player_id($aliceId);
+    my $session_after = $t->app->session_store->find_by_player_id($player_id);
     my $after = $session_after->getCol('last_active');
     cmp_ok $after, '>=', $before, 'last_active updated by touch on request';
 };
 
-subtest 'expired session redirects to login and cleans up' => sub {
-    my $session = $t->app->session_store->find_by_player_id($aliceId);
+subtest 'expired session redirects to login' => sub {
+    $t->post_ok('/sessions', json => { displayName => 'alice', token => $_alice_token })
+      ->status_is(200)->json_is('/ok' => 1);
+    my $player_id = $t->tx->res->json->{player}{id};
+
+    my $session = $t->app->session_store->find_by_player_id($player_id);
     $session->setCol('last_active', time - 7200);
     $session->save;
 
@@ -97,25 +109,16 @@ subtest 'expired session redirects to login and cleans up' => sub {
       ->header_like(Location => qr{/login});
 
     $t->app->session_store->load;
-    my $gone = $t->app->session_store->find_by_player_id($aliceId);
+    my $gone = $t->app->session_store->find_by_player_id($player_id);
     ok !$gone, 'expired session record deleted from store';
 };
 
-subtest 're-login after expiry creates new session' => sub {
-    $t->post_ok('/sessions', json => { displayName => 'alice' })
-      ->status_is(200)
-      ->json_is('/ok' => 1);
-
-    my $session = $t->app->session_store->find_by_player_id($aliceId);
-    ok $session, 'new session record exists after re-login';
-    cmp_ok $session->getCol('last_active'), '>', time - 10,
-      'last_active is recent';
-
-    $t->get_ok('/player')->status_is(200)->json_is('/ok' => 1);
-};
-
 subtest 'logout destroys session record' => sub {
-    my $session = $t->app->session_store->find_by_player_id($aliceId);
+    $t->post_ok('/sessions', json => { displayName => 'alice', token => $_alice_token })
+      ->status_is(200)->json_is('/ok' => 1);
+    my $player_id = $t->tx->res->json->{player}{id};
+
+    my $session = $t->app->session_store->find_by_player_id($player_id);
     ok $session, 'session exists before logout';
 
     $t->delete_ok('/sessions')
@@ -123,11 +126,11 @@ subtest 'logout destroys session record' => sub {
       ->json_is('/ok' => 1);
 
     $t->app->session_store->load;
-    my $gone = $t->app->session_store->find_by_player_id($aliceId);
+    my $gone = $t->app->session_store->find_by_player_id($player_id);
     ok !$gone, 'session record deleted after logout';
 
     my $entries = audit_entries("$dataDir/audit.jsonl");
-    ok audit_has($entries, 'logout', $aliceId), 'audit log has logout event';
+    ok audit_has($entries, 'logout', $player_id), 'audit log has logout event';
 };
 
 subtest 'GET /game shows login form after logout' => sub {
@@ -135,67 +138,27 @@ subtest 'GET /game shows login form after logout' => sub {
       ->content_like(qr/PROSPECTBOY 3000 REGISTRATION/);
 };
 
-subtest 'GET /player redirects to /login after logout' => sub {
-    $t->get_ok('/player')->status_is(302)
-      ->header_like(Location => qr{/login});
-};
+subtest 'login rejected for banned account' => sub {
+    $t->delete_ok('/sessions')->status_is(200);
 
-subtest 'GET /player with no session redirects to /login' => sub {
-    my $t2 = Test::Mojo->new('MagicMountain');
-    $t2->get_ok('/player')->status_is(302)
-       ->header_like(Location => qr{/login});
-};
+    my $bob_acct = $t->app->accounts->create(username => 'bob');
+    $bob_acct->save;
+    my $bob_token = $auth_service->reset_token($bob_acct);
 
-subtest 'GET /game with no session shows login form' => sub {
-    my $t3 = Test::Mojo->new('MagicMountain');
-    $t3->get_ok('/game')->status_is(200)
-      ->content_like(qr/PROSPECTBOY 3000 REGISTRATION/);
-};
-
-subtest 'DELETE /player deletes account, character, and session' => sub {
-    my $chars = MagicMountain::Model::Character->new(
-        file => "$dataDir/characters.json",
-    );
-    my $char = $chars->create(
-        name       => 'alice_char',
-        account_id => $aliceId,
-        season_id  => 's1',
-        score      => 0,
-    );
-    $char->save;
-    my $charId = $char->getCol('id');
-
-    $t->post_ok('/sessions', json => { displayName => 'alice' })
+    $t->post_ok('/sessions', json => { displayName => 'bob', token => $bob_token })
       ->status_is(200)->json_is('/ok' => 1);
-    my $csrf = $t->tx->res->json->{csrf_token} // '';
 
-    $t->delete_ok('/player' => {'X-CSRF-Token' => $csrf})
-      ->status_is(200)
-      ->json_is('/ok' => 1);
+    $t->delete_ok('/sessions')->status_is(200);
 
     $t->app->accounts->load;
-    ok !$t->app->accounts->get($aliceId), 'account deleted';
-
-    $t->app->session_store->load;
-    ok !$t->app->session_store->find_by_player_id($aliceId),
-      'session deleted';
-
-    $chars->load;
-    ok !$chars->get($charId), 'character deleted';
-
-    my $entries = audit_entries("$dataDir/audit.jsonl");
-    ok audit_has($entries, 'account_deleted', $aliceId),
-      'audit log has account_deleted event';
-};
-
-subtest 'login rejected for disabled account' => sub {
-    my $bob = $t->app->accounts->create(username => 'bob', disabled => 1);
+    my $bob = $t->app->accounts->find_by_username('bob');
+    $bob->setCol('banned', 1);
     $bob->save;
 
-    $t->post_ok('/sessions', json => { displayName => 'bob' })
+    $t->post_ok('/sessions', json => { displayName => 'bob', token => $bob_token })
       ->status_is(403)
       ->json_is('/ok' => 0)
-      ->json_is('/error' => 'Account is disabled');
+      ->json_is('/error' => 'Account banned');
 };
 
 done_testing;

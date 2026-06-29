@@ -22,6 +22,7 @@ use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::ShedManager;
 use MagicMountain::Crier;
+use MagicMountain::Service::Authentication;
 use MagicMountain::RateLimiter;
 use MagicMountain::Service::RandomEvents;
 use MagicMountain::Service::BotRunner;
@@ -54,6 +55,8 @@ has defaultConfig => sub ($self) {
         market_multi_item               => 1,
         faction_max_stars               => 5,
         bots                            => { count => 0 },
+        bcrypt_cost                     => 10,
+        admin_secret                    => 'override-me',
     }
 };
 
@@ -280,6 +283,10 @@ has random_events => sub ($self) {
     MagicMountain::Service::RandomEvents->new(app => $self);
 };
 
+has auth_service => sub ($self) {
+    MagicMountain::Service::Authentication->new(app => $self);
+};
+
 has bot_runner => sub ($self) {
     MagicMountain::Service::BotRunner->new(app => $self);
 };
@@ -306,6 +313,13 @@ sub startup ($self) {
         $self->config->{market_multi_item}     = 1;
         $self->config->{rate_limit_max_attempts}          = 999999;
         $self->config->{rate_limit_max_attempts_per_name} = 999999;
+    }
+
+    if (grep { /^(override-me|surewhynot)$/ } @{ $self->config->{secrets} // [] }) {
+        $self->log->warn("*** Default secrets detected! Set strong secrets in magic_mountain.yml ***");
+    }
+    if (($self->config->{admin_secret} // '') eq 'override-me') {
+        $self->log->warn("*** Default admin_secret detected! Set a strong secret in magic_mountain.yml ***");
     }
 
     $self->app->log->debug("Secrets: " . join(", ", @{ $self->config->{secrets} }));
@@ -471,6 +485,20 @@ sub buildRoutes ($self) {
         return 1;
     });
     $rate_limited->post('/sessions')->to('sessions#create')->name('login');
+
+    # Admin bridge — X-Admin-Secret header auth, no session/CSRF required
+    my $admin_bridge = $no_maintenance->under('/admin' => sub ($c) {
+        my $secret = $c->req->headers->header('X-Admin-Secret') // '';
+        if ($c->app->auth_service->admin_authenticate($secret)) {
+            return 1;
+        }
+        $c->app->audit_log->log('admin_auth_failed');
+        $c->render(json => { ok => 0, error => 'Unauthorized' }, status => 401);
+        return undef;
+    });
+    $admin_bridge->post('/admin/account/reset-token')->to('admin#reset_token');
+    $admin_bridge->post('/admin/account/ban')->to('admin#ban');
+    $admin_bridge->post('/admin/account/unban')->to('admin#unban');
 
     # Game page — outside auth bridge so unauthenticated users see login form in device frame
     $no_maintenance->get('/game')->to('game#show')->name('game');

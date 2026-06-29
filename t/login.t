@@ -71,15 +71,15 @@ subtest 'POST /sessions with unknown name auto-creates account' => sub {
       'audit log has login event for auto-created account';
 };
 
-subtest 'disabled account rejected' => sub {
+subtest 'banned account rejected' => sub {
     my $data_dir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $data_dir;
     my $accts = MagicMountain::Model::Account->new(file => "$data_dir/accounts.json");
-    $accts->create(id => 'a1', username => 'locked', disabled => 1)->save;
+    $accts->create(id => 'a1', username => 'locked', banned => 1)->save;
     my $t2 = Test::Mojo->new('MagicMountain');
     $t2->post_ok('/sessions', json => { displayName => 'locked' })
       ->status_is(403)
-      ->json_is('/error' => 'Account is disabled');
+      ->json_is('/error' => 'Account banned');
 };
 
 subtest 'POST /sessions without displayName' => sub {

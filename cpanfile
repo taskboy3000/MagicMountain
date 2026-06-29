@@ -7,6 +7,7 @@ requires 'UUID::Tiny';
 requires 'Perl::Tidy';
 requires 'Cpanel::JSON::XS';
 requires 'Perl::Critic';
+requires 'Crypt::Bcrypt';
 
 
 on 'test' => sub {

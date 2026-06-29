@@ -7,7 +7,7 @@ check-loyalist:
 	perl -Ilib bin/check_loyalist_balance
 
 test-perl:
-	prove t
+	MOJO_MODE=test prove t
 
 test-js:
 	node -c public/js/game.js && echo "JS syntax OK"
@@ -17,7 +17,7 @@ clean:
 
 cover:
 	rm -rf cover_db
-	PERL5OPT=-MDevel::Cover prove -Ilib t
+	MOJO_MODE=test PERL5OPT=-MDevel::Cover prove -Ilib t
 
 report:
 	cover -summary

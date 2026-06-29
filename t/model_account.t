@@ -16,29 +16,26 @@ write_file($file, '{}');
 
 my $acct = MagicMountain::Model::Account->new(file => $file);
 
-subtest 'columns extend defaults with username and password' => sub {
+subtest 'columns extend defaults' => sub {
     is_deeply(
         $acct->columns,
-        [qw{id updatedAt createdAt username password disabled}],
-        'Account columns include username, password, and disabled'
+        [qw{id updatedAt createdAt username token_hash remember_token_hash banned}],
+        'Account columns include token_hash, remember_token_hash, banned'
     );
 };
 
 subtest 'create - valid Account columns' => sub {
-    my $obj = $acct->create(username => 'alice', password => 'secret');
+    my $obj = $acct->create(username => 'alice');
     is($obj->getCol('username'), 'alice', 'create sets username');
-    is($obj->getCol('password'), 'secret', 'create sets password');
+    is($obj->getCol('banned'), 0, 'create defaults banned to 0');
 };
 
 subtest 'getCol / setCol on subclass columns' => sub {
-    my $obj = $acct->create(username => 'carol', password => 'pass123');
+    my $obj = $acct->create(username => 'carol');
     $obj->save;
     is($obj->getCol('username'), 'carol', 'getCol returns username');
-    is($obj->getCol('password'), 'pass123', 'getCol returns password');
     $obj->setCol('username', 'carol2');
     is($obj->getCol('username'), 'carol2', 'setCol updates username');
 };
-
-
 
 done_testing;

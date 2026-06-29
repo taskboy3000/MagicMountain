@@ -12,3 +12,5 @@ bots:
     - id: value_hoarder
     - id: fixed_highest
     - id: instability_loyalist
+bcrypt_cost: 10
+admin_secret: "override-me"
