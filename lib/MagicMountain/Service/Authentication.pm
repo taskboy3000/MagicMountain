@@ -75,7 +75,7 @@ sub generate_remember_token ($self) {
 }
 
 sub generate_recovery_code ($self) {
-    return $self->generate_token;
+    return join '', map { $self->_token_char } 1 .. 10;
 }
 
 sub new_account ($self, $display_name) {
