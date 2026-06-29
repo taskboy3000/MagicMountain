@@ -479,7 +479,11 @@ sub buildRoutes ($self) {
     my $auth = $no_maintenance->under('/' => sub ($c) {
         my $player_id = $c->current_player;
         if (!$player_id) {
-            $c->redirect_to('login_form');
+            if ($c->req->headers->accept =~ /json/) {
+                $c->render(json => { ok => 0, error => 'Not logged in' }, status => 401);
+            } else {
+                $c->redirect_to('login_form');
+            }
             return;
         }
         return 1;
@@ -491,7 +495,7 @@ sub buildRoutes ($self) {
         my $header = $c->req->headers->header('X-CSRF-Token') // '';
         my $token  = $c->session('csrf_token') // '';
         if (!($header && $token && $header eq $token)) {
-            $c->render(json => { ok => 0, error => 'Invalid CSRF token' }, status => 403);
+            $c->redirect_to('login_form');
             return;
         }
         return 1;

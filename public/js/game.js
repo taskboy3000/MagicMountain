@@ -74,8 +74,13 @@ async function applyNav(requestedView) {
     fetch('/nav', { headers }),
     fetch('/game', { headers: { Accept: 'application/json' } }),
   ]);
+  if (gameResp.status === 401 || navResp.status === 401) {
+    window.location.href = '/game';
+    return;
+  }
   const nav = await navResp.json();
   const g = await gameResp.json();
+  if (!g.ok || !nav.ok) { window.location.href = '/game'; return; }
   populateStatusStrip(g);
   if (g.season_recap) {
     const resp = await fetch('/season/recap?_format=fragment');

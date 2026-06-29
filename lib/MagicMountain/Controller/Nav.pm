@@ -95,6 +95,7 @@ sub show ($self) {
     }
 
     $self->render(json => {
+        ok                     => 1,
         current_view           => $view,
         primary_fragment_url   => $FRAGMENT_URL{$view},
         secondary_view         => $secondary,
