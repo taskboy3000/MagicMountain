@@ -57,7 +57,17 @@
       </div>
 % }
     </div>
+% if ($authenticated) {
+    <div id="secondary-column" style="flex:1;display:flex;flex-direction:column;border-left:1px solid var(--mm-border);min-height:0">
+      <div class="secondary-nav">
+        <button class="nav-btn active"
+          onclick="fetch('/orientation?_format=fragment').then(r=>r.text()).then(h=>document.getElementById('panel-primary').innerHTML=h)">?</button>
+      </div>
+      <div id="panel-secondary" style="flex:1;overflow-y:auto;padding:0.5rem 0.6rem"></div>
+    </div>
+% } else {
     <div id="panel-secondary"></div>
+% }
   </div>
 
   <div id="context-bar"></div>

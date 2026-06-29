@@ -18,7 +18,7 @@ my $char = MagicMountain::Model::Character->new(file => $file);
 subtest 'columns extend defaults with character columns' => sub {
     is_deeply(
         $char->columns,
-        [qw{id updatedAt createdAt name account_id season_id score scrap action_points action_points_max pending_activity_id faction_sales standing faction_snubs snub_day current_location current_view result skill_prospecting skill_upcycling skill_selling loyalty_visits_since is_bot bot_profile_id}],
+        [qw{id updatedAt createdAt name account_id season_id score scrap action_points action_points_max pending_activity_id faction_sales standing faction_snubs snub_day current_location current_view result skill_prospecting skill_upcycling skill_selling loyalty_visits_since is_bot bot_profile_id seen_orientation}],
         'Character columns include all declared columns'
     );
 };

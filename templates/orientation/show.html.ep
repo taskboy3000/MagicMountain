@@ -1,0 +1,48 @@
+<div class="mm-panel" style="border-color:var(--mm-amber)">
+  <div class="mm-panel-header" style="background:var(--mm-amber);color:var(--mm-bg);text-align:center;letter-spacing:0.15em">
+    PB3K-OS v2.1 // OPERATOR ORIENTATION
+  </div>
+  <div class="mm-panel-body" style="padding:0.75rem;font-size:0.75rem;line-height:1.6">
+
+    <p style="color:var(--mm-amber);margin-top:0">WELCOME, EXTRACTOR.</p>
+    <p>This unit has been assigned to you by the Provisional Resource Authority. It is your primary interface for artifact recovery, assessment, and exchange.</p>
+
+    <p style="color:var(--mm-amber);border-bottom:1px solid var(--mm-border);padding-bottom:0.25rem">OBJECTIVE</p>
+    <p>Your task: extract artifacts from the mountain, maximize their value, and sell them to faction buyers at the Bazaar. Highest accumulated sale value across the season determines your standing.</p>
+
+    <p style="color:var(--mm-amber);border-bottom:1px solid var(--mm-border);padding-bottom:0.25rem">OPERATIONAL CYCLE</p>
+
+    <p><strong>1. PROSPECT</strong> (cost: 2 AP)<br>
+    Scan the mountain. The unit will locate a viable artifact.</p>
+
+    <p><strong>2. PUSH</strong> (no AP cost, repeatable)<br>
+    Destabilize the artifact to increase its value. Each push raises the risk of total collapse. Stop before it breaks.</p>
+
+    <p><strong>3. STOP</strong> (no AP cost)<br>
+    Secure the artifact. It enters your shed with an estimated value range.</p>
+
+    <p><strong>4. SELL</strong> (cost: 1 AP)<br>
+    Visit the Bazaar. A faction buyer will approach. Offer items from your shed. Matching their interests yields higher offers.</p>
+
+    <p><strong>5. REPEAT</strong><br>
+    Continue until AP is exhausted. AP refreshes each day at 00:00.</p>
+
+    <p style="color:var(--mm-amber);border-bottom:1px solid var(--mm-border);padding-bottom:0.25rem">ADDITIONAL FUNCTIONS</p>
+
+    <p><strong>CERTS</strong><br>
+    Purchase skill modules with scrap. Improves prospecting sensitivity, push stability, and negotiation outcomes.</p>
+
+    <p><strong>SHED</strong><br>
+    View recovered artifacts and their estimated values. Artifacts decay over time — sell before value drops.</p>
+
+    <p style="color:var(--mm-amber);border-bottom:1px solid var(--mm-border);padding-bottom:0.25rem">SEASON</p>
+    <p>Each season runs 30 days. Total sales determine final rank at season end. A new season begins automatically.</p>
+
+    <p style="font-size:0.68rem;color:var(--mm-text-dim)">This orientation will not repeat. Access it again via [?] in the status header.</p>
+
+    <button class="mm-btn mm-btn-primary" style="width:100%;box-sizing:border-box;margin-top:0.5rem"
+      data-action-url="/orientation/dismiss" data-method="POST"
+      data-redirect="/game">OK</button>
+
+  </div>
+</div>

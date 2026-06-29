@@ -1,2 +1,1 @@
-% my @lines = (sprintf('Highest-value single transaction: <strong>%d</strong> scrap — counterparty: <strong>%s</strong>.', $value, $faction), sprintf('Peak transaction value: <strong>%d</strong> scrap (<strong>%s</strong>).', $value, $faction), sprintf('Maximum deal value recorded: <strong>%d</strong> scrap. Counterparty: <strong>%s</strong>.', $value, $faction));
-<%= $lines[rand @lines] %>
+Highest-value single transaction: <strong><%= $value %></strong> scrap — counterparty: <strong><%= $faction %></strong>.

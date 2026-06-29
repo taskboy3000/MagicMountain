@@ -74,6 +74,7 @@ sub show ($self) {
                 factions      => $self->factions_data,
                 faction_state => $season ? $season->getCol('faction_state') : undef,
                 ($season_recap ? (season_recap => $season_recap) : ()),
+                ($char_model->getCol('seen_orientation') || $char_model->getCol('is_bot') ? () : (show_orientation => 1)),
                 unit_status => $self->_unit_status,
             });
         },

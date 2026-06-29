@@ -1,12 +1,8 @@
 MARKET HEALTH OVERVIEW
 % if ($variant eq 'dominated') {
-%   my @lines = (sprintf('The <strong>%s</strong> consolidated <strong>%d</strong> influence across <strong>%d</strong> active factions — the highest single-faction concentration this season. Their procurement network operated at near-total market saturation.', $top_faction, $influence, $competing), sprintf('<strong>%s</strong> dominated the exchange floor with <strong>%d</strong> influence (%d factions active). Competing buyer agents were consistently outbid.', $top_faction, $influence, $competing), sprintf('Market influence concentrated under <strong>%s</strong> (%d total, %d factions tracked). No serious challenge to their position emerged.', $top_faction, $influence, $competing));
-%   my @assess = ('Assessment: BUYER\'S MARKET — influence concentrated under single entity.', 'Assessment: SUPPLIER-FAVORABLE — high demand concentration benefits extractors aligned with dominant faction.', 'Assessment: MONOPSONY TREND — single-buyer dominance reduces price competition.');
-<%= $lines[rand @lines] %>
-<%= $assess[rand @assess] %>
+<strong><%= $top_faction %></strong> dominated the exchange floor with <strong><%= $influence %></strong> influence (<%= $competing %> factions active). Competing buyer agents were consistently outbid.
+Assessment: BUYER'S MARKET — influence concentrated under single entity.
 % } else {
-%   my @lines = (sprintf('No single faction seized control this season — <strong>%d</strong> groups circled one another, each holding ground but none breaking through.', $competing), sprintf('The Bazaar saw <strong>%d</strong> factions in a slow dance of influence, none willing to overextend.', $competing));
-%   my @assess = ('Assessment: COMPETITIVE MARKET — no single faction achieved decisive influence advantage.', 'Assessment: FRAGMENTED DEMAND — multiple buyers competing creates favorable conditions for price negotiation.');
-<%= $lines[rand @lines] %>
-<%= $assess[rand @assess] %>
+No single faction seized control this season — <strong><%= $competing %></strong> groups circled one another, each holding ground but none breaking through.
+Assessment: FRAGMENTED DEMAND — multiple buyers competing creates favorable conditions for price negotiation.
 % }

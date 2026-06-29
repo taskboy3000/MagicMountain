@@ -1,2 +1,1 @@
-% my @lines = (sprintf('End-of-season clearance liquidation: <strong>+%d</strong> scrap recovered.', $bonus), sprintf('Clearance sale proceeds: <strong>%d</strong> scrap. Residual inventory monetized.', $bonus), sprintf('Terminal inventory disposition returned <strong>%d</strong> scrap to agent account.', $bonus));
-<%= $lines[rand @lines] %>
+End-of-season clearance liquidation: <strong>+<%= $bonus %></strong> scrap recovered.

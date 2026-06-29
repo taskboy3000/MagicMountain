@@ -479,7 +479,7 @@ sub buildRoutes ($self) {
     my $auth = $no_maintenance->under('/' => sub ($c) {
         my $player_id = $c->current_player;
         if (!$player_id) {
-            if ($c->req->headers->accept =~ /json/) {
+            if (($c->req->headers->accept // '') =~ /json/) {
                 $c->render(json => { ok => 0, error => 'Not logged in' }, status => 401);
             } else {
                 $c->redirect_to('login_form');
@@ -518,6 +518,10 @@ sub buildRoutes ($self) {
     $auth->get('/leaderboard/factions')->to('leaderboard#factions');
     $auth->get('/result')->to('result#show')->name('result_show');
     $auth->get('/nav')->to('nav#show');
+
+    # Orientation
+    $auth->get('/orientation')->to('orientation#show');
+    $auth_write->post('/orientation/dismiss')->to('orientation#dismiss');
 
     # Write routes under CSRF check
     # DEAD-SUPPRESS: endpoint kept for future re-enable; UI button removed per user request

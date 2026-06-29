@@ -1,2 +1,1 @@
-% my @lines = (sprintf('Total artifacts processed: <strong>%d</strong>.', $count), sprintf('Transaction count: <strong>%d</strong>.', $count));
-<%= $lines[rand @lines] %>
+Total artifacts processed: <strong><%= $count %></strong>.

@@ -1,6 +1,7 @@
 package MagicMountain::Service::SeasonManager;
 use Mojo::Base '-base', '-signatures';
 use YAML::XS qw(LoadFile);
+use MagicMountain::BotName qw(random_bot_name);
 
 has app => sub { die "app is required" };
 
@@ -106,7 +107,7 @@ sub seed_bots ($self, $season) {
         my $profile_id = $profile_list->[($i - 1) % @$profile_list]{id};
         my $profile    = $by_id{$profile_id} or next;
 
-        my $name = sprintf("bot-%s-%03d", $profile_id, $i);
+        my $name = random_bot_name();
         my $a = $accts->create(username => $name);
         $a->save;
 

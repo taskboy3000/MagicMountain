@@ -50,6 +50,14 @@ async function loadGame() {
       return;
     }
   }
+  if (g.show_orientation) {
+    const resp = await fetch('/orientation?_format=fragment');
+    if (resp.status === 200) {
+      document.getElementById('panel-primary').innerHTML = await resp.text();
+      document.getElementById('panel-secondary').innerHTML = '';
+    }
+    return;
+  }
   await applyNav();
 }
 

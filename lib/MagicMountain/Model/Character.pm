@@ -4,7 +4,7 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'action_points', 'action_points_max', 'pending_activity_id', 'faction_sales', 'standing', 'faction_snubs', 'snub_day', 'current_location', 'current_view', 'result', 'skill_prospecting', 'skill_upcycling', 'skill_selling', 'loyalty_visits_since', 'is_bot', 'bot_profile_id' ];
+    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'action_points', 'action_points_max', 'pending_activity_id', 'faction_sales', 'standing', 'faction_snubs', 'snub_day', 'current_location', 'current_view', 'result', 'skill_prospecting', 'skill_upcycling', 'skill_selling', 'loyalty_visits_since', 'is_bot', 'bot_profile_id', 'seen_orientation' ];
 };
 
 has app => undef;
@@ -12,6 +12,7 @@ has app => undef;
 sub create ($self, %params) {
     $params{loyalty_visits_since} //= 0;
     $params{faction_snubs}        //= {};
+    $params{seen_orientation}     //= 0;
     my $obj = $self->SUPER::create(%params);
     $obj->app($self->app);
     return $obj;

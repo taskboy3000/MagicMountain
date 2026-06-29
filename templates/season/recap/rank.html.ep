@@ -1,13 +1,9 @@
 PERSONAL ACCOMPLISHMENTS
-% my @rank_lines = (sprintf('Final classification: AGENT RANK <strong>#%d</strong>.', $rank), sprintf('Season-end ranking: <strong>#%d</strong>.', $rank), sprintf('Leaderboard position: <strong>#%d</strong>.', $rank));
-<%= $rank_lines[rand @rank_lines] %>
+Final classification: AGENT RANK <strong>#<%= $rank %></strong>.
 % if ($variant eq 'top') {
-%   my @assess = ('Assessment: TOP PERFORMER — agent exceeded all baseline extraction targets.', 'Assessment: EXEMPLARY — this agent\'s output sets the standard for future seasons.');
-<%= $assess[rand @assess] %>
+Assessment: TOP PERFORMER — agent exceeded all baseline extraction targets.
 % } elsif ($variant eq 'mid') {
-%   my @assess = ('Assessment: MEETS EXPECTATIONS — agent performance within acceptable parameters.', 'Assessment: CONSISTENT — agent maintained steady output throughout the assessment period.');
-<%= $assess[rand @assess] %>
+Assessment: MEETS EXPECTATIONS — agent performance within acceptable parameters.
 % } else {
-%   my @assess = ('Assessment: BELOW BASELINE — increased extraction effort recommended.', 'Assessment: UNDERPERFORMING RELATIVE TO PEER GROUP — corrective action advised.');
-<%= $assess[rand @assess] %>
+Assessment: BELOW BASELINE — increased extraction effort recommended.
 % }
