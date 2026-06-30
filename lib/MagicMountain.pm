@@ -495,6 +495,9 @@ sub buildRoutes ($self) {
     });
     $rate_limited->post('/sessions')->to('sessions#create')->name('login');
     $rate_limited->post('/sessions/recover')->to('sessions#recover')->name('recover');
+    $no_maintenance->get('/sessions/token-prompt')->to('sessions#token_prompt')->name('token_prompt');
+    $no_maintenance->get('/sessions/recovery-form')->to('sessions#recovery_form')->name('recovery_form');
+    $no_maintenance->get('/sessions/credentials')->to('sessions#credentials')->name('new_credentials');
 
     # Admin bridge — X-Admin-Secret header auth, no session/CSRF required
     my $admin_bridge = $no_maintenance->under('/admin' => sub ($c) {

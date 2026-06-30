@@ -12,7 +12,8 @@ sub show ($self) {
         $self->respond_to(
             json => sub { $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401) },
             html => sub {
-                $self->stash(authenticated => 0, player_name => '—', node_number => '—', unit_status => '');
+                $self->stash(authenticated => 0, player_name => '—', node_number => '—', unit_status => '',
+                    admin_email => $self->app->config->{admin_email} // '');
                 $self->render('game/show');
             },
         );
@@ -94,6 +95,7 @@ sub show ($self) {
                 active_phase      => $activity ? $activity->phase : undef,
                 artifact_json     => $prospecting_view ? encode_json($prospecting_view) : 'null',
                 unit_status       => $self->_unit_status,
+                admin_email       => $self->app->config->{admin_email} // '',
             );
             $self->render('game/show');
         },

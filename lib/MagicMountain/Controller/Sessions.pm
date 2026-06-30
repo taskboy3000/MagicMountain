@@ -83,8 +83,10 @@ sub create ($self) {
         # Log in immediately — session created so user can play
         $self->_set_remember_cookie($result->{remember_token}, $account);
         my $resp = $self->_build_session($account, $ip, 1);
-        $resp->{token}          = $result->{token};
-        $resp->{recovery_code}  = $result->{recovery_code};
+        $self->session(mm_new_credentials => {
+            token         => $result->{token},
+            recovery_code => $result->{recovery_code},
+        });
         $resp->{show_credentials} = 1;
         return $self->render(json => $resp);
     }
@@ -180,8 +182,10 @@ sub recover ($self) {
     );
 
     my $resp = $self->_build_session($account, $ip);
-    $resp->{token}          = $result->{token};
-    $resp->{recovery_code}  = $result->{recovery_code};
+    $self->session(mm_new_credentials => {
+        token         => $result->{token},
+        recovery_code => $result->{recovery_code},
+    });
     $resp->{show_credentials} = 1;
     return $self->render(json => $resp);
 }
@@ -257,6 +261,39 @@ sub _clear_nav_state ($self, $player_id) {
     return unless $char;
     $char->nullCol('current_view');
     $char->save;
+}
+
+sub token_prompt ($self) {
+    my $format = $self->param('_format') // '';
+    $self->stash(display_name => $self->param('display_name') // '',
+                 admin_email  => $self->app->config->{admin_email});
+    if ($format eq 'fragment') {
+        $self->render('sessions/token_prompt', layout => undef);
+    } else {
+        $self->render(json => { ok => 0, error => 'fragment format required' }, status => 400);
+    }
+}
+
+sub recovery_form ($self) {
+    my $format = $self->param('_format') // '';
+    $self->stash(display_name => $self->param('display_name') // '',
+                 admin_email  => $self->app->config->{admin_email});
+    if ($format eq 'fragment') {
+        $self->render('sessions/recovery_form', layout => undef);
+    } else {
+        $self->render(json => { ok => 0, error => 'fragment format required' }, status => 400);
+    }
+}
+
+sub credentials ($self) {
+    my $format = $self->param('_format') // '';
+    return $self->render(json => { ok => 0, error => 'fragment format required' }, status => 400)
+        unless $format eq 'fragment';
+    my $creds = $self->session('mm_new_credentials');
+    return $self->render(text => '', status => 204) unless $creds;
+    $self->session(mm_new_credentials => undef);
+    $self->stash(%$creds);
+    $self->render('sessions/credentials', layout => undef);
 }
 
 sub destroy ($self) {

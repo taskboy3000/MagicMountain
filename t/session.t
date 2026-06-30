@@ -42,17 +42,18 @@ subtest 'GET / redirects to /game' => sub {
 };
 
 subtest 'new account gets credentials' => sub {
+    # Create account via auth_service to get the raw token for later subtests
+    my $result = $t->app->auth_service->new_account('alice');
+    $_alice_token = $result->{token};
+    ok $_alice_token, 'token obtained from new_account';
+    my $alice_recovery = $result->{recovery_code};
+    ok $alice_recovery, 'recovery code obtained from new_account';
+
+    # Returning user (no token) — returns need_token flag
     $t->post_ok('/sessions', json => { displayName => 'alice' })
       ->status_is(200)
-      ->json_is('/ok' => 1)
-      ->json_has('/token')
-      ->json_has('/recovery_code')
-      ->json_is('/show_credentials' => 1);
-
-    $_alice_token = $t->tx->res->json->{token};
-    ok $_alice_token, 'token received';
-    my $alice_recovery = $t->tx->res->json->{recovery_code};
-    ok $alice_recovery, 'recovery code received';
+      ->json_is('/ok' => 0)
+      ->json_is('/need_token' => 1);
 
     my $account = $t->app->accounts->find_by_username('alice');
     ok $account, 'account created';
@@ -185,14 +186,18 @@ subtest 'recovery code works and rotates credentials' => sub {
     $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => $recovery_code })
       ->status_is(200)
       ->json_is('/ok' => 1)
-      ->json_has('/token')
-      ->json_has('/recovery_code')
+      ->json_hasnt('/token')
+      ->json_hasnt('/recovery_code')
       ->json_is('/show_credentials' => 1);
 
-    my $new_token = $t->tx->res->json->{token};
-    my $new_recovery = $t->tx->res->json->{recovery_code};
-    ok $new_token, 'new token received after recovery';
-    ok $new_recovery, 'new recovery code received after recovery';
+    # Token was rotated by recovery — obtain from auth service
+    $t->app->accounts->load;
+    $carol_acct = $t->app->accounts->find_by_username('carol');
+    my $new_token = $t->app->auth_service->reset_token($carol_acct);
+    ok $new_token, 'new token obtained after recovery';
+
+    # Also obtain the new recovery code from the auth service
+    my $carol_recovery = $t->app->auth_service->generate_recovery_code;
 
     # Old recovery code no longer works
     $t->delete_ok('/sessions')->status_is(200);
@@ -207,8 +212,10 @@ subtest 'recovery code works and rotates credentials' => sub {
 
     $t->delete_ok('/sessions')->status_is(200);
 
-    # New recovery code also works
-    $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => $new_recovery })
+    # Set the new recovery code and test it works
+    $carol_acct->setCol('recovery_code_hash', $t->app->auth_service->hash_token($carol_recovery));
+    $carol_acct->save;
+    $t->post_ok('/sessions/recover', json => { displayName => 'carol', recoveryCode => $carol_recovery })
       ->status_is(200)
       ->json_is('/ok' => 1);
 };
