@@ -148,7 +148,8 @@ subtest 'login rejected for banned account' => sub {
 
     my $bob_acct = $t->app->accounts->create(username => 'bob');
     $bob_acct->save;
-    my $bob_token = $auth_service->reset_token($bob_acct);
+    my $bob_result = $auth_service->reset_token($bob_acct);
+    my $bob_token = $bob_result->{token};
 
     $t->post_ok('/sessions', json => { displayName => 'bob', token => $bob_token })
       ->status_is(200)->json_is('/ok' => 1);
@@ -171,7 +172,8 @@ subtest 'recovery code works and rotates credentials' => sub {
 
     my $carol_acct = $t->app->accounts->create(username => 'carol');
     $carol_acct->save;
-    my $carol_token = $auth_service->reset_token($carol_acct);
+    my $carol_result = $auth_service->reset_token($carol_acct);
+    my $carol_token = $carol_result->{token};
     my $recovery_code = $auth_service->generate_recovery_code;
     my $recovery_hash = $auth_service->hash_token($recovery_code);
     $carol_acct->setCol('recovery_code_hash', $recovery_hash);
@@ -193,8 +195,8 @@ subtest 'recovery code works and rotates credentials' => sub {
     # Token was rotated by recovery — obtain from auth service
     $t->app->accounts->load;
     $carol_acct = $t->app->accounts->find_by_username('carol');
-    my $new_token = $t->app->auth_service->reset_token($carol_acct);
-    ok $new_token, 'new token obtained after recovery';
+    my $new_result = $t->app->auth_service->reset_token($carol_acct);
+    ok $new_result->{token}, 'new token obtained after recovery';
 
     # Also obtain the new recovery code from the auth service
     my $carol_recovery = $t->app->auth_service->generate_recovery_code;
@@ -206,7 +208,7 @@ subtest 'recovery code works and rotates credentials' => sub {
       ->json_is('/ok' => 0);
 
     # New token works
-    $t->post_ok('/sessions', json => { displayName => 'carol', token => $new_token })
+    $t->post_ok('/sessions', json => { displayName => 'carol', token => $new_result->{token} })
       ->status_is(200)
       ->json_is('/ok' => 1);
 

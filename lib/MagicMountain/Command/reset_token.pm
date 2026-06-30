@@ -18,8 +18,10 @@ sub run ($self, @args) {
     my $account = $self->app->accounts->find_by_username($name);
     die "Account '$name' not found.\n" unless $account;
 
-    my $token = $self->app->auth_service->reset_token($account);
-    say "New token for '$name': $token";
+    my $result = $self->app->auth_service->reset_token($account);
+    say "New token for '$name': $result->{token}";
+    say "New recovery code for '$name': $result->{recovery_code}";
+    say "SAVE THIS — recovery code will not be shown again.";
 }
 
 1;

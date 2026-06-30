@@ -177,14 +177,17 @@ sub admin_authenticate ($self, $secret) {
 sub reset_token ($self, $account) {
     my $token = $self->generate_token;
     my $token_hash = $self->hash_token($token);
+    my $recovery_code = $self->generate_recovery_code;
+    my $recovery_hash = $self->hash_token($recovery_code);
+
     $account->setCol('token_hash', $token_hash);
     $account->setCol('remember_token_hash', '');
-    $account->setCol('recovery_code_hash', '');
+    $account->setCol('recovery_code_hash', $recovery_hash);
     $account->save;
 
     $self->app->session_store->delete_by_player_id($account->getCol('id'));
 
-    return $token;
+    return { token => $token, recovery_code => $recovery_code };
 }
 
 sub ban ($self, $account) {

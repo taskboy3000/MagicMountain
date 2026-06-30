@@ -8,12 +8,12 @@ sub reset_token ($self) {
     my $account = $self->app->accounts->find_by_username($display_name);
     return $self->render(json => { ok => 0, error => 'Account not found' }, status => 404) unless $account;
 
-    my $new_token = $self->app->auth_service->reset_token($account);
+    my $result = $self->app->auth_service->reset_token($account);
     $self->app->audit_log->log('token_reset_admin',
         player_name => $display_name,
     );
 
-    $self->render(json => { ok => 1, token => $new_token });
+    $self->render(json => { ok => 1, token => $result->{token}, recovery_code => $result->{recovery_code} });
 }
 
 sub ban ($self) {
