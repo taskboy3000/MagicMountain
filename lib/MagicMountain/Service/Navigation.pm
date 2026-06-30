@@ -8,21 +8,21 @@ my %BASE_TAB = (
         home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
         bazaar   => { active => 1, reason => undef },
-        factions => { active => 1, reason => undef },
+        pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
     prospecting => {
         home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
         bazaar   => { active => 0, reason => 'Finish your current expedition first' },
-        factions => { active => 1, reason => undef },
+        pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
     market => {
         home     => { active => 1, reason => undef },
         prospect => { active => 0, reason => 'Complete your market visit first' },
         bazaar   => { active => 1, reason => undef },
-        factions => { active => 1, reason => undef },
+        pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
 );
@@ -33,14 +33,14 @@ my %TAB_ID_FOR = (
     result      => 'home',
     prospecting => 'prospect',
     market      => 'bazaar',
-    factions    => 'factions',
+    pvp         => 'pvp',
     skills      => 'skills',
     account     => 'account',
 );
 
 sub build_tabs ($self, $char, $type, $ap, $shed_count) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
-    my @tab_ids  = qw(home prospect bazaar factions skills);
+    my @tab_ids  = qw(home prospect bazaar pvp skills);
     my @tabs;
     for my $id (@tab_ids) {
         my $entry = { %{ $base->{$id} } };
@@ -68,6 +68,14 @@ sub build_tabs ($self, $char, $type, $ap, $shed_count) {
 sub secondary_tabs ($self, $char) {
     my $muted = $char->getCol('settings_muted') // 0;
     return [
+        {
+            id     => 'factions',
+            type   => 'nav',
+            active => 1,
+            label  => 'FACTIONS',
+            fragment_url => '/factions?_format=fragment',
+            target => 'secondary-content',
+        },
         {
             id     => 'account',
             type   => 'nav',

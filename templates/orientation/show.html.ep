@@ -35,6 +35,9 @@
     <p><strong>SHED</strong><br>
     View recovered artifacts and their estimated values. Artifacts decay over time — sell before value drops.</p>
 
+    <p><strong>RIVALS</strong><br>
+    Faction leads are contested. Other operators may pressure your faction contacts — use the INTEL panel to apply pressure in return.</p>
+
     <p style="color:var(--mm-amber);border-bottom:1px solid var(--mm-border);padding-bottom:0.25rem">SEASON</p>
     <p>Each season runs 30 days. Total sales determine final rank at season end. A new season begins automatically.</p>
 

@@ -152,6 +152,11 @@ async function handleAction(btn) {
   if (data.result === 'sold' || data.result === 'sold_more' || data.result === 'breakthrough') playSale();
   if (data.result === 'collapse' || data.result === 'sent_away' || data.result === 'customer_left' || data.result === 'over_budget') playFail();
   if (data.result === 'stopped') playStop();
+  if (data.result === 'pressure_applied') {
+    playStop();
+    const g = await api('/game');
+    populateStatusStrip(g);
+  }
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);
@@ -294,7 +299,16 @@ document.getElementById('secondary-nav').addEventListener('click', async (e) => 
   e.stopPropagation();
   playClick();
   if (btn.dataset.actionUrl) { await handleAction(btn); return; }
-  if (btn.dataset.fragmentUrl) { await handleFragmentFetch(btn); return; }
+  if (btn.dataset.fragmentUrl) {
+    // Move current marker from primary tabs to this secondary tab.
+    document.querySelectorAll('#primary-nav .nav-btn.current')
+      .forEach(el => el.classList.remove('current'));
+    document.querySelectorAll('#secondary-nav .nav-btn.current')
+      .forEach(el => el.classList.remove('current'));
+    btn.classList.add('current');
+    await handleFragmentFetch(btn);
+    return;
+  }
 });
 
 document.getElementById('secondary-content').addEventListener('click', async (e) => {

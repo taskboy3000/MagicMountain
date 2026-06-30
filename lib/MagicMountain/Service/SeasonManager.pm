@@ -85,6 +85,19 @@ sub ensure_character ($self, $account, $season) {
     return $char_model;
 }
 
+sub rank_of ($self, $char) {
+    my $season = $self->app->active_season or return undef;
+    $self->app->characters->load;
+    my $chars = $self->app->characters->find(
+        sub { $_[0]->{season_id} eq $season->getCol('id') }
+    );
+    my @sorted = sort { ($b->getCol('score') // 0) <=> ($a->getCol('score') // 0) } @$chars;
+    for my $i (0 .. $#sorted) {
+        return $i + 1 if $sorted[$i]->getCol('id') eq $char->getCol('id');
+    }
+    return undef;
+}
+
 sub seed_bots ($self, $season) {
     my $bots_cfg = $self->app->config->{bots} // {};
     my $count    = $bots_cfg->{count} // 0;

@@ -21,6 +21,7 @@ my %FRAGMENT_URL = (
     market      => '/market?_format=fragment',
     result      => '/result?_format=fragment',
     shed        => '/shed?_format=fragment',
+    pvp         => '/pvp?_format=fragment',
     factions    => '/factions?_format=fragment',
     skills      => '/skills?_format=fragment',
     leaderboard => '/leaderboard?_format=fragment',
@@ -31,14 +32,14 @@ my %TAB_LABEL = (
     home     => 'HOME',
     prospect => 'PROSPECT',
     bazaar   => 'BAZAAR',
-    factions => 'FACTIONS',
+    pvp      => 'INTEL',
     skills   => 'CERTS',
 );
 
 my %TAB_TO_VIEW = (
     home     => 'home',
     bazaar   => 'market',
-    factions => 'factions',
+    pvp      => 'pvp',
     skills   => 'skills',
 );
 
@@ -129,6 +130,20 @@ sub _context_text ($self, $char, $view) {
         my $season = $self->app->active_season;
         if ($season) {
             $msg = $season->getCol('crier_message') || '';
+        }
+        # Append pressure notice if active target pressures exist.
+        if ($self->app->can('pvp_service') && $self->app->config->{pvp_enabled}) {
+            $self->app->pressures->load;
+            my $aged = $self->app->config->{pvp_pressure_max_age_days};
+            my $active = $self->app->pressures->find_active_for_target(
+                $char->getCol('id'), undef, $aged);
+            if (@$active) {
+                my $p = $active->[0];
+                $msg .= " \x{7c} " if length $msg;
+                $msg .= sprintf "%s pressing your %s lead (%s)",
+                    $p->getCol('attacker_id'), $p->getCol('faction_id'),
+                    $p->getCol('effect_type');
+            }
         }
         return $msg || '';
     }

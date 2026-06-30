@@ -75,7 +75,7 @@ sub _faction_by_id ($self, $faction_id) {
 
 # ── Market dynamics ──────────────────────────────────────────────────
 
-sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors) {
+sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors, $saturation_floor = undef) {
     my $faction = $self->_faction_by_id($faction_id) or return 1.0;
     my $fs      = $season->getCol('faction_state') // {};
     my $fdata   = $fs->{$faction_id};
@@ -91,7 +91,12 @@ sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors) {
         $total_discount += $sat_rate * ($intake->{$trait} // 0);
     }
     $total_discount = $max_discount if $total_discount > $max_discount;
-    $mult *= (1 - $total_discount);
+    my $sat_factor = 1 - $total_discount;
+    # Pressure saturation floor: one-way clamp downward (Corner the Market).
+    # If set, the saturation factor is reduced to the floor, never raised.
+    $sat_factor = $saturation_floor
+        if defined $saturation_floor && $sat_factor > $saturation_floor;
+    $mult *= $sat_factor;
 
     my $daily_intake  = $fdata->{daily_intake} // 0;
     my $appetite_base = $faction->{daily_appetite_base} // 3;
@@ -194,6 +199,20 @@ sub begin ($self, $char, %params) {
         loyalty_free_mismatches => $sales_to_faction >= 1 ? 1 : 0,
     };
 
+    # ── Rival Pressure: consume effects that fire on visit begin ────
+    my $pvp = $self->app->can('pvp_service') ? $self->app->pvp_service : undef;
+    if ($pvp) {
+        my $eff_t = $pvp->consume_target_effects(
+            $char->getCol('id'), $customer->{faction_id}, 'on_begin');
+        my $eff_a = $pvp->consume_attacker_splashbacks(
+            $char->getCol('id'), $customer->{faction_id}, 'on_begin');
+        $customer->{irritation} = $eff_t->{irritation_floor} // $eff_a->{irritation_floor}
+            // $customer->{irritation};
+        $customer->{absolute_budget} = int($customer->{absolute_budget}
+            * ($eff_t->{budget_ratio} // $eff_a->{budget_ratio} // 1.0));
+    }
+    # ────────────────────────────────────────────────────────────────
+
     my $revealed = [];
     if ($sell >= 3) {
         $revealed = [$customer->{desired_behaviors}[0]];
@@ -270,8 +289,21 @@ sub offer ($self, $char, %params) {
     my $decayed  = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
     my $sell     = $char->getCol('skill_selling') // 0;
     my $season   = $self->app->active_season;
+    # PvP: consume on_sale effects and pass saturation floor to multiplier.
+    my $pvp = $self->app->can('pvp_service') ? $self->app->pvp_service : undef;
+    my $sat_floor;
+    if ($pvp) {
+        my $eff = $pvp->consume_target_effects(
+            $char->getCol('id'), $customer->{faction_id}, 'on_sale');
+        my $spl = $pvp->consume_attacker_splashbacks(
+            $char->getCol('id'), $customer->{faction_id}, 'on_sale');
+        # Take the worse of the two (one-way clamp downward per §17 #13)
+        $sat_floor = ($eff->{saturation_floor} // 1.0);
+        my $s = $spl->{saturation_floor} // 1.0;
+        $sat_floor = $s if $s < $sat_floor;
+    }
     my $dyn_mult = $season
-        ? $self->_dynamic_multiplier($season, $customer->{faction_id}, $item->getCol('behaviors') // [])
+        ? $self->_dynamic_multiplier($season, $customer->{faction_id}, $item->getCol('behaviors') // [], $sat_floor)
         : ($customer->{base_multiplier} // 1.0);
     my $offer_value;
 
@@ -466,8 +498,19 @@ sub stand_pat ($self, $char, %params) {
 
     my $decayed   = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
     my $season    = $self->app->active_season;
+    my $pvp = $self->app->can('pvp_service') ? $self->app->pvp_service : undef;
+    my $sat_floor;
+    if ($pvp) {
+        my $eff = $pvp->consume_target_effects(
+            $char->getCol('id'), $customer->{faction_id}, 'on_sale');
+        my $spl = $pvp->consume_attacker_splashbacks(
+            $char->getCol('id'), $customer->{faction_id}, 'on_sale');
+        $sat_floor = ($eff->{saturation_floor} // 1.0);
+        my $s = $spl->{saturation_floor} // 1.0;
+        $sat_floor = $s if $s < $sat_floor;
+    }
     my $dyn_mult  = $season
-        ? $self->_dynamic_multiplier($season, $customer->{faction_id}, $item->getCol('behaviors') // [])
+        ? $self->_dynamic_multiplier($season, $customer->{faction_id}, $item->getCol('behaviors') // [], $sat_floor)
         : ($customer->{base_multiplier} // 1.0);
     my $stand_price = int($decayed * $dyn_mult);
 

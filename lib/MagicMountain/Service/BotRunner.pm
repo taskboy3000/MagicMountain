@@ -3,6 +3,7 @@ use Mojo::Base -base, -signatures;
 
 use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
+use MagicMountain::Bot::PressurePolicy;
 use YAML::XS qw(LoadFile);
 
 my %PRESSURE_RANK = (
@@ -266,6 +267,54 @@ sub run_day ($self, $char, $profile = undef) {
             last;
         }
         last if $phase_done;
+    }
+
+    # Pressure phase (after market so scrap is final available)
+    if ($self->app->config->{pvp_enabled}) {
+        my $pvp_svc = $self->app->can('pvp_service') ? $self->app->pvp_service : undef;
+        if ($pvp_svc) {
+            my $policy = MagicMountain::Bot::PressurePolicy->new;
+            $app->characters->load;
+            my $season = $app->active_season;
+            if ($season) {
+                my $chars = $app->characters->find(
+                    sub { $_[0]->{season_id} eq $season->getCol('id') });
+                $app->pressures->load;
+                my $pressures_from_bot = $app->pressures->find(
+                    sub { $_[0]->{attacker_id} eq $char->getCol('id')
+                           && !$_[0]->{attacker_consumed} });
+
+                my %profiles;
+                for my $c (@$chars) {
+                    $profiles{$c->getCol('id')} = $self->_load_profile($c->getCol('bot_profile_id'))
+                        if $c->getCol('bot_profile_id');
+                }
+
+                my $decision = $policy->decide($char, {
+                    app                => $app,
+                    season             => $season,
+                    characters         => $chars,
+                    profiles           => \%profiles,
+                    pressures_from_bot => $pressures_from_bot,
+                });
+
+                if ($decision) {
+                    my $result = $pvp_svc->apply_pressure(
+                        $char, $decision->{target_id},
+                        $decision->{faction_id}, $decision->{effect_type});
+                    if ($result->{ok} && $transcript) {
+                        $transcript->log_event({
+                            type    => 'pressure_applied_bot',
+                            player  => $char_name,
+                            profile => $profile_id,
+                            target  => $decision->{target_id},
+                            faction => $decision->{faction_id},
+                            effect  => $decision->{effect_type},
+                        });
+                    }
+                }
+            }
+        }
     }
 
     return { ok => 1, actions => $actions };

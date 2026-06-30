@@ -1,0 +1,37 @@
+target_fired:
+  corner_market:
+    syndicate:
+      - "The Syndicate buyer glowers at your last intake — someone saturated their market."
+    libremount:
+      - "Your LibreMount contact mutters about flooding the channel."
+    faculty:
+      - "The Faculty archivist frowns — duplicate specimens dilute their collection."
+    purifiers:
+      - "The Purifiers grumble about glut on the market."
+    revelationists:
+      - "Your Revelationist contact shrugs — the sign is already common."
+    _generic:
+      - "Your buyer scowls — someone has been cornering this market."
+      - "The deal feels tighter than usual. A rival's fingerprints are all over this."
+  spoil_lead:
+    _generic:
+      - "The customer arrives already irritable — a rival has been talking."
+      - "Your contact seems distant. Someone's been poisoning the well."
+  outbid:
+    _generic:
+      - "The buyer's purse seems lighter than usual — you've been outbid."
+      - "Your contact's budget is thin. A rival got there first."
+
+attacker_splashback:
+  corner_market:
+    _generic:
+      - "Your own corner-backfires: the buyer now expects the same discount."
+      - "The market corrects — your corner cut both ways."
+  spoil_lead:
+    _generic:
+      - "Burning a contact has cost you standing with this faction."
+      - "Your informant is displeased. The faction remembers."
+  outbid:
+    _generic:
+      - "Your own bid now caps you as well — parity enforced."
+      - "The budget ceiling you raised now shadows your own deal."

@@ -1,0 +1,73 @@
+% my $v = $view;
+% if ($v->{disabled}) {
+<div class="mm-panel">
+  <div class="mm-panel-header">RIVAL INTEL</div>
+  <div class="mm-panel-body" style="color:var(--mm-text-dim);text-align:center;padding:2rem 0">
+%   if ($v->{reason} && $v->{reason} eq 'no_season') {
+    NO ACTIVE SEASON
+%   } else {
+    PVP SYSTEM OFFLINE
+%   }
+  </div>
+</div>
+% } else {
+<div class="mm-panel">
+  <div class="mm-panel-header">RIVAL INTEL</div>
+  <div class="mm-panel-body">
+    <div style="font-size:0.7rem;color:var(--mm-text-dim);margin-bottom:0.5rem">
+      Scrap available: <strong><%= $v->{scrap} %></strong>
+    </div>
+
+%   if (@{ $v->{active_target} }) {
+    <div style="margin-bottom:1rem">
+      <div style="font-size:0.7rem;color:var(--mm-text-accent);border-bottom:1px solid var(--mm-border);margin-bottom:0.3rem">INCOMING PRESSURE</div>
+%     for my $t (@{ $v->{active_target} }) {
+      <div style="display:flex;justify-content:space-between;padding:0.2rem 0;font-size:0.7rem;border-bottom:1px dotted var(--mm-border)">
+        <span><%= $t->{effect_type} %> on <%= $t->{faction_id} %></span>
+        <span style="color:var(--mm-text-dim)">PENDING</span>
+      </div>
+%     }
+    </div>
+%   }
+
+%   if (@{ $v->{active_attacker} }) {
+    <div style="margin-bottom:1rem">
+      <div style="font-size:0.7rem;color:var(--mm-text-accent);border-bottom:1px solid var(--mm-border);margin-bottom:0.3rem">YOUR PRESSURE</div>
+%     for my $t (@{ $v->{active_attacker} }) {
+      <div style="display:flex;justify-content:space-between;padding:0.2rem 0;font-size:0.7rem;border-bottom:1px dotted var(--mm-border)">
+        <span><%= $t->{effect_type} %> on <%= $t->{faction_id} %></span>
+%       if ($t->{target_consumed}) {
+        <span style="color:var(--mm-text-dim)">FIRED</span>
+%       } else {
+        <span style="color:var(--mm-text-dim)">PENDING</span>
+%       }
+      </div>
+%     }
+    </div>
+%   }
+
+%   if (@{ $v->{rivals} }) {
+    <div style="margin-bottom:0.5rem">
+      <div style="font-size:0.7rem;color:var(--mm-text-accent);border-bottom:1px solid var(--mm-border);margin-bottom:0.3rem">RIVALS</div>
+%     for my $r (@{ $v->{rivals} }) {
+      <div style="display:flex;justify-content:space-between;padding:0.2rem 0;font-size:0.7rem;border-bottom:1px dotted var(--mm-border)">
+        <span>
+          <%= $r->{name} %><% if ($r->{is_bot}) { %><span style="color:var(--mm-text-dim);font-size:0.6rem"> [NPC]</span><% } %>
+        </span>
+        <span style="color:var(--mm-text-dim)"><%= $r->{score} %></span>
+      </div>
+%       if (@{ $r->{pressable_factions} }) {
+      <div style="padding:0.2rem 0 0.2rem 0.5rem;font-size:0.65rem">
+        %= include 'components/action_buttons', actions => [ grep { $_->{attrs}{'data-target-id'} eq $r->{id} } @{ $v->{actions} } ]
+      </div>
+%       } else {
+      <div style="padding:0.2rem 0 0.2rem 0.5rem;font-size:0.65rem;color:var(--mm-text-dim)">no eligible leads</div>
+%       }
+%     }
+    </div>
+%   } else {
+    <div style="text-align:center;color:var(--mm-text-dim);padding:1rem 0">No rivals ranked above you</div>
+%   }
+  </div>
+</div>
+% }

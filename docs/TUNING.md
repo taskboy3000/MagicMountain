@@ -235,6 +235,25 @@ artifact has no decay_modifiers.
 
 ---
 
+---
+
+## PvP / Rival Pressure
+
+**File**: `MagicMountain.pm` defaultConfig, `magic_mountain.yml`
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `pvp_enabled` | `1` | Master switch (0 disables the entire pressure system). |
+| `pvp_max_stack` | `3` | Max pending pressures per (target, faction) pair. |
+| `pvp_cost_corner_market` | `50` | Scrap cost to apply "Corner the Market". |
+| `pvp_cost_spoil_lead` | `30` | Scrap cost to apply "Spoil the Lead". |
+| `pvp_cost_outbid` | `75` | Scrap cost to apply "Outbid". |
+| `pvp_splash_saturation_floor` | `0.50` | Trait-saturation floor applied to both rival and attacker on Corner-the-Market fire. |
+| `pvp_splash_standing_loss` | `1` | Attacker's standing loss on Spoil-the-Lead application. |
+| `pvp_splash_budget_ratio` | `0.80` | Absolute-budget cap ratio for Outbid (both rival + attacker). |
+| `pvp_bot_aggressiveness` | `0.20` | Daily probability each bot presses a qualifying rival. Overridable per-profile in `content/bots.yml`. |
+| `pvp_pressure_max_age_days` | `7` | Unfired pressures older than N days are lazily purged on read. No maintenance hook. |
+
 ## Quick-Start: What to Tune First
 
 | Goal | Tune this |

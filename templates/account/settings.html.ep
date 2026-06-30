@@ -16,7 +16,9 @@
         <tr>
           <td>
 % if ($s->{status} eq 'active') {
-            <span style="color:var(--mm-green);cursor:pointer" data-view="factions"><%= $s->{label} %></span>
+            <span style="color:var(--mm-green);cursor:pointer;text-decoration:underline"
+               data-action-url="/leaderboard?_format=fragment" data-method="GET"
+               class="season-recap-link"><%= $s->{label} %></span>
 % } else {
             <span style="color:var(--mm-text-dim);cursor:pointer;text-decoration:underline"
                data-action-url="/season/recap?season_id=<%= $s->{id} %>&_format=fragment" data-method="GET"

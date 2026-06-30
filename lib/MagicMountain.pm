@@ -26,6 +26,8 @@ use MagicMountain::Service::Authentication;
 use MagicMountain::RateLimiter;
 use MagicMountain::Service::RandomEvents;
 use MagicMountain::Service::BotRunner;
+use MagicMountain::Service::PvP;
+use MagicMountain::Model::Pressure;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -58,6 +60,16 @@ has defaultConfig => sub ($self) {
         admin_email                     => 'root@localhost',
         bcrypt_cost                     => 10,
         admin_secret                    => 'override-me',
+        pvp_enabled                    => 1,
+        pvp_max_stack                  => 3,
+        pvp_cost_corner_market         => 50,
+        pvp_cost_spoil_lead            => 30,
+        pvp_cost_outbid                => 75,
+        pvp_splash_saturation_floor    => 0.50,
+        pvp_splash_standing_loss       => 1,
+        pvp_splash_budget_ratio        => 0.80,
+        pvp_bot_aggressiveness         => 0.20,
+        pvp_pressure_max_age_days      => 7,
     }
 };
 
@@ -290,6 +302,21 @@ has auth_service => sub ($self) {
 
 has bot_runner => sub ($self) {
     MagicMountain::Service::BotRunner->new(app => $self);
+};
+
+has season_manager => sub ($self) {
+    MagicMountain::Service::SeasonManager->new(app => $self);
+};
+
+has pressures => sub ($self) {
+    MagicMountain::Model::Pressure->new(
+        file => $self->dataDir . '/pressures.json',
+        log  => $self->log,
+    );
+};
+
+has pvp_service => sub ($self) {
+    MagicMountain::Service::PvP->new(app => $self);
 };
 
 sub startup ($self) {
@@ -561,6 +588,9 @@ sub buildRoutes ($self) {
     $auth->get('/nav')->to('nav#show');
     $auth->post('/nav/toggle')->to('nav#toggle')->name('nav_toggle');
 
+    # PvP / Rival Pressure
+    $auth->get('/pvp')->to('pvp#show')->name('pvp_show');
+
     # Orientation
     $auth->get('/orientation')->to('orientation#show');
     $auth_write->post('/orientation/dismiss')->to('orientation#dismiss');
@@ -569,6 +599,7 @@ sub buildRoutes ($self) {
     # DEAD-SUPPRESS: endpoint kept for future re-enable; UI button removed per user request
     $auth_write->delete('/player')->to('player#destroy')->name('delete_player');
     $auth_write->post('/skills/purchase')->to('skills#purchase');
+    $auth_write->post('/pvp/apply')->to('pvp#apply')->name('pvp_apply');
     $auth_write->post('/prospecting/begin')->to('prospecting#begin');
     $auth_write->post('/prospecting/push')->to('prospecting#push');
     $auth_write->post('/prospecting/stop')->to('prospecting#stop');
