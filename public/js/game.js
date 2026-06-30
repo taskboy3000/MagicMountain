@@ -152,11 +152,7 @@ async function handleAction(btn) {
   if (data.result === 'sold' || data.result === 'sold_more' || data.result === 'breakthrough') playSale();
   if (data.result === 'collapse' || data.result === 'sent_away' || data.result === 'customer_left' || data.result === 'over_budget') playFail();
   if (data.result === 'stopped') playStop();
-  if (data.result === 'pressure_applied') {
-    playStop();
-    const g = await api('/game');
-    populateStatusStrip(g);
-  }
+  if (data.result === 'pressure_applied') playStop();
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
   const g = await api('/game');
   populateStatusStrip(g);
