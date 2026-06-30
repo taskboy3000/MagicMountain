@@ -50,7 +50,7 @@ subtest 'unversioned file gets version on first save' => sub {
     ok(exists $data->{$obj->getCol('id')}, 'new record present');
 };
 
-subtest 'stale write detected in save pre-read' => sub {
+subtest 'stale write transparently reloads and retries' => sub {
     my ($fh, $file) = tempfile(SUFFIX => '.json', UNLINK => 1);
     write_file($file, '{}');
     my $m = MagicMountain::Model->new(file => $file);
@@ -58,14 +58,20 @@ subtest 'stale write detected in save pre-read' => sub {
     # Load into a second model simulating a separate request
     my $m2 = MagicMountain::Model->new(file => $file);
     $m2->load;
+    # Record the version that m2 loaded
+    my $loaded_ver = $m2->{_loaded_version};
     # Someone else modifies the file (simulating maintenance)
     my $data = decode_json(read_file($file));
     $data->{_version}++;
     write_file($file, encode_json($data));
-    # Now try to save from m2 — should detect stale write
+    # Now try to save from m2 — should reload and succeed, not die
     my $obj2 = $m2->create(createdAt => 50);
-    eval { $obj2->save };
-    like($@, qr/stale write detected/, 'stale write caught on save');
+    $obj2->save;
+    pass('stale write silently recovered via reload');
+    # Verify the file has the new record
+    $data = decode_json(read_file($file));
+    is($data->{_version}, $loaded_ver + 2, 'version incremented by two (external + our save)');
+    ok(exists $data->{$obj2->getCol('id')}, 'record present after stale-write recovery');
 };
 
 subtest 'delete preserves version' => sub {

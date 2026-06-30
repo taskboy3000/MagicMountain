@@ -74,6 +74,15 @@ sub nullCol ($self, $columnName) {
     die ("assert: no such column '$columnName' declared on " . ref $self);
 }
 
+sub _log_debug ($self, @msg) {
+    my $log = $self->log;
+    if (ref $log eq 'CODE') {
+        $log->('debug', ref($self), @msg);
+    } elsif (eval { $log->can('debug') }) {
+        $log->debug(ref($self), @msg);
+    }
+}
+
 sub validate ($self, $columnName, $value) { 1 }  # no-op base
 
 sub validate_save ($self) { 1 }
@@ -110,11 +119,8 @@ sub load ($self) {
 
     $_mtime_for{$key} = $sig;
     my $elapsed = (Time::HiRes::time - $start) * 1000;
-    if ($stat) {
-        my $log = $self->log;
-        $log->('debug', ref($self), 'load', sprintf('%.1fms', $elapsed),
-            scalar(keys %{$self->table}), 'records') if ref $log eq 'CODE';
-    }
+    $self->_log_debug('load', sprintf('%.1fms', $elapsed),
+        scalar(keys %{$self->table}), 'records') if $stat;
     return 1;
 }
 
@@ -144,9 +150,8 @@ sub _saveTable ($self) {
     $_mtime_for{0+$self->table} = "$stat->[9]:$stat->[7]";
 
     my $elapsed = (Time::HiRes::time - $start) * 1000;
-    my $log = $self->log;
-    $log->('debug', ref($self), '_saveTable',
-        sprintf('%.1fms', $elapsed), scalar(keys %{$self->table}), 'records') if ref $log eq 'CODE';
+    $self->_log_debug('_saveTable', sprintf('%.1fms', $elapsed),
+        scalar(keys %{$self->table}), 'records');
     return 1;
 }
 
@@ -181,8 +186,7 @@ sub save ($self) {
     my $disk_ver = $self->_read_version_from_disk;
     if (defined $self->{_loaded_version} && defined $disk_ver
         && $self->{_loaded_version} != $disk_ver) {
-        die "stale write detected: loaded version $self->{_loaded_version}, "
-            . "disk has $disk_ver in " . $self->file;
+        $self->reload;
     }
     my $stat = -e $self->file ? [stat $self->file] : undef;
     my $sig = $stat ? "$stat->[9]:$stat->[7]" : '0:0';
