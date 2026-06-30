@@ -141,6 +141,22 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   margin-bottom: 0.3rem;
 }
 
+/* ── Page wrapper ─────────────────────────────────────────────── */
+#page-wrap {
+  max-width: 52rem;
+  margin: 1rem auto;
+  padding: 0 0.5rem;
+}
+#page-footer {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 0 0.5rem 0.5rem;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--mm-text-dim);
+}
+#page-footer a { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,0.15); }
+
 /* ── Device frame ─────────────────────────────────────────────── */
 #device-frame {
   max-width: 52rem;
@@ -393,6 +409,13 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 .ref-link:hover { color: var(--mm-amber-bright); border-bottom-style: solid; }
 
 /* ── Responsive ───────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  #page-wrap,
+  #page-footer,
+  #device-frame { max-width: 72rem; }
+  #panel-primary { flex: 3; }
+  #panel-secondary { flex: 2; }
+}
 @media (max-width: 600px) {
   #main-area { flex-direction: column; }
   #panel-primary { max-height: 50vh; }
