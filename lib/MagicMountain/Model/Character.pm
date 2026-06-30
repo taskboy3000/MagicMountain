@@ -42,6 +42,19 @@ sub validate ($self, $col, $val) {
     }
 }
 
+sub validate_save ($self) {
+    my $ap = $self->row->{action_points};
+    my $max = $self->row->{action_points_max} // 15;
+    die "invariant: action_points ($ap) < 0" if defined $ap && $ap < 0;
+    die "invariant: action_points ($ap) exceeds max ($max)" if defined $ap && $ap > $max;
+    die "invariant: scrap < 0" if defined $self->row->{scrap} && $self->row->{scrap} < 0;
+    die "invariant: score < 0" if defined $self->row->{score} && $self->row->{score} < 0;
+    for my $sk (qw(skill_prospecting skill_upcycling skill_selling)) {
+        my $v = $self->row->{$sk};
+        die "invariant: $sk ($v) out of range 0-4" if defined $v && ($v < 0 || $v > 4);
+    }
+}
+
 sub add_scrap ($self, $n) {
     my $scrap = $self->getCol('scrap') + $n;
     $scrap = 0 if $scrap < 0;

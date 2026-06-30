@@ -96,4 +96,36 @@ subtest 'AP refresh respects action_points_max' => sub {
     like($@, qr/invariant: action_points/, 'AP above max dies');
 };
 
+subtest 'validate_save catches direct hash manipulation' => sub {
+    my $c = $model->create(
+        name => 'test5', account_id => 'a5', season_id => 's1',
+        action_points => 10, action_points_max => 15, scrap => 50, score => 100,
+        skill_prospecting => 1, skill_upcycling => 2, skill_selling => 3,
+    );
+
+    # Direct hash manipulation bypassing setCol
+    $c->row->{action_points} = -5;
+    eval { $c->save };
+    like($@, qr/invariant: action_points \(-5\) < 0/, 'save catches negative AP');
+
+    $c->row->{action_points} = 99;
+    eval { $c->save };
+    like($@, qr/invariant: action_points \(99\) exceeds max/, 'save catches AP > max');
+
+    $c->row->{action_points} = 10;
+    $c->row->{scrap} = -1;
+    eval { $c->save };
+    like($@, qr/invariant: scrap < 0/, 'save catches negative scrap');
+
+    $c->row->{scrap} = 50;
+    $c->row->{score} = -5;
+    eval { $c->save };
+    like($@, qr/invariant: score < 0/, 'save catches negative score');
+
+    $c->row->{score} = 100;
+    $c->row->{skill_prospecting} = 5;
+    eval { $c->save };
+    like($@, qr/invariant: skill_prospecting/, 'save catches skill out of range');
+};
+
 done_testing;

@@ -1,5 +1,7 @@
 package MagicMountain::Maintenance;
 
+use File::Basename;
+use File::Copy;
 use Mojo::Base '-base', '-signatures';
 use POSIX qw(strftime mktime);
 
@@ -53,9 +55,24 @@ sub compute_next_maintenance_window ($self, $timestamp = undef) {
     return $candidate;
 }
 
+sub _backup_data ($self) {
+    my $backup_dir = $self->app->dataDir . '/backups';
+    my $ts = strftime('%Y%m%d_%H%M%S', gmtime);
+    my $day_dir = "$backup_dir/" . strftime('%Y-%m-%d', gmtime);
+    mkdir $backup_dir unless -d $backup_dir;
+    mkdir $day_dir unless -d $day_dir;
+    for my $f (glob $self->app->dataDir . '/*.json') {
+        my $base = (fileparse($f, '.json'))[0];
+        copy($f, "$day_dir/${base}.$ts.json")
+            or warn "backup failed: $f: $!";
+    }
+}
+
 sub dailyMaintenance ($self) {
     my $now = $self->clock->();
     return if $self->next_run > $now;
+
+    $self->_backup_data;
 
     $self->in_maintenance(1);
     $self->app->log->debug("Daily maintenance started");

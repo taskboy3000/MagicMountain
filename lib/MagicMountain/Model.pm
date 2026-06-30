@@ -3,9 +3,12 @@ package MagicMountain::Model;
 
 
 use File::Slurp qw(read_file write_file);
+use File::Spec;
+use IO::Handle;
 use Modern::Perl;
 use Mojo::Base '-base', '-signatures';
 use Mojo::JSON ('encode_json', 'decode_json');
+use Time::HiRes;
 use UUID::Tiny (':std');
 
 my %_mtime_for;
@@ -73,12 +76,20 @@ sub nullCol ($self, $columnName) {
 
 sub validate ($self, $columnName, $value) { 1 }  # no-op base
 
+sub validate_save ($self) { 1 }
+
+sub reload ($self) {
+    delete $_mtime_for{0+$self->table};
+    $self->load;
+}
+
 sub hasCol ($self, $columnName) {
     return grep {$_ eq $columnName} @{$self->columns};
 }
 
 # Load all data from $self->file
 sub load ($self) {
+    my $start = Time::HiRes::time;
     my $key = 0+$self->table;
     my $stat = -e $self->file ? [stat $self->file] : undef;
     my $sig = $stat ? "$stat->[9]:$stat->[7]" : '0:0';  # mtime:size
@@ -93,22 +104,58 @@ sub load ($self) {
         } or do {
             die("JSON DECODE FAILURE: $@");
         };
+        $self->{_loaded_version} = delete $data->{_version};
         %{ $self->table } = %{ $data };
     }
 
     $_mtime_for{$key} = $sig;
+    my $elapsed = (Time::HiRes::time - $start) * 1000;
+    if ($stat) {
+        my $log = $self->log;
+        $log->('debug', ref($self), 'load', sprintf('%.1fms', $elapsed),
+            scalar(keys %{$self->table}), 'records') if ref $log eq 'CODE';
+    }
     return 1;
 }
 
 # Only saves the table in its current form
 sub _saveTable ($self) {
-    my $json = encode_json($self->table);
+    my $start = Time::HiRes::time;
+
+    my $version = ($self->_read_version_from_disk // 0) + 1;
+    my $json = encode_json({ _version => $version, %{ $self->table } });
+
     my $tmpFile = $self->file . "$$.tmp";
-    write_file($tmpFile, $json);
-    rename $tmpFile, $self->file;
+    open my $fh, '>', $tmpFile or die "can't write $tmpFile: $!";
+    my $written = syswrite $fh, $json;
+    die "syswrite short write ($written / " . length($json) . ")" if $written != length($json);
+    $fh->sync or die "fsync $tmpFile failed: $!";
+    close $fh;
+    rename $tmpFile, $self->file or die "rename failed: $!";
+
+    my $dir = (File::Spec->splitpath($self->file))[1];
+    if (open my $dfh, '<', $dir) {
+        eval { $dfh->sync };
+        warn "directory fsync failed: $@" if $@;
+        close $dfh;
+    }
+
     my $stat = [stat $self->file];
     $_mtime_for{0+$self->table} = "$stat->[9]:$stat->[7]";
+
+    my $elapsed = (Time::HiRes::time - $start) * 1000;
+    my $log = $self->log;
+    $log->('debug', ref($self), '_saveTable',
+        sprintf('%.1fms', $elapsed), scalar(keys %{$self->table}), 'records') if ref $log eq 'CODE';
     return 1;
+}
+
+sub _read_version_from_disk ($self) {
+    return undef unless -e $self->file;
+    my $content = read_file($self->file);
+    my $data = eval { decode_json($content) };
+    die "version read: bad JSON in " . $self->file . ": $@" if $@;
+    return $data->{_version};
 }
 
 # Let the caller persist this object if desired
@@ -124,12 +171,19 @@ sub create ($self, %params) {
         table => $self->table,
         row => \%params
     );
+    $new->{_loaded_version} = $self->{_loaded_version};
     return $new;
 }
 
 # Persist this one $self->data record to $self->file
 sub save ($self) {
     my $key = 0+$self->table;
+    my $disk_ver = $self->_read_version_from_disk;
+    if (defined $self->{_loaded_version} && defined $disk_ver
+        && $self->{_loaded_version} != $disk_ver) {
+        die "stale write detected: loaded version $self->{_loaded_version}, "
+            . "disk has $disk_ver in " . $self->file;
+    }
     my $stat = -e $self->file ? [stat $self->file] : undef;
     my $sig = $stat ? "$stat->[9]:$stat->[7]" : '0:0';
     $self->load unless defined $_mtime_for{$key} && $_mtime_for{$key} eq $sig;
@@ -147,6 +201,7 @@ sub save ($self) {
 
     # we are updating the table
     $self->table->{$self->row->{id}} = $self->row;
+    $self->validate_save;
     return $self->_saveTable;
 }
 
@@ -156,12 +211,14 @@ sub save ($self) {
 sub get ($self, $id) {
     $self->load;
     if ($id && $self->table->{$id}) {
-        return $self->new(
+        my $obj = $self->new(
             file => $self->file,
             log => $self->log,
             table => $self->table,
             row => { %{ $self->table->{$id} }}
         );
+        $obj->{_loaded_version} = $self->{_loaded_version};
+        return $obj;
     }
     return;
 }

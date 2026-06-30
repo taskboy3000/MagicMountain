@@ -349,4 +349,48 @@ subtest 'find - reads persisted data from disk' => sub {
     is($results->[0]->getCol('id'), $id, 'find returns correct record from disk');
 };
 
+subtest 'reload re-reads modified file' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, encode_json({ a1 => { id => 'a1', createdAt => 1, updatedAt => 1 } }));
+    my $m = MagicMountain::Model->new(file => $f2);
+    $m->load;
+    is(scalar keys %{$m->table}, 1, 'one record after load');
+    write_file($f2, encode_json({ b1 => { id => 'b1', createdAt => 2, updatedAt => 2 } }));
+    $m->reload;
+    is(scalar keys %{$m->table}, 1, 'one record after reload');
+    ok($m->table->{b1}, 'reload sees new record');
+    ok(!$m->table->{a1}, 'reload drops old record');
+};
+
+subtest 'reload invalidates shared-table siblings' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, encode_json({ x => { id => 'x', createdAt => 1, updatedAt => 1 } }));
+    my $m1 = MagicMountain::Model->new(file => $f2);
+    my $m2 = $m1->create(createdAt => 99);  # shares same table
+    $m1->load;
+    is(scalar keys %{$m1->table}, 1, 'm1 sees one record');
+    write_file($f2, encode_json({ y => { id => 'y', createdAt => 2, updatedAt => 2 } }));
+    $m1->reload;
+    is(scalar keys %{$m2->table}, 1, 'm2 (shared table) sees same data via m1 reload');
+    ok($m2->table->{y}, 'm2 sees new record through shared table ref');
+};
+
+subtest 'validate_save base method is a no-op' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = MagicMountain::Model->new(file => $f2);
+    is($m->validate_save, 1, 'base validate_save returns 1');
+};
+
+subtest 'timing instrumentation does not crash' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = MagicMountain::Model->new(file => $f2);
+    my $obj = $m->create(createdAt => 42);
+    $obj->save;
+    $m->load;
+    $m->delete($obj->getCol('id'));
+    pass('load, save, delete with timing instrumentation did not crash');
+};
+
 done_testing;
