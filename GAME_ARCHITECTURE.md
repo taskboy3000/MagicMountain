@@ -394,6 +394,8 @@ then discarded. Token reset (`/admin/account/reset-token` or CLI
 | result | hashref or null | Most recent outcome card payload (collapse, breakthrough, sale, storm-off). Hidden after `/result/dismiss` or `/result/continue`. |
 | seen_orientation | integer | 0 or 1. Whether the orientation panel has been dismissed. Drives `/orientation` gate on first session. |
 | settings_muted | integer | 0 or 1. Player's preference for ambient panel sound/effect. Reserved for UI. |
+| onboarding | integer | Bitmask of revealed tabs (1=bazaar, 2=factions, 4=skills, 8=intel). Set progressively as player hits milestones; all bits set on fast-track for returning players. |
+| pending_notices | integer | Bitmask of un-dismissed onboarding notice cards. Cleared as player dismisses each notice via `/onboarding/dismiss-notice`. |
 
 > `turns_remaining` has been replaced by `action_points` / `action_points_max`.
 > The old "lazy rollover" design using `last_refreshed_day` was already removed
@@ -1615,12 +1617,14 @@ any model.
 | Account | show | `GET /account` — account settings panel (logout, delete account). Returns 204 when not logged in. |
 | Admin | reset_token, ban, unban | `POST /admin/account/*` — operator endpoints. Gated by `admin_secret` HTTP header (configurable). Reset token: drops and replaces all three auth hashes, returns new token + recovery code. Ban/unban: toggles `banned` and writes audit event. |
 | Orientation | show, dismiss | `GET /orientation` — onboarding panel fragment for first-session players (gated by `seen_orientation`). `POST /orientation/dismiss` — sets `seen_orientation = 1` and saves. |
+| OnboardingNotice | show, dismiss | `GET /onboarding/notice` — progressive-reveal notice card for a newly-unlocked tab (gated by `pending_notices`). `POST /onboarding/dismiss-notice` — clears the notice bit, tabs remain visible. |
 | Season | recap | `GET /season/recap` — returns the last archived season's SeasonRecord for the current player (or 204 when none). Reads from `season_records.json`, not the live season. |
 
 The old `Artifact` controller is renamed to `Prospecting`. The old `Sale`
 controller is removed (replaced by `Market`). New `Shed`, `Skills`,
-`Admin`, `Orientation`, and `Season` controllers are added for inventory
-management, skill purchases, operator actions, onboarding, and recap views.
+`Admin`, `Orientation`, `OnboardingNotice`, and `Season` controllers are
+added for inventory management, skill purchases, operator actions,
+progressive onboarding, and recap views.
 
 ### 10.3 What Controllers Do NOT Do
 
@@ -1864,8 +1868,10 @@ changes, no manual registration.
 | POST | `/admin/account/unban` | `Admin#unban` | JSON | Operator: clear `banned`, audit-logged. |
 | GET | `/orientation` | `Orientation#show` | fragment | Onboarding panel (gated by `seen_orientation`). |
 | POST | `/orientation/dismiss` | `Orientation#dismiss` | JSON | Mark onboarding seen, persist. |
+| GET | `/onboarding/notice` | `OnboardingNotice#show` | fragment | Progressive-reveal notice card for a newly-unlocked tab (gated by `pending_notices`). Accepts `?notice=<id>` param. |
+| POST | `/onboarding/dismiss-notice` | `OnboardingNotice#dismiss` | JSON | Clear the `pending_notices` bit for a specific notice. Accepts `{notice_id}`. |
 | GET | `/season/recap` | `Season#recap` | fragment | Last archived season's recap for the current player (or 204). |
-| GET | `/game` | `Game#show` | JSON + HTML | Game state page. Renders login form inline when unauthenticated. |
+| GET | `/game` | `Game#show` | JSON + HTML | Game state page. Renders login form inline when unauthenticated. Response includes `onboarding_notices` (array of newly-revealed tab IDs, empty on subsequent loads). |
 | GET | `/nav` | `Nav#show` | JSON | Nav state: tabs, current view, fragment URLs, context bar |
 | GET | `/player` | `Player#show` | JSON + fragment | Current player info |
 | DELETE | `/player` | `Player#destroy` | JSON | Delete account |
@@ -2328,6 +2334,30 @@ These are non-negotiable rules for all content:
     Unconsumed pressures are lazily purged on read after a configurable age
     threshold; no `on_maintenance` hook is added (preserving §17 #10).
 
+### Navigation & Progressive Onboarding
+
+26. **Tab visibility is server-authoritative.** The `/nav` response is the
+    single source of truth for which tabs are visible, active, and labelled.
+    JavaScript never computes tab state or constructs fragment URLs.
+    Backend services (`Navigation.pm`) determine visibility from onboarding
+    bitmask, AP, shed count, and activity state.
+
+27. **Tabs are progressively revealed, never hidden.** Once a tab's
+    onboarding bit is set, it stays set permanently. Returning players
+    with any existing state (shed >= 1 OR sales >= 3 OR scrap >= 100)
+    receive all bits at once via fast-track in `ensure_character`.
+
+28. **New-tab notices survive page refresh.** The `pending_notices` bitmask
+    is persisted on the character and cleared only when the player explicitly
+    dismisses the notice card via `POST /onboarding/dismiss-notice`. Notices
+    are shown one at a time, oldest first.
+
+29. **Progressive onboarding has no gameplay effect.** The bitmask only
+    controls UI visibility — it does not gate server-side endpoints,
+    affect bot behavior, or modify any game mechanic. A player who
+    navigates directly to a locked endpoint (e.g. `/market/begin`) will
+    receive the normal response; the lock is purely navigational.
+
 ---
 
 ## 18. Activity Registration
@@ -2406,6 +2436,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Token authentication** | `Service/Authentication.pm`, `Model/Account.pm` (`token_hash`, `remember_token_hash`, `recovery_code_hash`, `banned`), `Controller/Sessions.pm`, `Controller/Admin.pm`, `Command/reset_token.pm`, `Command/migrate_tokens.pm` | bcrypt-hashed 6-char login tokens (`[A-Z2-9]`, 30 bits), 10-char remember-me cookie (`mm_remember`, 30-day signed cookie), 10-char one-time recovery codes. New-account flow returns plaintext once via `mm_new_credentials` session slot. `verify_login` rotates remember-token. `verify_recovery_code` enables `recover_account`. Test-mode auto-generates token_hash for legacy accounts (`MOJO_MODE=test`). |
 | **Admin / operator endpoints** | `Controller/Admin.pm`, `MagicMountain.pm` (`/admin` bridge, `admin_secret` config) | `POST /admin/account/{reset-token,ban,unban}` gated by `admin_secret` HTTP header. Ban/unban toggles the `banned` column and audit-logs. Reset-token returns new token + recovery_code once. |
 | **Orientation flow** | `Controller/Orientation.pm`, `Model/Character.pm` (`seen_orientation` column), `templates/orientation/show.html.ep` | First-session onboarding panel; `POST /orientation/dismiss` persists `seen_orientation = 1`. Auto-shown until dismissed. |
+| **Progressive onboarding** | `Controller/OnboardingNotice.pm`, `Model/Character.pm` (`onboarding`, `pending_notices` columns), `Service/SeasonManager.pm` (`_update_onboarding`), `Service/Navigation.pm` (tab gating), `templates/onboarding/notice.html.ep` | Bitfield-controlled tab reveal; bazaar/skills/factions/intel gated by shed/scrap/sales thresholds; returning-player fast-track sets all bits. |
 | **Season recap endpoint** | `Controller/Season.pm`, `Model/SeasonRecord.pm` | `GET /season/recap` returns the player's most recent archived-season record as a fragment (or 204). Decoupled from `/game` so the recap can be re-opened without re-triggering create-season. |
 | **Counter-offers** | `Activity/MarketVisit.pm` (offer/accept_counter), `Controller/Market.pm`, `Bot/SellPolicy.pm` | Optional, gated by `market_counter_offers` config (default on). Customer counters at midpoint price; player may accept or reject. |
 | **Multi-item sales** | `Activity/MarketVisit.pm` (offer), `Controller/Market.pm` | Optional, gated by `market_multi_item` config (default on). Multiple sales per visit with budget pressure and irritation carryover. |
@@ -2630,6 +2661,7 @@ magic_mountain/
 │       │   ├── Market.pm             # MarketVisit actions (begin, offer, send_away, accept_counter, stand_pat)
 │       │   ├── Nav.pm                # Navigation state (tabs, views, fragment URLs)
 │       │   ├── Orientation.pm       # First-session onboarding panel (show, dismiss)
+│       │   ├── OnboardingNotice.pm  # Progressive tab-reveal notice cards (show, dismiss)
 │       │   ├── Player.pm             # Current player info
 │       │   ├── Prospecting.pm        # Prospecting actions (begin, push, stop)
 │       │   ├── Reference.pm          # In-universe reference registry (GET /reference/:id)
@@ -2666,6 +2698,8 @@ magic_mountain/
 │   │   └── show.html.ep              # Authenticated home page with game state
 │   ├── home/
 │   │   └── dashboard.html.ep         # Home dashboard (station status + shed ledger)
+│   ├── onboarding/
+│   │   └── notice.html.ep            # Progressive tab-reveal notice card
 │   ├── idle/
 │   │   └── actions.html.ep           # Idle action panel (Prospect/Bazaar buttons)
 │   ├── leaderboard/
