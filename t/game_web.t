@@ -200,6 +200,80 @@ subtest 'JSON — season auto-creates with correct label' => sub {
       ->json_has('/player');
 };
 
+subtest 'JSON — onboarding_notices for fresh character' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'rookie');
+    $a->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'rookie' })->status_is(200);
+
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_has('/onboarding_notices')
+      ->json_is('/onboarding_notices' => [], 'fresh character has empty notices');
+};
+
+subtest 'JSON — onboarding_notices when scrap >= threshold' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'skillful');
+    $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'skillful', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 100, action_points => 15, action_points_max => 15,
+        faction_sales => { syndicate => 3 },
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'skillful' })->status_is(200);
+
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_is('/ok' => 1)
+      ->json_has('/onboarding_notices')
+      ->json_is('/onboarding_notices' => ['skills', 'pvp'], 'skills+intel notices when scrap >= 100 and sales >= 3');
+};
+
+subtest 'JSON — onboarding_notices absent on second load' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'twoload');
+    $a->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'twoload' })->status_is(200);
+
+    # First load — notices present
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_has('/onboarding_notices');
+
+    # Second load — notices empty (no state changed)
+    $t->get_ok('/game' => {Accept => 'application/json'})
+      ->status_is(200)
+      ->json_is('/onboarding_notices' => []);
+};
+
 subtest 'JSON — displays faction_sales' => sub {
     my $dataDir = setup;
     my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");

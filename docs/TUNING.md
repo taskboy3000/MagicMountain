@@ -254,6 +254,14 @@ artifact has no decay_modifiers.
 | `pvp_bot_aggressiveness` | `0.20` | Daily probability each bot presses a qualifying rival. Overridable per-profile in `content/bots.yml`. |
 | `pvp_pressure_max_age_days` | `7` | Unfired pressures older than N days are lazily purged on read. No maintenance hook. |
 
+## Onboarding / Progressive Interface
+
+**File**: `MagicMountain.pm` defaultConfig, `magic_mountain.yml`
+
+| Key | Default | What it controls |
+|-----|---------|------------------|
+| `onboarding_skill_unlock_scrap` | `100` | Scrap threshold before the CERTS (Skills) tab is revealed. Matches the cheapest level-1 skill cost. |
+
 ## Quick-Start: What to Tune First
 
 | Goal | Tune this |

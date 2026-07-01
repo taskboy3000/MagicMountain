@@ -14,6 +14,12 @@
       <%= $s->{text} %>
     </div>
 %   }
+% } elsif ($fresh_player) {
+    <div style="border:1px solid var(--mm-amber);padding:0.6rem;margin-bottom:0.4rem;font-size:0.78rem;text-align:center;cursor:pointer"
+      data-view="prospect">
+      <span style="color:var(--mm-amber);font-weight:600">[&gt;]</span>
+      Begin with <strong>PROSPECT</strong> (costs 2 AP)
+    </div>
 % } else {
     <p style="font-size:0.78rem;color:var(--mm-text-dim);text-align:center">No advisories. Select a tab above to begin.</p>
 % }

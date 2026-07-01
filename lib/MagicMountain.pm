@@ -70,6 +70,7 @@ has defaultConfig => sub ($self) {
         pvp_splash_budget_ratio        => 0.80,
         pvp_bot_aggressiveness         => 0.20,
         pvp_pressure_max_age_days      => 7,
+        onboarding_skill_unlock_scrap  => 100,
     }
 };
 
@@ -594,6 +595,10 @@ sub buildRoutes ($self) {
     # Orientation
     $auth->get('/orientation')->to('orientation#show');
     $auth_write->post('/orientation/dismiss')->to('orientation#dismiss');
+
+    # Onboarding notices
+    $auth->get('/onboarding/notice')->to('onboarding_notice#show');
+    $auth_write->post('/onboarding/dismiss-notice')->to('onboarding_notice#dismiss');
 
     # Write routes under CSRF check
     # DEAD-SUPPRESS: endpoint kept for future re-enable; UI button removed per user request

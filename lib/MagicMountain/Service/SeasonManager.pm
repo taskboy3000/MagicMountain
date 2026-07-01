@@ -1,6 +1,7 @@
 package MagicMountain::Service::SeasonManager;
 use Mojo::Base '-base', '-signatures';
 use YAML::XS qw(LoadFile);
+use List::Util 'sum';
 use MagicMountain::BotName qw(random_bot_name);
 
 has app => sub { die "app is required" };
@@ -82,7 +83,51 @@ sub ensure_character ($self, $account, $season) {
         $char_model->save;
     }
 
-    return $char_model;
+    my $notices = $self->_update_onboarding($char_model);
+    return ($char_model, $notices);
+}
+
+use constant {
+    BIT_BAZAAR   => 1,
+    BIT_FACTIONS => 2,
+    BIT_SKILLS   => 4,
+    BIT_INTEL    => 8,
+};
+
+sub _update_onboarding ($self, $char) {
+    my $current = $char->getCol('onboarding') // 0;
+
+    my $scrap = $char->getCol('scrap') // 0;
+    my $faction_sales = $char->getCol('faction_sales') // {};
+    my $total_sales = sum(values %$faction_sales) // 0;
+
+    my $shed_count = scalar @{ $self->app->shed->find(
+        sub { $_[0]->{char_id} eq $char->getCol('id') }
+    ) };
+
+    my $skill_unlock = $self->app->config->{onboarding_skill_unlock_scrap} // 100;
+
+    my $should = 0;
+    $should |= BIT_BAZAAR   if $shed_count >= 1;
+    $should |= BIT_FACTIONS if $total_sales >= 3;
+    $should |= BIT_SKILLS   if $scrap >= $skill_unlock;
+    $should |= BIT_INTEL    if ($should & BIT_SKILLS);
+
+    my $new = $should & ~$current;
+    return [] unless $new;
+
+    my $pending = ($char->getCol('pending_notices') // 0) | $new;
+    $char->setCol('onboarding', $current | $new);
+    $char->setCol('pending_notices', $pending);
+    $char->save;
+
+    my %ID_FOR_BIT = (1 => 'bazaar', 2 => 'factions', 4 => 'skills', 8 => 'pvp');
+
+    my @notices;
+    for my $bit (BIT_BAZAAR, BIT_FACTIONS, BIT_SKILLS, BIT_INTEL) {
+        push @notices, $ID_FOR_BIT{$bit} if $new & $bit;
+    }
+    return \@notices;
 }
 
 sub rank_of ($self, $char) {
@@ -134,6 +179,8 @@ sub seed_bots ($self, $season) {
             action_points_max => $bot_ap,
             is_bot            => 1,
             bot_profile_id    => $profile_id,
+            onboarding        => 0,
+            pending_notices   => 0,
         )->save;
     }
 }

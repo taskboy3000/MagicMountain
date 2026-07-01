@@ -27,7 +27,7 @@ sub show ($self) {
 
     my $season_mgr = MagicMountain::Service::SeasonManager->new(app => $self->app);
     my ($season, $season_recap) = $season_mgr->ensure_season($player_id);
-    my $char_model = $season_mgr->ensure_character($account, $season);
+    my ($char_model, $onboarding_notices) = $season_mgr->ensure_character($account, $season);
 
     my $row = $char_model->row;
     my $prospecting_view = $char_model->prospecting_view;
@@ -76,6 +76,7 @@ sub show ($self) {
                 faction_state => $season ? $season->getCol('faction_state') : undef,
                 ($season_recap ? (season_recap => $season_recap) : ()),
                 ($char_model->getCol('seen_orientation') || $char_model->getCol('is_bot') ? () : (show_orientation => 1)),
+                onboarding_notices => $onboarding_notices,
                 unit_status => $self->_unit_status,
             });
         },

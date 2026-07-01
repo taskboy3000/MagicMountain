@@ -39,6 +39,7 @@ sub show ($self) {
                 behaviors   => $item->getCol('behaviors'),
             };
         }
+        my $fresh_player = !$type && !$shed_count && !$char->getCol('scrap');
         $self->stash(
             suggestions   => $suggestions,
             season_day    => $season_day,
@@ -49,6 +50,7 @@ sub show ($self) {
             shed_items    => \@shed_rows,
             market_active => $market_active,
             crier_msg     => $crier,
+            fresh_player  => $fresh_player,
         );
         return $self->render('home/dashboard', layout => undef);
     }

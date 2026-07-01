@@ -186,6 +186,15 @@ async function loadGame() {
       return;
     }
   }
+  if (g.onboarding_notices && g.onboarding_notices.length) {
+    const id = g.onboarding_notices[0];
+    const resp = await fetch(`/onboarding/notice?notice=${encodeURIComponent(id)}&_format=fragment`);
+    if (resp.status === 200) {
+      document.getElementById('primary-content').innerHTML = await resp.text();
+      document.getElementById('secondary-content').innerHTML = '';
+    }
+    return;
+  }
   if (g.show_orientation) {
     const resp = await fetch('/orientation?_format=fragment');
     if (resp.status === 200) {
