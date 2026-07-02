@@ -1,0 +1,53 @@
+<div id="device-frame" class="<%= $authenticated ? '' : 'unregistered' %>">
+% if ($authenticated) {
+  <div id="device-header">
+    <div id="device-name">ProspectBoy 3000 || LOCAL NODE: <%= $node_number %></div>
+    <div id="device-meta">REGISTERED TO: <span id="device-owner"><%= $player_name %></span></div>
+  </div>
+% }
+
+% if ($authenticated) {
+  <div id="status-strip">
+    <span class="text-left row cell-2x" title="Action Points">AP: <span id="s-ap">—</span></span>
+    <span class="text-left cell-3x" title="Currency used to acquire worldly goods and services">SCRAP: <span id="s-scrap">—</span></span>
+    <span class="text-left cell-3x" title="Synthesized Concordance Of Relative Evalution">S.C.O.R.E: <span id="s-score">—</span></span>
+    <span class="text-left cell-4x" title="Time left until the Mountain's location changes">SEASON DAY: <span id="s-day">—</span> OF <span id="s-total">—</span></span>
+  </div>
+  <div id="unit-status-wrapper" class="cell-12x" style="color:var(--mm-bg);background:var(--mm-text);font-size:0.72rem;padding:0.08rem 0.6rem;letter-spacing:0.1em;text-align:left">
+    &gt; <span id="unit-status"><%= $unit_status %></span>
+  </div>
+% }
+
+  <div id="main-area">
+    <div id="panel-primary">
+% if ($authenticated) {
+      <div id="primary-nav"></div>
+      <div id="primary-content"></div>
+% } else {
+      <div class="mm-panel mm-panel-centered">
+        <div class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</div>
+        <div class="mm-panel-body">
+          <form id="login-form">
+            <div style="margin-bottom:0.5rem">
+              <label for="display-name" class="mm-form-label">OWNER</label>
+              <input type="text" id="display-name" class="mm-input mm-input-block">
+            </div>
+            <div id="error-msg" class="mm-error-msg"></div>
+            <button type="submit" class="mm-btn mm-btn-primary mm-btn-block">Enter</button>
+          </form>
+        </div>
+      </div>
+% }
+    </div>
+% if ($authenticated) {
+    <div id="panel-secondary">
+      <div id="secondary-nav"></div>
+      <div id="secondary-content"></div>
+    </div>
+% } else {
+    <div id="panel-secondary"></div>
+% }
+  </div>
+
+  <div id="context-bar">&nbsp;</div>
+</div>

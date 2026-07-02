@@ -1,6 +1,6 @@
 <div class="mm-panel">
   <div class="mm-panel-header">OPERATOR: <%= $player_name %></div>
-  <div class="mm-panel-body" style="text-align:center">
+  <div class="mm-panel-body mm-center">
     <p><%= include 'components/action_buttons', actions => $actions %></p>
   </div>
 </div>
@@ -16,11 +16,11 @@
         <tr>
           <td>
 % if ($s->{status} eq 'active') {
-            <span style="color:var(--mm-green);cursor:pointer;text-decoration:underline"
+            <span class="mm-text-green" style="cursor:pointer;text-decoration:underline"
                data-action-url="/leaderboard?_format=fragment" data-method="GET"
                class="season-recap-link"><%= $s->{label} %></span>
 % } else {
-            <span style="color:var(--mm-text-dim);cursor:pointer;text-decoration:underline"
+            <span class="mm-text-dim" style="cursor:pointer;text-decoration:underline"
                data-action-url="/season/recap?season_id=<%= $s->{id} %>&_format=fragment" data-method="GET"
                class="season-recap-link"><%= $s->{label} %></span>
 % }
@@ -32,7 +32,7 @@
             <span class="mm-badge">Complete</span>
 % }
           </td>
-          <td style="color:var(--mm-amber)"><%= $s->{final_score} // '—' %></td>
+          <td class="mm-text-amber"><%= $s->{final_score} // '—' %></td>
         </tr>
 % }
       </tbody>

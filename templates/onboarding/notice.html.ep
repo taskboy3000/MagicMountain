@@ -1,10 +1,10 @@
-<div class="mm-panel" style="border-color:var(--mm-amber)">
-  <div class="mm-panel-header" style="background:var(--mm-amber);color:var(--mm-bg);text-align:center;letter-spacing:0.15em">
+<div class="mm-panel mm-panel-attention">
+  <div class="mm-panel-header">
     NEW: <%= $label %>
   </div>
-  <div class="mm-panel-body" style="padding:0.75rem;font-size:0.75rem;line-height:1.6">
+  <div class="mm-panel-body">
     <p><%= $flavor %></p>
-    <button class="mm-btn mm-btn-primary" style="width:100%;box-sizing:border-box;margin-top:0.5rem"
+    <button class="mm-btn mm-btn-primary mm-btn-block" style="margin-top:0.5rem"
       data-action-url="/onboarding/dismiss-notice" data-method="POST"
       data-notice-id="<%= $notice_id %>"
       data-redirect="/game">Dismiss</button>

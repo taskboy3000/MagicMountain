@@ -6,19 +6,27 @@
 %   my $max = $s->{max_level} // 3;
 %   my $at_max = $cur >= $max;
 %   my $next_cost = $at_max ? undef : ($s->{levels}[$cur]{cost} // undef);
-    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
+    <div class="mm-info-row">
       <div>
         <strong><%= $s->{name} %></strong>
         <span class="mm-badge"><%= $cur %>/<%= $max %></span>
-        <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $s->{description} || '' %></div>
+        <div class="mm-text-dim" style="font-size:0.7rem"><%= $s->{description} || '' %></div>
       </div>
       <div style="min-width:8rem;text-align:right">
 % if (!$at_max && defined $next_cost) {
 %   my $disabled = $scrap < $next_cost;
-%   my $purchase = { label => "Upgrade ($next_cost)", attrs => { 'data-action-url' => '/skills/purchase', 'data-method' => 'POST', class => 'mm-btn mm-btn-primary buy-skill-btn', 'data-skill-id' => $s->{id}, ($disabled ? (disabled => undef) : ()) } };
+%   my $purchase = { 
+%      label => "Upgrade:<br>$next_cost scrap", 
+%      attrs => { 
+%          'data-action-url' => '/skills/purchase', 
+%          'data-method' => 'POST', 
+%          class => 'mm-btn mm-btn-primary mm-btn-upgrade buy-skill-btn', 
+%          'data-skill-id' => $s->{id}, 
+%          ($disabled ? (disabled => undef) : ()) }
+%    };
 %=    include 'components/action_buttons', actions => [$purchase]
 % } elsif ($at_max) {
-        <span style="color:var(--mm-text-dim);font-size:0.7rem">MAX</span>
+        <span class="mm-text-dim" style="font-size:0.7rem">MAX</span>
 % }
       </div>
     </div>

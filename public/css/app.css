@@ -3,6 +3,7 @@
   --mm-bg:         #0a0a0a;
   --mm-bg-panel:   #111111;
   --mm-bg-hi:      #1a1a1a;
+  --mm-black:      #050302;
   --mm-border:     #2a2a2a;
   --mm-text:       #c4b998;
   --mm-text-dim:   #6a665a;
@@ -11,6 +12,7 @@
   --mm-green:      #4a7c59;
   --mm-red:        #8a3a3a;
   --mm-cyan:       #4a8a9a;
+  --mm-text-accent: var(--mm-cyan);  /* alias for accent text roles */
   --mm-font:       'IBM Plex Mono', 'Courier New', monospace;
 }
 body {
@@ -162,7 +164,7 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   max-width: 52rem;
   margin: 0 auto;
   border: 1px solid var(--mm-border);
-  background: var(--mm-black, #050302);
+  background: var(--mm-black);
   max-height: 95vh;
   overflow: hidden;
   display: flex;
@@ -263,8 +265,8 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 .property-tag .barcode span.g { margin-right: 0.5px; }
 
 #device-header {
-  border-bottom: 1px solid var(--mm-border);
-  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--mm-text);
+  padding: 0.3rem 0.6rem 0 0.6rem;
 }
 #device-name {
   color: var(--mm-amber);
@@ -281,15 +283,54 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 /* ── Status strip ─────────────────────────────────────────────── */
 #status-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(12, 1fr);
   border-bottom: 1px solid var(--mm-border);
-  padding: 0.3rem 0.6rem;
-  text-align: center;
-  font-size: 0.75rem;
+  padding: 0 0.3rem 0 0.3rem;
+  font-size: 0.70rem;
   color: var(--mm-text-dim);
   text-transform: uppercase;
 }
 #status-strip span { letter-spacing: 0.05em; }
+
+#status-strip > span {
+  padding-right: 0.5rem;
+}
+#status-strip > span + span {
+  border-left: 1px solid var(--mm-text);
+  padding-left: 0.5rem;
+}
+
+#status-strip > span:first-child {
+  padding-left: 0;
+}
+
+#status-strip > span.row {
+  grid-row: auto;
+}
+
+#status-strip .cell-2x {
+  grid-column: span 2;
+}
+
+#status-strip .cell-3x {
+  grid-column: span 3;
+}
+
+#status-strip .cell-4x {
+  grid-column: span 4;
+}
+
+#status-strip .cell-6x {
+  grid-column: span 6;
+}
+
+#status-strip .cell-9x {
+  grid-column: span 9;
+}
+
+#status-strip .cell-12x {
+  grid-column: span 12;
+}
 
 /* ── Nav buttons (shared) ──────────────────────────────────────── */
 .nav-btn {
@@ -424,4 +465,149 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   #device-frame { max-height: 100vh; }
   #nav-bar .nav-btn { font-size: 0.6rem; padding: 0.08rem 0.25rem; letter-spacing: 0.03em; }
   #terminal-frame { padding: 24px 8px 10px; }
+}
+
+/* ── Color utilities (Tier A — composable) ─────────────────── */
+.mm-text-dim     { color: var(--mm-text-dim); }
+.mm-text-amber   { color: var(--mm-amber); }
+.mm-text-bright  { color: var(--mm-amber-bright); }
+.mm-text-green   { color: var(--mm-green); }
+.mm-text-red     { color: var(--mm-red); }
+.mm-text-cyan    { color: var(--mm-cyan); }
+.mm-text-bg      { color: var(--mm-bg); }
+
+/* ── Layout utilities (Tier B — composable) ────────────────── */
+.mm-center       { text-align: center; }
+.mm-flex         { display: flex; }
+.mm-flex-center  { display: flex; justify-content: center; text-align: center; }
+.mm-flex-between { display: flex; justify-content: space-between; align-items: center; }
+.mm-flex-start   { display: flex; align-items: flex-start; }
+.mm-gap-sm       { gap: 4px; }
+.mm-w-full       { width: 100%; box-sizing: border-box; }
+
+/* ── Structural components (Tier C) ────────────────────────── */
+
+/* Full-width button */
+.mm-btn-block { width: 100%; box-sizing: border-box; }
+
+/* Upgrade button — consistent width, cost on second line */
+.mm-btn-upgrade { min-width: 8rem; text-align: center; line-height: 1.2; }
+
+/* Centered narrow panel */
+.mm-panel-centered    { max-width: 20rem; margin: 1rem auto; }
+.mm-panel-centered-sm { max-width: 24rem; margin: 2rem auto; text-align: center; }
+
+/* Hidden error line (JS toggles style.display) */
+.mm-error-msg { display: none; color: var(--mm-red); font-size: 0.78rem; margin-bottom: 0.5rem; }
+
+/* Full-width input */
+.mm-input-block { width: 100%; box-sizing: border-box; }
+
+/* Form field label */
+.mm-form-label { display: block; color: var(--mm-text-dim); font-size: 0.78rem; margin-bottom: 0.3rem; }
+
+/* Amber attention panel modifier */
+.mm-panel-attention                 { border-color: var(--mm-amber); }
+.mm-panel-attention > .mm-panel-header {
+    background: var(--mm-amber);
+    color: var(--mm-bg);
+    text-align: center;
+    letter-spacing: 0.15em;
+}
+.mm-panel-attention > .mm-panel-body {
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    line-height: 1.6;
+}
+
+/* Amber subheading with bottom border */
+.mm-section-label {
+    color: var(--mm-amber);
+    border-bottom: 1px solid var(--mm-border);
+    padding-bottom: 0.25rem;
+}
+
+/* Empty-state blurb */
+.mm-empty-state         { color: var(--mm-text-dim); text-align: center; }
+.mm-empty-state-padded  { padding: 2rem 0; }
+
+/* Small colored section header (pvp) */
+.mm-subhead {
+    font-size: 0.7rem;
+    color: var(--mm-text-accent);
+    border-bottom: 1px solid var(--mm-border);
+    margin-bottom: 0.3rem;
+}
+
+/* Dotted-border flex data row (pvp) */
+.mm-data-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.2rem 0;
+    font-size: 0.7rem;
+    border-bottom: 1px dotted var(--mm-border);
+}
+
+/* Solid-border flex info row (factions, skills) */
+.mm-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--mm-border);
+    padding: 0.3rem 0;
+}
+.mm-info-row > .mm-info-main { flex: 1; min-width: 0; }
+.mm-info-row > .mm-info-aside { white-space: nowrap; margin-left: 0.5rem; }
+
+/* Stat tiles (recap) */
+.mm-stat-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    justify-content: center;
+    text-align: center;
+}
+.mm-stat        { flex: 1; border: 1px solid var(--mm-border); padding: 0.4rem; }
+.mm-stat-label  { font-size: 0.65rem; color: var(--mm-text-dim); text-transform: uppercase; }
+.mm-stat-value  { font-size: 1.2rem; }
+.mm-stat-value-green { color: var(--mm-green); }
+.mm-stat-value-amber { color: var(--mm-amber); }
+.mm-stat-value-red   { color: var(--mm-red); }
+
+/* Bordered info card (market) */
+.mm-card        { border: 1px solid var(--mm-border); padding: 0.4rem; margin: 0.5rem 0; border-radius: 4px; }
+.mm-card-amber  { border-color: var(--mm-amber); }
+.mm-card-green  { border-color: var(--mm-green); }
+
+/* Portrait + title flex row (market customer card) */
+.mm-card-head     { display: flex; gap: 8px; margin-bottom: 0.5rem; padding: 0.4rem; border: 1px solid var(--mm-border); border-radius: 4px; }
+.mm-card-head > .mm-portrait-slot { flex-shrink: 0; width: 32px; height: 42px; overflow: hidden; }
+.mm-card-head > .mm-card-info     { flex: 1; min-width: 0; }
+
+/* Credential/token display */
+.mm-key {
+    font-size: 1.4rem;
+    color: var(--mm-amber);
+    letter-spacing: 0.15em;
+    margin: 0.5rem 0;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+/* Section divider hr */
+.mm-hr { border-color: var(--mm-border); margin-top: 1rem; margin-bottom: 0.5rem; }
+
+/* Uppercase dim advisory label */
+.mm-display-label { font-size: 0.72rem; color: var(--mm-text-dim); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem; }
+
+.text-left {
+  text-align: left;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-rigth {
+  text-align: right;
 }

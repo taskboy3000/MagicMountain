@@ -14,7 +14,7 @@
 % my %dot = (fresh => 'var(--mm-green)', settling => 'var(--mm-amber)', fading => 'var(--mm-red)');
 % my $dot = $dot{$item->{condition}} // 'var(--mm-green)';
         <tr>
-          <td style="display:flex;align-items:center;gap:4px" title="Condition: <%= $item->{condition} %> — <%= $item->{days} // 0 %> days in storage">
+          <td class="mm-flex mm-gap-sm" style="align-items:center" title="Condition: <%= $item->{condition} %> — <%= $item->{days} // 0 %> days in storage">
 % my %bar = (fresh => 'var(--mm-green)', settling => 'var(--mm-amber)', fading => 'var(--mm-red)');
             <span style="display:inline-flex;flex-direction:column;align-items:center;gap:1px">
               <img src="<%= $item->{icon} %>" alt="" class="mm-icon">
@@ -33,7 +33,7 @@
       </tbody>
     </table></div>
 % } else {
-    <p style="color:var(--mm-text-dim);text-align:center">No artifacts in storage.</p>
+    <p class="mm-empty-state">No artifacts in storage.</p>
 % }
   </div>
 </div>

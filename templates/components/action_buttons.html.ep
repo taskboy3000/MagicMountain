@@ -8,5 +8,5 @@
     <%= $k %>
 %     }
 %   }
-  ><%= $a->{label} %></button>
+  ><%== $a->{label} %></button>
 % }

@@ -158,7 +158,6 @@ async function handleAction(btn) {
   populateStatusStrip(g);
   // If toggle response includes tabs, re-render navs
   if (data.primary_tabs) { renderNav(data.primary_tabs, 'primary-nav'); renderNav(data.secondary_tabs || [], 'secondary-nav'); setMuteFromTabs(data.secondary_tabs); }
-  if (data.context !== undefined) document.getElementById('context-bar').textContent = data.context || '';
   await applyNav();
 }
 
@@ -216,7 +215,6 @@ function populateStatusStrip(g) {
   document.getElementById('s-scrap').textContent = p.scrap ?? '—';
   document.getElementById('s-score').textContent = p.score ?? '—';
   document.getElementById('unit-status').textContent = g.unit_status ?? '';
-  document.getElementById('context-bar').textContent = '';
 }
 
 // ── Nav ──────────────────────────────────────────────────────────
@@ -243,14 +241,12 @@ async function applyNav(requestedView) {
       renderNav(nav.primary_tabs, 'primary-nav');
       renderNav(nav.secondary_tabs || [], 'secondary-nav');
       setMuteFromTabs(nav.secondary_tabs);
-      document.getElementById('context-bar').textContent = nav.context || '';
       return;
     }
   }
   renderNav(nav.primary_tabs, 'primary-nav');
   renderNav(nav.secondary_tabs || [], 'secondary-nav');
   setMuteFromTabs(nav.secondary_tabs);
-  document.getElementById('context-bar').textContent = nav.context || '';
   await Promise.all([
     fetchThenRender(nav.primary_fragment_url, 'primary-content'),
     fetchThenRender(nav.secondary_fragment_url, 'secondary-content'),

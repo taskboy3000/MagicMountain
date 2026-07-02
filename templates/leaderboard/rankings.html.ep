@@ -15,7 +15,7 @@
       </tbody>
     </table>
 % } else {
-    <p style="color:var(--mm-text-dim);text-align:center">No rankings yet.</p>
+    <p class="mm-empty-state">No rankings yet.</p>
 % }
   </div>
 </div>

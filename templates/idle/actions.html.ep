@@ -1,6 +1,6 @@
 <div class="mm-panel">
   <div class="mm-panel-header">STANDBY</div>
   <div class="mm-panel-body">
-    <p style="color:var(--mm-text-dim);text-align:center;margin:0;font-size:0.78rem">Select an activity from the nav bar above.</p>
+    <p class="mm-empty-state" style="margin:0;font-size:0.78rem">Select an activity from the nav bar above.</p>
   </div>
 </div>

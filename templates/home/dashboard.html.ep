@@ -1,27 +1,27 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">STATION STATUS — DAY <%= $season_day %>/<%= $season_len %></div>
+  <div class="mm-panel-header">SYSTEM DASHBOARD</div>
   <div class="mm-panel-body">
 % if ($crier_msg) {
-    <p style="font-size:0.78rem;color:var(--mm-text-dim);margin-bottom:0.75rem">
-      <strong style="color:var(--mm-amber)">TOWN CRIER:</strong> <%= $crier_msg %></p>
+    <p class="mm-text-dim" style="font-size:0.78rem;margin-bottom:0.75rem">
+      <strong class="mm-text-amber">NEWS:</strong> <%= $crier_msg %></p>
 % }
 % if (@$suggestions) {
-    <p style="font-size:0.72rem;color:var(--mm-text-dim);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.1em">Advisories</p>
+    <p class="mm-display-label">Advisories</p>
 %   for my $s (@$suggestions) {
-    <div style="border:1px solid var(--mm-border);padding:0.4rem;margin-bottom:0.4rem;font-size:0.78rem;<%= $s->{view} ? 'cursor:pointer' : '' %>"
+    <div class="mm-card" style="font-size:0.78rem;<%= $s->{view} ? 'cursor:pointer' : '' %>"
       <%= $s->{view} ? qq{data-view="$s->{view}"} : '' %>>
-      <span style="color:var(--mm-amber);font-weight:600">[<%= $s->{icon} %>]</span>
+      <span class="mm-text-amber" style="font-weight:600">[<%= $s->{icon} %>]</span>
       <%= $s->{text} %>
     </div>
 %   }
 % } elsif ($fresh_player) {
-    <div style="border:1px solid var(--mm-amber);padding:0.6rem;margin-bottom:0.4rem;font-size:0.78rem;text-align:center;cursor:pointer"
+    <div class="mm-card mm-card-amber mm-center" style="font-size:0.78rem;cursor:pointer"
       data-view="prospect">
-      <span style="color:var(--mm-amber);font-weight:600">[&gt;]</span>
+      <span class="mm-text-amber" style="font-weight:600">[&gt;]</span>
       Begin with <strong>PROSPECT</strong> (costs 2 AP)
     </div>
 % } else {
-    <p style="font-size:0.78rem;color:var(--mm-text-dim);text-align:center">No advisories. Select a tab above to begin.</p>
+    <p class="mm-empty-state" style="font-size:0.78rem">No advisories. Select a tab above to begin.</p>
 % }
 
   </div>

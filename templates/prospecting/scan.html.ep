@@ -2,21 +2,21 @@
   <div class="mm-panel-header"><img src="<%= $artifact->icon_url %>" alt="" class="mm-icon" style="margin-right:4px"><%= $artifact->id %></div>
   <div class="mm-panel-body">
     <p>VALUE: <strong><%= $artifact->value_label %></strong>  ◆  STATUS: <span class="mm-badge <%= $artifact->stage_badge_css %>"><%= $artifact->stage || '—' %></span></p>
-    <div style="display:flex; gap:0.5rem; margin-top:0.5rem; justify-content:center">
+    <div class="mm-flex-center" style="gap:0.5rem;margin-top:0.5rem">
 %= include 'components/action_buttons', actions => $actions
     </div>
 % if ($artifact->intro || $artifact->signal) {
-    <hr style="border-color:var(--mm-bg-light);margin-top:1rem;margin-bottom:0.5rem">
+    <hr class="mm-hr">
 % }
 % if ($artifact->intro) {
-    <p style="color:var(--mm-text-dim);font-size:0.78rem;margin-bottom:0.3rem"><%= $artifact->intro %></p>
+    <p class="mm-text-dim" style="font-size:0.78rem;margin-bottom:0.3rem"><%= $artifact->intro %></p>
 % }
 % if ($artifact->signal) {
-    <p style="font-style:italic;color:var(--mm-text-dim);font-size:0.78rem"><%= $artifact->signal %></p>
+    <p class="mm-crier"><%= $artifact->signal %></p>
 % }
 % if (my $ev = stash 'event') {
-    <hr style="border-color:var(--mm-bg-light);margin-top:1rem;margin-bottom:0.5rem">
-    <p style="color:var(--mm-amber);font-size:0.72rem;font-family:var(--mm-font);text-transform:uppercase;letter-spacing:0.05em"><%= $ev->{text} %></p>
+    <hr class="mm-hr">
+    <p class="mm-text-amber" style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em"><%= $ev->{text} %></p>
 % }
   </div>
 </div>

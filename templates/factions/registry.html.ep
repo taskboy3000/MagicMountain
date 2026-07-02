@@ -3,17 +3,17 @@
   <div class="mm-panel-body">
 % my $factions_data = stash('factions') // [];
 % for my $f (@$factions_data) {
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--mm-border); padding:0.3rem 0">
-      <div style="flex:1; min-width:0">
-        <div style="display:flex;align-items:center;gap:4px">
+    <div class="mm-info-row mm-flex-start">
+      <div class="mm-info-main">
+        <div class="mm-flex mm-gap-sm" style="align-items:center">
 % if ($f->{icon}) {
           <img src="<%= $f->{icon} %>" alt="" class="mm-icon">
 % }
           <strong class="ref-link" data-reference-id="faction_<%= $f->{id} %>" title="<%= $f->{display_name_full} %>"><%= $f->{display_name} %></strong>
         </div>
-        <div style="font-size:0.7rem;color:var(--mm-text-dim)"><%= $f->{disposition} // '' %></div>
+        <div class="mm-text-dim" style="font-size:0.7rem"><%= $f->{disposition} // '' %></div>
       </div>
-      <div style="color:var(--mm-amber);white-space:nowrap;margin-left:0.5rem"><%= $f->{stars_display} %></div>
+      <div class="mm-info-aside mm-text-amber"><%= $f->{stars_display} %></div>
     </div>
 % }
   </div>
