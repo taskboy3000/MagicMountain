@@ -1,6 +1,7 @@
 use Modern::Perl;
 use Test::More;
 use POSIX qw(mktime);
+use File::Temp qw(tempdir);
 use FindBin;
 use lib ("$FindBin::Bin/../lib");
 
@@ -15,9 +16,10 @@ use MagicMountain::Maintenance;
 
 {
     package FakeApp;
-    sub new { bless { log => FakeLogger->new }, shift }
+    sub new { bless { log => FakeLogger->new, dataDir => File::Temp::tempdir(CLEANUP => 1) }, shift }
     sub log { shift->{log} }
     sub transcript { bless {}, 'FakeTranscript' }
+    sub dataDir { shift->{dataDir} }
 }
 
 {

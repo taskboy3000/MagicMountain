@@ -4,6 +4,7 @@ use Test::Mojo;
 use File::Temp qw(tempdir);
 use FindBin;
 use lib ("$FindBin::Bin/../lib");
+$ENV{MOJO_MODE} = 'test';
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;
@@ -246,7 +247,7 @@ subtest 'JSON — onboarding_notices when scrap >= threshold' => sub {
       ->status_is(200)
       ->json_is('/ok' => 1)
       ->json_has('/onboarding_notices')
-      ->json_is('/onboarding_notices' => ['skills', 'pvp'], 'skills+intel notices when scrap >= 100 and sales >= 3');
+      ->json_is('/onboarding_notices' => ['factions', 'skills', 'pvp'], 'factions+skills+intel notices when scrap >= 100 and sales >= 3');
 };
 
 subtest 'JSON — onboarding_notices absent on second load' => sub {
