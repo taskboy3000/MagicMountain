@@ -4,7 +4,7 @@ For more detailed explanations of factions, see "The Factions of Magic Mountain.
 
 ## Core Principle
 
-Each faction should have a recognizable voice that reflects its worldview.  No faction believes they are extreme or illogical.  No customer from a faction is a mustache-twirling villian or paladin in shining plate mail.  Each is a real human with a believe system valuable to them.
+Each faction should have a recognizable voice that reflects its worldview.  No faction believes they are extreme or illogical.  No customer from a faction is a mustache-twirling villain or paladin in shining plate mail.  Each is a real human with a belief system valuable to them.
 
 Some members of factions will absolutely think they are the Main Character of the story. None of them are right.
 
@@ -80,7 +80,7 @@ Grand speeches
 
 ### Core Belief
 
-LibreMount believes power should be decentralized.  The Mountain belongs to everyone.  Entrentched forces want to use the Mountain to enslave us.  Gatekeeping technology is immoral.
+LibreMount believes power should be decentralized.  The Mountain belongs to everyone.  Entrenched forces want to use the Mountain to enslave us.  Gatekeeping technology is immoral.
 
 LibreMount value equality, liberty, and fraternity.  And if you don't believe this too, they have guns.
 
@@ -88,7 +88,7 @@ LibreMount value equality, liberty, and fraternity.  And if you don't believe th
 
 * Respectful
 * Cooperative
-* Community-orient
+* Community-oriented
 * Honest
 * Militant
 * Distrustful of commerce
@@ -99,15 +99,13 @@ Folksy
 
 Community-oriented
 
-Guerilla fighters
+Guerrilla fighters
 
 ### Vocabulary
 
 community
 
 repair
-
-community
 
 camp
 
@@ -212,7 +210,7 @@ The Purifiers believe that old ideas and inventions are dangerous and must be st
 
 Curiosity caused the old world's collapse.  Isolate the danger of new ideas before it infects us all.
 
-The Purifiers seej protect people by putting them in cages.
+The Purifiers seek to protect people by putting them in cages.
 
 ### Negotiation Style
 
@@ -248,7 +246,7 @@ sacrifice
 
 duty
 
-moral hazzard
+moral hazard
 
 ### Avoid
 
@@ -343,7 +341,7 @@ It is:
 * profit to the Syndicate
 * communal property to LibreMount
 * the expansion of human knowledge to the Faculty
-* a scacred duty to contain for the Purifiers
+* a sacred duty to contain for the Purifiers
 * a message to the Revelationists
 
 ---

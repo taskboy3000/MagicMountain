@@ -34,8 +34,31 @@ The entire UI is presented as a fictional in-universe device: the **ProspectBoy 
 This constraint governs all UI design and content writing:
 - **Templates** render PB3K screens (scan panels, cert store, registry entries), not game UI widgets.
 - **JavaScript** orchestrates device functions (app switching, data fetching), not game navigation.
-- **Content** (reference entries, skill descriptions, status messages) is written as PB3K documentation — operational, bureaucratic, occasionally humorous. Never as game tutorial text or lore dumps.
+- **Content** (reference entries, skill descriptions, status messages) is written as PB3K documentation — operational, bureaucratic, exceedingly dry. Never as game tutorial text or lore dumps.
 - **Errors and empty states** return 204 (no signal / no data) rather than "nothing here" messages.
+
+**PB3K voice** — see `docs/ToneGuideForPB3K.md` for the full editorial test. The
+PB3K is an instrument, not a narrator. It observes, measures, records, and
+reports; it does not speculate, persuade, comfort, frighten, or entertain. Humor
+is rare and dry enough that it may not register on first contact — it comes from
+understatement, never punchlines. Two registers exist:
+
+- **Strict sensor register** (crier messages, system messages, reference entries,
+  skill descriptions): the PB3K reports only what an instrument could honestly
+  know. No culturally loaded language (magic, miracle, treasure); prefer
+  recovered object, signal source, anomalous geological structure. Acknowledge
+  uncertainty ("Composition unknown." "Confidence: Low.").
+- **Developing voice** (artifact `intro` / `signals` / `collapse`): the PB3K is
+  developing a voice and is permitted to convey sensory observation to the
+  operator about the artifact in hand — "The box is warm to the touch," "The
+  metal creaks and pulses." These remain observations, not interpretations
+  ("This artifact is dangerous" / "wants something" are still disallowed), and
+  they pass the editorial test: *could an instrument with a developing voice
+  report this to its operator?*
+
+Operator vitals displayed in the status strip (AP, score, day) are exact
+measurements; uncertainty applies to the world and its artifacts, not to the
+operator's own state.
 
 The PB3K framing is not a lore decoration — it is a **design constraint** that prevents the UI from becoming a conventional game dashboard. Every feature must be implementable as a PB3K function or it does not belong in the device screen.
 
@@ -1173,7 +1196,35 @@ Factions have three connected layers — all three are implemented:
 - Affects: narrative events, faction behavior shifts, Crier reports
 - Stored in `season.faction_state.intake_by_trait` map
 
-### 7.3 Commission System — Planned
+### 7.3 Faction Voice
+
+Faction identity stays visible to the player (`faction_name` is always returned
+by `Market#begin`). Recognition is *not* gated through hidden identity. Instead,
+the manner in which a customer presents to the player must sharply express the
+faction's worldview — the player should come to anticipate, before reading the
+name, which faction has arrived based on voice alone.
+
+**Authority**: `docs/ToneGuideForFactions.md` (per-faction vocabulary, emotional
+temperature, market behavior) and `docs/MechanicsRevealFactions.md` (recognition
+over explanation; mechanics first, lore second).
+
+**Editorial test for faction dialogue**: before approving a line, ask —
+1. Does this line reveal the faction's worldview (what it believes the Mountain is for)?
+2. Could another faction plausibly have said it?
+
+If the answer to #2 is yes, rewrite the line until only one faction could have
+spoken those words. No faction is a cartoon villain or paladin; each sincerely
+believes its own worldview and is never written as lying to the player about it.
+
+**Presentation contract**: the static `disposition` label currently surfaced by
+`Market#begin` ("commercial_resale", "sacred_custody", "destruction") is
+exposition — it tells rather than shows. It will be superseded by an
+in-character **arrival line** drawn from faction-voiced content
+(`content/flavor/negotiation_reactions.yml` `arrival:` category, planned). The
+label remains a server-only classification for styling and commodity hooks; it is
+not displayed to the player.
+
+### 7.4 Commission System — Planned
 
 After a player's second seasonal sale to a faction, that faction "notices" the
 player and may issue a commission:
@@ -1822,14 +1873,23 @@ skills:
 `faction_surge`, `faction_slump`, `faction_dominance`, `milestone`,
 `season_opening` (day 1), `daily_progress` (ranged by day percentage),
 and generic fallback messages. Loaded at startup by `Crier.pm`.
+*Tone:* PB3K strict sensor register (§1.1). The Crier is a PB3K channel — it
+reports ideological and statistical shifts as observations, never as advocacy.
 
 **commission_triggers.yml**: Per-faction narrative text for commission
 issuance. Content-only — loaded by the Commission System when implemented.
+*Tone:* faction voice (§7.3).
 
 **negotiation_reactions.yml**: Per-faction flavor text for market visit
-outcomes (match, settle, mismatch, storm_off). Loaded lazily by
-`MarketVisit::_reactions` on first offer. Falls back to generic text if
-no faction entry exists.
+outcomes (match, settle, mismatch, storm_off, counter, `mood_*`).
+*Tone:* faction voice (§7.3). Loaded lazily by `MarketVisit::_reactions` on
+first offer. Falls back to generic text if no faction entry exists. A planned
+`arrival:` category will provide the in-character greeting surfaced by
+`Market#begin` (§13.3, §7.3).
+
+**prospecting.yml `intro` / `signals` / `collapse`** (§12.2): artifact flavor
+text. *Tone:* PB3K developing voice (§1.1) — sensory observation permitted,
+interpretation disallowed.
 
 ### 12.5 Content Loading
 
@@ -1963,8 +2023,11 @@ summary to client.
 
 **Market#begin**: Requires `action_points >= 1` and no active activity.
 Deducts 1 AP. Generates customer. Creates activity row with phase
-`negotiating`. Returns customer info (faction name, disposition — NOT
-desired_behaviors).
+`negotiating`. Returns customer info (faction name, arrival line — NOT
+desired_behaviors, NOT the static `disposition` label, which is server-only).
+The arrival line is an in-character greeting drawn from
+`content/flavor/negotiation_reactions.yml` that sharply expresses the faction's
+worldview (see §7.3).
 
 **Market#offer**: Requires activity `type == "market_visit"` and
 `phase == "negotiating"`. Receives `shed_item_id` in request body.
@@ -2200,7 +2263,10 @@ activities, and future diagnostics all contribute to the same event stream.
 
 ## 16. Narrative Constraints
 
-These are non-negotiable rules for all content:
+These are non-negotiable rules for all content. The style guides in
+`docs/ToneGuideForPB3K.md`, `docs/ToneGuideForFactions.md`, and
+`docs/MechanicsRevealFactions.md` are authoritative for tone and voice
+(also referenced from §1.1 and §7.3).
 
 - **Player role**: The player is purely opportunistic — never a savior, never
   a villain. The game does not morally categorize the player.
@@ -2214,7 +2280,17 @@ These are non-negotiable rules for all content:
 
 - **Scope**: Violence and combat are not depicted. Conflict is economic,
   political, and environmental. Artifact collapse is mechanical failure, not
-  human harm. PvP is economic interference, not direct harm.
+  human harm. PvP is economic interference, not direct harm. Faction
+  characterization may include **vague threats** ("they have guns",
+  "the old world was judged and found wanting") and historical violent framing,
+  since these express belief systems without staging combat; depicted violence
+  — present-tense, on-screen harm — remains prohibited.
+
+- **UI verbs vs. PB3K prose**: Buttons are labeled with action verbs
+  (PROSPECT, PUSH, STOP, OFFER) because they express **operator intent**
+  toward the device — the operator is commanding the PB3K, not vice versa.
+  The PB3K's own prose may *recommend* but should rarely *command* the operator
+  (see `docs/ToneGuideForPB3K.md`). Button labels are not PB3K utterances.
 
 ---
 
