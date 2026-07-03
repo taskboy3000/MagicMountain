@@ -363,9 +363,9 @@ if ($@) {
     goto AFTER_MARKET;
 }
 
-# Market fragment
+# Market fragment (204 = no active visit, e.g. no shed items)
 my $market = do_req(GET => '/market?_format=fragment');
-assert($market->res->code == 200, 'GET /market?_format=fragment (active)');
+assert($market->res->code == 200 || $market->res->code == 204, 'GET /market?_format=fragment (active)');
 
 # Check shed for items during market (Offer buttons only visible when market_active=1)
 my $shed = do_req(GET => '/shed?_format=fragment');
