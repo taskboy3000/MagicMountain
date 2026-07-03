@@ -1,0 +1,34 @@
+# Global events — fire once per day during maintenance (trigger: day_start).
+# Effects set daily_modifiers on the Season model. Cleared each day before
+# the new event is drawn.
+
+- id: mountain_unrest
+  weight: 5
+  trigger: day_start
+  min_day: 5
+  text: "SEISMOLOGICAL BULLETIN — Increased tectonic activity detected. Extraction conditions destabilized."
+  effects:
+    - instability_growth_delta: 1
+
+- id: rich_veins
+  weight: 4
+  trigger: day_start
+  text: "GEOSCAN REPORT — High-value mineral deposits detected in shallow strata. Extraction yields improved."
+  effects:
+    - artifact_value_mult: 1.2
+
+- id: buyer_market
+  weight: 4
+  trigger: day_start
+  min_day: 3
+  text: "MARKET DIGEST — Buyer demand outpaces supply. Factions are paying premiums to secure inventory."
+  effects:
+    - market_multiplier_delta: 0.15
+
+- id: faction_crackdown
+  weight: 3
+  trigger: day_start
+  min_day: 8
+  text: "ADMINISTRATIVE ORDER — The council has imposed extraction quotas. All operations subject to efficiency review."
+  effects:
+    - prospect_ap_cost: 3

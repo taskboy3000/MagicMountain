@@ -194,6 +194,10 @@ has maintenance => sub ($self) {
                 }
             }
 
+            # Clear yesterday's modifiers before drawing new ones
+            $season->setCol('daily_modifiers', {});
+            $season->setCol('global_event_text', undef);
+
             my $day    = $season->getCol('day') + 1;
             $maint->app->log->info(sprintf("Maintenance: %s day %d -> %d",
                 $season->getCol('label') // '?', $day - 1, $day));
@@ -210,12 +214,42 @@ has maintenance => sub ($self) {
 
             $maint->app->shed_manager->apply_decay;
 
+            # Market dynamics reset (daily_intake=0, days_since_purchase++)
+            my $fs = $season->getCol('faction_state') // {};
+            for my $fid (keys %$fs) {
+                $fs->{$fid}->{daily_intake} = 0;
+                $fs->{$fid}->{days_since_purchase}++;
+            }
+            $season->setCol('faction_state', $fs);
+
+            # Global event: draw and apply modifiers
+            if ($maint->app->can('random_events')) {
+                my $global_event = $maint->app->random_events->draw(
+                    pool    => 'global',
+                    trigger => 'day_start',
+                    context => {
+                        season        => $season,
+                        faction_state => \%$fs,
+                    },
+                );
+                if ($global_event) {
+                    $maint->app->random_events->apply_effects(
+                        $global_event, 'global',
+                        { season => $season, faction_state => \%$fs },
+                    );
+                    $season->setCol('global_event_text', $global_event->{text});
+                    $maint->app->log->info(
+                        sprintf("Global event [%s]: %s", $global_event->{id}, $global_event->{text})
+                    );
+                }
+            }
+
+            # Crier generation (reads global_event_text first)
             my $crier_opts = $maint->_catching_up ? { time_warp => 1 } : {};
             my $msg = $maint->app->crier->generate($season, $crier_opts);
             $season->setCol('crier_message', $msg);
             $season->setCol('crier_snapshot', $season->getCol('faction_state'));
 
-            my $fs = $season->getCol('faction_state') // {};
             for my $fid (keys %$fs) {
                 $maint->app->faction_snapshots->create(
                     season_id         => $season->getCol('id'),
@@ -227,10 +261,6 @@ has maintenance => sub ($self) {
                 )->save;
             }
 
-            for my $fid (keys %$fs) {
-                $fs->{$fid}->{daily_intake} = 0;
-                $fs->{$fid}->{days_since_purchase}++;
-            }
             $season->setCol('faction_state', $fs);
 
             $maint->app->transcript->log_event({
@@ -608,6 +638,7 @@ sub buildRoutes ($self) {
     $auth_write->post('/prospecting/begin')->to('prospecting#begin');
     $auth_write->post('/prospecting/push')->to('prospecting#push');
     $auth_write->post('/prospecting/stop')->to('prospecting#stop');
+    $auth_write->post('/prospecting/resolve_event')->to('prospecting#resolve_event');
     $auth_write->post('/market/begin')->to('market#begin');
     $auth_write->post('/market/offer')->to('market#offer');
     $auth_write->post('/market/send_away')->to('market#send_away');

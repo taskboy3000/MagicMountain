@@ -1,7 +1,8 @@
 use Modern::Perl;
 
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use Test::More;
 use File::Temp qw(tempfile);
@@ -46,7 +47,7 @@ subtest 'columns include defaults + activity fields' => sub {
     my $a = _new_activity();
     is_deeply(
         $a->columns,
-        [qw(id updatedAt createdAt char_id type phase artifact customer)],
+        [qw(id updatedAt createdAt char_id type phase artifact customer pending_event)],
         'columns extend defaults with activity fields'
     );
 };

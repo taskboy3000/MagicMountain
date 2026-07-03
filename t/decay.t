@@ -2,7 +2,8 @@ use Modern::Perl;
 use Test::More;
 
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use MagicMountain::ShedManager;
 use constant SHEDMGR => 'MagicMountain::ShedManager';

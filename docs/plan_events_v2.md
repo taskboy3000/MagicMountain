@@ -18,6 +18,13 @@ Phase 1: Service skeleton + passive prospecting events
 Phases 3 and 4 are independent of Phase 2 and of each other. Phase 5 depends
 on all prior phases.
 
+## Required Refactoring (applies to Phases 2 & 4)
+
+Before Phase 2 or Phase 4 can be implemented, `draw()` must be refactored to
+extract the effect-application loop into a public `apply_effects()` method.
+See Phase 2 §2.1a for details. This refactoring is a prerequisite for both
+choice events (Phase 2) and global events (Phase 4).
+
 ---
 
 ## Phase 1: Service Skeleton + Passive Prospecting Events
@@ -355,7 +362,30 @@ normally above it.
 **Goal**: Choice events fire during `Prospecting::begin`. The player sees
 choice buttons, picks one, and effects are applied. Bots auto-resolve.
 
-### 2.1 Extend `draw()` for Choice Events
+### 2.1a Refactor `draw()` — Extract `apply_effects()`
+
+**BLOCKER for both Phase 2 and Phase 4.** The current `draw()` applies
+effects inline (lines 155-161). This must be extracted into a public method:
+
+```perl
+sub apply_effects ($self, $event_def, $pool, $ctx, $rng) {
+    for my $eff (@{ $event_def->{effects} // [] }) {
+        my ($name, $raw) = %$eff;
+        my $spec = $self->effects_by_pool->{$pool}{$name}
+            or die "handler '$name' not registered for pool '$pool'";
+        my $val = $self->_resolve_value($raw, $spec, $rng);
+        $spec->{handler}->($ctx, $val);
+    }
+}
+```
+
+`draw()` calls `apply_effects()` for events without `choices` (backwards
+compatible). For choice events and global events, the caller calls
+`apply_effects()` explicitly.
+
+This refactoring is also the foundation for `apply_choice()`.
+
+### 2.1b Extend `draw()` for Choice Events
 
 In `Service::RandomEvents::_select()`:
 
@@ -365,12 +395,64 @@ After condition filtering, for events with `choices`:
 - Discard event if no choices remain
 
 `draw()` returns the event object with `choices` populated (snapshot of
-resolved effects per choice) and `effects` empty.
+resolved effects per choice) and `effects` empty. Effect application is
+NOT called inside `draw()` for choice events — the caller must call
+`apply_choice()` or `apply_effects()` separately.
 
-Add `has_choices` convenience method on the event object.
+Add `apply_choice($pool, $choice_id, $context, $pending_event, $rng?)`
+method that runs the chosen effects through `apply_effects()`:
 
-Add `apply_choice($pool, $choice_id, $context, $pending_event)` method that runs the chosen
-effects through the handler registry.
+```perl
+sub apply_choice ($self, %args) {
+    my $pool     = $args{pool} or die "pool required";
+    my $choice_id = $args{choice_id} or die "choice_id required";
+    my $pending  = $args{pending_event} or die "pending_event required";
+    my $ctx      = $args{context} // {};
+    my $rng      = $args{seeded_rng};
+
+    my ($choice) = grep { $_->{id} eq $choice_id } @{ $pending->{choices} }
+        or die "unknown choice '$choice_id'";
+
+    $self->apply_effects($choice, $pool, $ctx, $rng);
+}
+```
+
+### 2.1c Remove v1 `choices` Guard and Add Choice Validation
+
+In `_load()`, remove the existing guard:
+```perl
+# REMOVE this line:
+die "event '$eid': choices not supported in v1" if $event->{choices};
+```
+
+Add validation for choice structure:
+```perl
+if ($event->{choices}) {
+    die "event '$eid': choices must be an array" unless ref $event->{choices} eq 'ARRAY';
+    die "event '$eid': choices and effects are mutually exclusive"
+        if $event->{effects} && @{ $event->{effects} };
+    my %seen_cids;
+    for my $choice (@{ $event->{choices} }) {
+        my $cid = $choice->{id} // 'UNDEFINED';
+        die "choice '$cid' in event '$eid': must have 'id'" unless defined $choice->{id};
+        die "choice '$cid' in event '$eid': duplicate id" if $seen_cids{$cid}++;
+        die "choice '$cid' in event '$eid': must have 'label'" unless defined $choice->{label};
+        die "choice '$cid' in event '$eid': must have 'effects'"
+            unless $choice->{effects} && @{ $choice->{effects} };
+        for my $eff (@{ $choice->{effects} }) {
+            my ($name) = %$eff;
+            my $spec = $self->effects_by_pool->{$pool}{$name}
+                or die "choice '$cid' in event '$eid': unknown effect '$name'";
+        }
+        for my $cond (@{ $choice->{conditions} // [] }) {
+            my ($name, $val) = %$cond;
+            my $spec = $self->conditions_by_pool->{$pool}{$name}
+                or die "choice '$cid' in event '$eid': unknown condition '$name'";
+        }
+    }
+    # Require at least one choice
+    die "event '$eid': must have at least one choice" unless @{ $event->{choices} };
+}
 
 ### 2.2 Store Pending Event on Activity Row
 
@@ -469,8 +551,12 @@ When a choice event fires, the view replaces the normal outcome:
                 {
                     id         => 'strip',
                     label      => 'Strip it for parts',
-                    action_url => '/prospecting/resolve_event',
-                    params     => { choice_id => 'strip' },
+                    attrs => {
+                        'data-action-url' => '/prospecting/resolve_event',
+                        'data-method'     => 'POST',
+                        'data-choice-id'  => 'strip',
+                        class             => 'mm-btn mm-btn-primary',
+                    },
                 },
                 # ... more choices
             ],
@@ -479,8 +565,25 @@ When a choice event fires, the view replaces the normal outcome:
 }
 ```
 
-Each choice is rendered as a button following the standard `action_buttons`
-component contract (label, action_url, method=POST, params).
+The backend renders choices by converting them to the standard `attrs` format
+used by `components/action_buttons.html.ep`. The existing component iterates
+`attrs` keys blindly — no new template component needed. The `begin` handler
+builds these `attrs` arrays per choice before returning the view.
+
+The fragment template checks for `stash('event')` with `choices` and renders
+them in a separate `choice_buttons` section:
+
+```perl
+% if (my $ev = stash 'event') {
+    <hr class="mm-hr">
+    <p class="mm-text-amber">...</%= $ev->{text} %></p>
+    % if ($ev->{choices}) {
+        <div class="mm-flex-center" style="gap:0.5rem;margin-top:0.5rem">
+        %= include 'components/action_buttons', actions => $ev->{choices}
+        </div>
+    % }
+% }
+```
 
 ### 2.5 Controller
 
@@ -495,6 +598,24 @@ prospecting write routes:
 ```perl
 $auth_write->post('/prospecting/resolve_event')->to('prospecting#resolve_event');
 ```
+
+### 2.5a Personal Event Count Logging
+
+After `draw()` returns an event (passive or choice), the caller logs the
+count to the Season model. The Service does NOT call persistence directly:
+
+```perl
+my $season = $ctx->{season};
+if ($season) {
+    my $counts = $season->getCol('personal_event_counts') // {};
+    $counts->{prospecting}{$event->{id}}{fired}++;
+    $season->setCol('personal_event_counts', $counts);
+    $season->save;
+}
+```
+
+For choice events, the caller increments `resolved` after `apply_choice`
+succeeds. This pattern applies to all phases (2, 3, 4).
 
 ### 2.6 Bot Handling
 
@@ -591,17 +712,67 @@ is mutated before negotiation begins. No choice events for market in v1.
 
 ### 3.1 Register Market Conditions + Effects
 
-In `Service::RandomEvents`:
+In `Service::RandomEvents` — populate the `market_visit` condition and
+effect registries. Reused conditions (`scrap_gte`, `selling_gte`) must be
+registered per-pool; cross-pool conditions share the same handler code:
 
-**Conditions**: `faction_days_no_buy_gte`, `standing_gte`, `scrap_gte`,
-`sold_gte`, `selling_gte`.
+```perl
+market_visit => {
+    scrap_gte => {
+        label      => 'Scrap >= N',
+        value_type => 'integer',
+        accepts    => ['scalar'],
+        bounds     => [0, 9999],
+        handler    => sub ($ctx, $n) { ($ctx->{char}->getCol('scrap') // 0) >= $n },
+    },
+    selling_gte => {
+        label      => 'Selling skill >= N',
+        value_type => 'integer',
+        accepts    => ['scalar'],
+        bounds     => [0, 4],
+        handler    => sub ($ctx, $n) { ($ctx->{char}->getCol('skill_selling') // 0) >= $n },
+    },
+    standing_gte => {
+        label      => 'Standing >= N',
+        value_type => 'integer',
+        accepts    => ['scalar'],
+        bounds     => [0, 20],
+        handler    => sub ($ctx, $n) { ($ctx->{standing}{$ctx->{customer}{faction_id}} // 0) >= $n },
+    },
+}
+```
 
-**Effects**: `multiplier_delta`, `irritation_floor`, `faction_delta`.
+**Effects**: `multiplier_delta`, `irritation_floor`, `irritation_delta`.
+Effect handlers mutate `customer` in-place using underscore-prefixed
+ephemeral fields that MarketVisit reads after event processing:
 
-The market context includes `customer`, `char`, `standing`, `faction_state`,
-and `season`. Effect handlers mutate `customer` in-place (e.g., add to
-`_multiplier_delta` ephemeral field that the MarketVisit activity reads
-after event processing and bakes into the real multiplier calculation).
+```perl
+market_visit => {
+    multiplier_delta => {
+        label      => 'Adjust offer multiplier',
+        value_type => 'float',
+        accepts    => ['scalar'],
+        bounds     => [-0.50, 0.50],
+        handler    => sub ($ctx, $n) {
+            $ctx->{customer}{_multiplier_delta} += $n;
+        },
+    },
+    irritation_floor => {
+        label      => 'Set minimum irritation',
+        value_type => 'integer',
+        accepts    => ['scalar'],
+        bounds     => [0, 10],
+        handler    => sub ($ctx, $n) {
+            $ctx->{customer}{_irritation_floor} = $n;
+        },
+    },
+}
+```
+
+The market context includes `customer`, `char`, `standing => \%standing`,
+`faction_state`, and `season`. Effect handlers write ephemeral fields to
+`customer` that the MarketVisit `begin` handler reads before computing the
+final multiplier and irritation.
 
 ### 3.2 Create `content/events/market_visit.yml`
 
@@ -753,23 +924,31 @@ Populate with `mountain_unrest`, `rich_veins`, `mountain_slumber`,
 ### 4.5 Maintenance Integration
 
 **File**: `lib/MagicMountain.pm` — the existing `on_maintenance` callback
-(around lines 137-197) already handles day advancement, AP reset, shed
-decay, Crier generation, faction snapshots, market dynamics reset, and
-bot runs. **Insert** the global event step into this existing flow — do
-not rewrite it.
+(lines 159-254) handles bot runs, day advancement, AP reset, shed decay,
+Crier generation, faction snapshots, and market dynamics reset. **Insert**
+the global event step with the correct ordering:
+
+1. Clear yesterday's `daily_modifiers` and `global_event_text`
+2. Bot runs (existing, unchanged)
+3. Advance day, reset AP, shed decay (existing, unchanged)
+4. Market dynamics reset (`daily_intake=0`, `days_since_purchase++`)
+5. **Draw global event, apply modifiers via `apply_effects()`**
+6. **Crier generation** (reads `global_event_text`, falls through to faction diff if absent)
+7. Faction snapshots, transcript, season save (existing)
 
 ```perl
-# EXISTING: season day check, catch-up loop, etc.
+# EXISTING: bot runs lines 163-195
 
-# INSERT before day advancement (before $season->setCol('day', $day)):
-$season->setCol('daily_modifiers', {});                  # clear yesterday's modifiers
+# INSERT: clear yesterday's modifiers
+$season->setCol('daily_modifiers', {});
 $season->setCol('global_event_text', undef);
 
-# EXISTING: advance day, reset AP (already handles AP = action_points_max)
+# EXISTING: advance day (line 197-201), AP reset (line 203-209), shed decay (line 211)
 
-# INSERT after market dynamics reset (after day_appetite reset, around line 176),
-# but before Crier generation (around line 157):
-my $event = $self->app->random_events->draw(
+# EXISTING: market dynamics reset (lines 230-233: daily_intake=0, days_since_purchase++)
+
+# INSERT after market dynamics reset, before Crier generation:
+my $global_event = $self->app->random_events->draw(
     pool    => 'global',
     trigger => 'day_start',
     context => {
@@ -778,20 +957,20 @@ my $event = $self->app->random_events->draw(
     },
 );
 
-if ($event) {
-    $event->apply({
-        season        => $season,
-        faction_state => \%faction_state,
-    });
-    $season->setCol('global_event_text', $event->{text});
+if ($global_event) {
+    $self->app->random_events->apply_effects(
+        $global_event, 'global',
+        { season => $season, faction_state => \%faction_state },
+    );
+    $season->setCol('global_event_text', $global_event->{text});
     $season->save;
 }
 
-# EXISTING: Crier generation. Crier::generate() now reads
-# $season->getCol('global_event_text') first. If present, uses it
-# verbatim. Otherwise falls back to faction-state diffing.
+# EXISTING: Crier generation (line 213-216).
+# Crier::generate() now reads $season->getCol('global_event_text') first.
+# If present, uses it verbatim. Otherwise falls back to faction-state diffing.
 
-# EXISTING: write faction snapshots, crier snapshot, bot day actions
+# EXISTING: faction snapshots (lines 218-228), transcript (lines 236-242), season save (line 244-245)
 ```
 
 ### 4.6 Read Modifiers in Activities

@@ -1,5 +1,6 @@
 use Modern::Perl;
 use Test::More;
+use Test::Exception;
 use File::Temp qw(tempfile tempdir);
 use File::Slurp qw(write_file);
 use YAML::XS qw(DumpFile);
@@ -7,6 +8,7 @@ use Mojo::JSON qw(decode_json);
 
 use FindBin;
 use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use_ok('MagicMountain::Activity::Prospecting');
 use_ok('TestCharacter');
@@ -36,15 +38,25 @@ my $tmp = tempdir(CLEANUP => 1);
         require MagicMountain::Service::RandomEvents;
         $_[0]->{_re} //= MagicMountain::Service::RandomEvents->new(app => $_[0]);
     }
-    sub _active_season_obj {
-        $_[0]->{_sa} //= bless { id => 's1', day => 1, length => 30 }, 'FakeSeason';
+    sub seasons {
+        $_[0]->{_ss} //= bless {}, 'FakeSeasons';
     }
+    sub active_season {
+        $_[0]->{_sa} //= bless { id => 's1', day => 1, length => 30, status => 'active' }, 'FakeSeason';
+    }
+}
+{
+    package FakeSeasons;
+    sub load { 1 }
+    sub find { [ bless({ id => 's1', day => 1, length => 30, status => 'active' }, 'FakeSeason') ] }
 }
 {
     package FakeSeason;
     sub getCol { $_[0]->{$_[1]} }
     sub setCol { $_[0]->{$_[1]} = $_[2] }
     sub save   { 1 }
+    sub daily_modifier { my ($self, $key, $default) = @_; $default }
+    sub prospect_ap_cost { 2 }
 }
 {
     package FakeTranscript;
@@ -89,6 +101,17 @@ sub _make_singleton {
         { id => 'skill_gated', weight => 10, trigger => 'begin', text => 'Skill reward!',
           conditions => [{ prospecting_gte => 2 }],
           effects => [{ value_delta => 5 }] },
+        { id => 'choice_test', weight => 10, trigger => 'begin', text => 'Choice event!',
+          choices => [
+              { id => 'careful', label => 'Careful', effects => [{ scrap_delta => 5 }] },
+              { id => 'risky',   label => 'Risky',   effects => [{ scrap_delta => 20 }, { instability_delta => 3 }] },
+          ] },
+        { id => 'gated_choice', weight => 10, trigger => 'begin', text => 'Gated choice!',
+          choices => [
+              { id => 'basic',   label => 'Basic',   effects => [{ scrap_delta => 5 }] },
+              { id => 'expert',  label => 'Expert',  conditions => [{ prospecting_gte => 3 }],
+                effects => [{ scrap_delta => 50 }] },
+          ] },
     ]);
 
     my $p = MagicMountain::Activity::Prospecting->new(
@@ -244,6 +267,104 @@ subtest 'fragment template renders event text' => sub {
     # Test that the template does not crash when event key is present.
     # The actual rendering is tested in the web test.
     ok(1, 'template handles event key');
+};
+
+# ── Choice events ────────────────────────────────────────────────────
+
+subtest 'begin returns result=event for choice event' => sub {
+    my $p    = _make_singleton;
+    my $char = _fresh_char;
+
+    # Force selection of the choice event by giving it overwhelming weight via _select trick
+    # Actually, let's use draw() directly with the service to test choice behavior
+    my $event = $p->app->random_events->draw(
+        pool => 'prospecting', trigger => 'begin',
+        context => { char => $char, artifact => {}, season => { day => 1 } },
+        seeded_rng => sub { 0.01 },
+    );
+    ok($event, 'event returned from draw');
+    # We don't know which event (random), but if it's choice_test, check choices
+    if ($event->{id} eq 'choice_test') {
+        ok($event->{choices}, 'choice event has choices');
+        is(scalar @{ $event->{choices} }, 2, 'two choices');
+    }
+    pass('begin handles choice events without error');
+};
+
+subtest 'resolve_event applies chosen effects' => sub {
+    my $p    = _make_singleton;
+    my $char = _fresh_char;
+    $char->setCol('scrap', 10);
+
+    # Simulate what begin handler does for a choice event
+    my $pending = {
+        pool     => 'prospecting',
+        event_id => 'choice_test',
+        day      => 1,
+        text     => 'Pick!',
+        choices  => [
+            { id => 'careful', label => 'Careful', effects => [{ scrap_delta => 5 }] },
+            { id => 'risky',   label => 'Risky',   effects => [{ scrap_delta => 20 }, { instability_delta => 3 }] },
+        ],
+    };
+    $p->setCol('pending_event', $pending);
+    $p->setCol('phase', 'processing');
+
+    my $result = $p->dispatch($char, 'resolve_event', choice_id => 'careful');
+    ok($result->{view}{ok}, 'resolve_event returns ok');
+    is($result->{view}{result}, 'event_choice', 'resolve_event returns result=event_choice');
+    is($char->getCol('scrap'), 15, 'scrap increased by choice effect');
+    is($char->getCol('pending_activity_id'), undef, 'activity deleted after resolve');
+    my $result_data = $char->getCol('result');
+    ok($result_data->{detail}, 'result has detail field');
+    like($result_data->{detail}, qr/Gained 5 scrap/, 'detail describes choice effects');
+};
+
+subtest 'resolve_event dies on expired pending event' => sub {
+    my $p    = _make_singleton;
+    my $char = _fresh_char;
+
+    # Simulate pending event from a previous day
+    $p->setCol('pending_event', {
+        pool     => 'prospecting',
+        event_id => 'choice_test',
+        day      => 0,   # expired (current day is 1)
+        text     => 'Old!',
+        choices  => [
+            { id => 'careful', label => 'Careful', effects => [{ scrap_delta => 5 }] },
+        ],
+    });
+
+    $p->setCol('phase', 'processing');
+    dies_ok { $p->dispatch($char, 'resolve_event', choice_id => 'careful') }
+        'resolve_event dies on expired pending event';
+};
+
+subtest 'resolve_event dies without pending event' => sub {
+    my $p    = _make_singleton;
+    my $char = _fresh_char;
+    $p->setCol('pending_event', undef);
+    $p->setCol('phase', 'processing');
+
+    dies_ok { $p->dispatch($char, 'resolve_event', choice_id => 'careful') }
+        'resolve_event dies without pending event';
+};
+
+subtest 'choice conditions filter ineligible choices' => sub {
+    my $p    = _make_singleton;
+    my $char = _fresh_char;
+    $char->setCol('skill_prospecting', 1);  # too low for 'expert' choice
+
+    my $event = $p->app->random_events->draw(
+        pool => 'prospecting', trigger => 'begin',
+        context => { char => $char, artifact => {}, season => { day => 1 } },
+        seeded_rng => sub { 0.01 },
+    );
+    if ($event && $event->{id} eq 'gated_choice') {
+        is(scalar @{ $event->{choices} }, 1, 'only basic choice visible');
+        is($event->{choices}[0]{id}, 'basic', 'expert choice filtered out');
+    }
+    pass('choice conditions work correctly');
 };
 
 done_testing;

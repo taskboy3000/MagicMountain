@@ -11,6 +11,33 @@ sub show ($self) {
     my $activity = $self->app->prospecting->get($char->getCol('pending_activity_id'));
     return $self->rendered(204) unless $activity && $activity->phase ne 'idle';
 
+    my $pending = $activity->getCol('pending_event');
+    if ($pending && $pending->{choices}) {
+        my $format = $self->param('_format');
+        if ($format && $format eq 'fragment') {
+            $self->stash(event_text => $pending->{text}, choices => $pending->{choices});
+            return $self->render(inline => <<~'HTML', layout => undef);
+              <div class="mm-panel">
+                <div class="mm-panel-header">EVENT</div>
+                <div class="mm-panel-body">
+                  <p class="mm-text-amber" style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em"><%= $event_text %></p>
+                  <div class="mm-flex-center" style="gap:0.5rem;margin-top:0.5rem">
+                  %= include 'components/action_buttons', actions => $choices
+                  </div>
+                </div>
+              </div>
+HTML
+        }
+        return $self->render(json => {
+            ok     => 1,
+            event  => {
+                id      => $pending->{event_id},
+                choices => $pending->{choices},
+            },
+            _self  => { actions => [] },
+        });
+    }
+
     my $artifact = MagicMountain::Artifact->new($activity->artifact);
 
     my @actions = (
@@ -55,8 +82,9 @@ sub _activity_action ($self, $action, %params) {
     $self->_render_action($result, 'prospecting_' . $action);
 }
 
-sub begin ($self) { $self->_activity_action('begin') }
-sub push  ($self) { $self->_activity_action('push')  }
-sub stop  ($self) { $self->_activity_action('stop')  }
+sub begin          ($self) { $self->_activity_action('begin') }
+sub push           ($self) { $self->_activity_action('push')  }
+sub stop           ($self) { $self->_activity_action('stop')  }
+sub resolve_event  ($self) { $self->_activity_action('resolve_event', %{ $self->req->json }) }
 
 1;

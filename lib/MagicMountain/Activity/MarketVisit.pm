@@ -146,6 +146,62 @@ sub begin ($self, $char, %params) {
     );
     die "no items in shed" unless @$shed_items;
 
+    # Check for random event FIRST — replaces the market visit
+    if ($self->app->can('random_events')) {
+        my $season = $self->app->can('active_season') ? $self->app->active_season : undef;
+        my $fs = $season ? $season->getCol('faction_state') // {} : {};
+        my $standing = $char->getCol('standing') // {};
+        my $event = $self->app->random_events->draw(
+            pool    => 'market_visit',
+            trigger => 'begin',
+            context => {
+                char          => $char,
+                standing      => $standing,
+                faction_state => $fs,
+                season        => $season,
+            },
+        );
+        if ($event) {
+            my $name = $char->getCol('name') // 'unknown';
+            $self->app->log->info(
+                sprintf("Market event [%s] %s — %s", $event->{id}, $name, $event->{text})
+            );
+            $self->_log_event($char, {
+                type       => 'random_event',
+                event_id   => $event->{id},
+                narrative  => sprintf("%s encountered market event %s: %s", $name, $event->{id}, $event->{text}),
+            });
+            my $detail;
+            if ($event->{result}) {
+                $detail = $event->{result};
+            } elsif (my $resolved = $event->{_resolved_effects}) {
+                $detail = $self->app->random_events->describe_effects($resolved, 'market_visit');
+            }
+            chomp $detail if $detail;
+            $char->setCol('action_points', $char->getCol('action_points') - 1);
+            $self->delete;
+            $char->setCol('pending_activity_id', undef);
+            $char->setCol('result', {
+                outcome      => 'event_passive',
+                icon         => 'NOTICE',
+                outcome_text => 'Market Event',
+                message      => $event->{text},
+                detail       => $detail,
+                activity_type => 'market',
+            });
+            $char->setCol('current_view', 'result');
+            $char->save;
+            return {
+                view => {
+                    ok      => 1,
+                    result  => 'event_passive',
+                    event   => { id => $event->{id}, text => $event->{text} },
+                    player  => $self->_player_snapshot($char),
+                },
+            };
+        }
+    }
+
     my $faction = $self->_weighted_faction($char);
 
     # ── Loyalty access guarantee ───────────────────────────────────

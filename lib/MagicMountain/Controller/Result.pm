@@ -19,8 +19,8 @@ sub show ($self) {
         return $self->render(text => '', status => 204);
     }
 
-    my $activity_type = $OUTCOME_ACTIVITY{ $result->{outcome} // '' };
-    my $can_continue = $self->_can_continue($char, $activity_type);
+    my $activity_type = $OUTCOME_ACTIVITY{ $result->{outcome} // '' } // $result->{activity_type};
+    my $can_continue = $char->can_continue($activity_type);
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
@@ -43,9 +43,9 @@ sub do_continue ($self) {
     my $result = $char->getCol('result');
     return $self->render(json => { ok => 0, error => 'no result' }, status => 400) unless $result;
 
-    my $activity_type = $OUTCOME_ACTIVITY{ $result->{outcome} // '' };
+    my $activity_type = $OUTCOME_ACTIVITY{ $result->{outcome} // '' } // $result->{activity_type};
     return $self->render(json => { ok => 0, error => 'cannot continue from this outcome' }, status => 400) unless $activity_type;
-    return $self->render(json => { ok => 0, error => 'insufficient resources' }, status => 400) unless $self->_can_continue($char, $activity_type);
+    return $self->render(json => { ok => 0, error => 'insufficient resources' }, status => 400) unless $char->can_continue($activity_type);
 
     $char->nullCol('result');
 
@@ -61,22 +61,6 @@ sub do_continue ($self) {
 
     $char->save;
     $self->render(json => { ok => 1, csrf_token => $self->csrf_token });
-}
-
-sub _can_continue ($self, $char, $activity_type) {
-    return 0 unless $activity_type;
-    my $ap = $char->getCol('action_points') // 0;
-    if ($activity_type eq 'prospecting') {
-        return $ap >= 2;
-    }
-    if ($activity_type eq 'market') {
-        return 0 if $ap < 1;
-        my $shed_count = scalar @{ $self->app->shed->find(
-            sub { $_[0]->{char_id} eq $char->getCol('id') }
-        ) };
-        return $shed_count > 0;
-    }
-    return 0;
 }
 
 1;

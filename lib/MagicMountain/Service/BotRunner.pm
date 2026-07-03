@@ -62,6 +62,25 @@ sub run_day ($self, $char, $profile = undef) {
             my $result = $activity->dispatch($char, 'begin');
             unless ($result->{view}{ok}) { $phase_done = 1; return; }
 
+            # Random event replaces the prospecting action entirely
+            if ($result->{view}{result} eq 'event') {
+                # Choice event: auto-resolve with first eligible choice
+                my $choices = $result->{view}{event}{choices};
+                if ($choices && @$choices) {
+                    my $choice_id = $choices->[0]{id};
+                    $app->log->info(sprintf("Bot %s auto-resolving choice event '%s' with '%s'.",
+                        $char_name // '?', $result->{view}{event}{id}, $choice_id));
+                    $activity->dispatch($char, 'resolve_event', choice_id => $choice_id);
+                }
+                $phase_done = 1; return;
+            }
+            if ($result->{view}{result} eq 'event_passive') {
+                $app->log->info(sprintf("Bot %s encountered passive event '%s'.",
+                    $char_name // '?', $result->{view}{event}{id} // '?'));
+                $phase_done = 1; return;
+            }
+
+            # Normal artifact prospecting: push/stop loop
             while (1) {
                 my $r = $activity->dispatch($char, 'push');
                 my $view = $r->{view};
@@ -131,6 +150,14 @@ sub run_day ($self, $char, $profile = undef) {
             my $result = $activity->dispatch($char, 'begin');
             unless ($result->{view}{ok}) { $phase_done = 1; return; }
             $actions++;
+
+            # Market event replaces the visit entirely
+            if ($result->{view}{result} eq 'event_passive') {
+                $app->log->info(sprintf("Bot %s encountered market event '%s'.",
+                    $char_name // '?', $result->{view}{event}{id} // '?'));
+                $phase_done = 1;
+                return;
+            }
 
             if (!MagicMountain::Bot::SellPolicy::accept_customer($char, $activity->customer, $sell_pol)) {
                 $activity->dispatch($char, 'send_away');

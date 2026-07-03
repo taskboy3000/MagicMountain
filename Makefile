@@ -1,7 +1,12 @@
 test: test-perl test-js
 
+ci-check: test-perl test-js walkthrough perlcritic
+
 check-coverage:
 	perl -Ilib bin/check_coverage
+
+walkthrough:
+	perl bin/walkthrough
 
 check-loyalist:
 	perl -Ilib bin/check_loyalist_balance

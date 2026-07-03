@@ -1,6 +1,9 @@
 use strict;
 use warnings;
 use Test::More;
+use FindBin;
+use lib ("$FindBin::Bin/lib");
+use TestEnv;
 
 my $js = 'public/js/game.js';
 ok -f $js, "$js exists";

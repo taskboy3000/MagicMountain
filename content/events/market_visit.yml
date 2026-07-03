@@ -1,0 +1,38 @@
+# Market visit events — fire during begin, replace the visit.
+# Effects modify character state directly.
+
+- id: desperate_courier
+  weight: 8
+  trigger: begin
+  min_day: 3
+  text: "INCOMING TRANSMISSION — A courier intercepts you before you reach the Bazaar. Priority procurement. They pay for your trouble."
+  result: "The courier pays you for the inconvenience and disappears into the crowd."
+  effects:
+    - scrap_delta: [15, 35]
+
+- id: flooded_market
+  weight: 5
+  trigger: begin
+  text: "MARKET ANALYSIS — The Bazaar is flooded with similar goods today. You decide to wait for a better window."
+  result: "You wait. Nothing gained, nothing lost."
+  effects:
+    - scrap_delta: 0
+
+- id: thin_skinned
+  weight: 4
+  trigger: begin
+  text: "PSYCH PROFILE — You spot an irritable buyer across the hall. You avoid eye contact and slip out before negotiations sour."
+  result: "You avoid a difficult negotiation. Your scrap stays in your pocket."
+  effects:
+    - scrap_delta: 0
+
+- id: faction_bounty
+  weight: 5
+  trigger: begin
+  min_day: 4
+  conditions:
+    - standing_gte: 2
+  text: "NOTICE — A faction dispatch runner finds you with a sealed envelope. Inside: a standing bonus for past services."
+  result: "Your faction standing pays off. The envelope contains a welcome find."
+  effects:
+    - scrap_delta: [20, 45]

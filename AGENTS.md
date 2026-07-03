@@ -87,6 +87,7 @@ perl -Ilib script/mountain advance-day                         # manual day roll
 prove -l t/                                                    # full test suite
 prove -lv t/nav_web.t                                          # single test
 perl bin/walkthrough                                           # end-to-end game loop
+make ci-check                                                  # tests + walkthrough + perlcritic (mirrors CI)
 make cover && make report                                      # coverage (85%+ required)
 ```
 
@@ -195,6 +196,28 @@ decide rendering. That logic and URL belongs in the Perl backend where it
 can be tested.
 
 ---
+
+## Completion Checklist
+
+A change is not complete until:
+
+1. **Route exercised** — Every affected route/action has been called (smoke test,
+   walkthrough, or curl). Not just "the code compiles."
+2. **Template stash verified** — Every template rendered by a changed controller
+   path has all its stash variables accounted for. Missing stash variables cause
+   500 errors at runtime that tests won't catch.
+3. **New methods covered** — New model/activity/service methods have dedicated
+   subtests. No untested public methods.
+4. **No State internals reached by leaf objects** — Activities and Services use
+   `getCol`/`setCol`/`save`/`delete` via Model APIs. No direct hash access to
+   `$self->{row}`, `$model->table`, or similar internals.
+5. **Transcript writes only through `_log_event`** — Activities must not call
+   `$self->app->transcript->log_event()` directly. Use the inherited
+   `_log_event($char, \%data)` helper on `MagicMountain::Activity`.
+6. **Tests pass, reported** — `prove -l t/` has been run and the result printed.
+   No assuming "it probably still works."
+
+--- 
 
 ## Source of Truth
 

@@ -5,7 +5,8 @@ use Mojo::JSON qw(decode_json);
 use File::Temp qw(tempdir);
 use File::Slurp qw(read_file);
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;

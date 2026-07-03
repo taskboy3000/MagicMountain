@@ -1,57 +1,59 @@
-# Prospecting events — fire during begin, apply immediately.
-# trigger: begin only in v1. Conditions: scalar predicates, AND-only.
-# Effects: scalar or [min,max] range. See docs/proposal_events_v2.md.
+# Prospecting events — passive only, fire during begin, apply immediately.
+# trigger: begin only. Events auto-fire without player input.
+event_chance:
+  begin: 0.20
+events:
+  - id: loose_scrap_cache
+    weight: 8
+    trigger: begin
+    min_day: 2
+    text: "Your boot knocks loose a panel that was never meant to be found. Behind it: wire, foil, chipped ceramic, and a few useful parts."
+    result: "You pocket the loose scrap before anyone notices."
+    effects:
+      - scrap_delta: [5, 25]
 
-- id: loose_scrap_cache
-  weight: 8
-  trigger: begin
-  min_day: 2
-  text: >
-    Your boot knocks loose a panel that was never meant to be found.
-    Behind it: wire, foil, chipped ceramic, and a few useful parts.
-  effects:
-    - scrap_delta: [5, 25]
+  - id: seismic_echo
+    weight: 8
+    trigger: begin
+    min_day: 3
+    text: "SENSORY ALERT — Low-frequency resonance detected. Substrate analysis suggests a dense pocket nearby."
+    result: "The resonance guides your extraction toward a richer vein."
+    effects:
+      - value_delta: 4
 
-- id: seismic_echo
-  weight: 8
-  trigger: begin
-  min_day: 3
-  text: "SENSORY ALERT — Low-frequency resonance detected. Substrate analysis suggests a dense pocket nearby."
-  effects:
-    - value_delta: 4
+  - id: unstable_pocket
+    weight: 5
+    trigger: begin
+    text: "STABILITY WARNING — Localized field distortion. Artifact containment may be compromised."
+    result: "The artifact shudders. Containment flickers."
+    effects:
+      - instability_delta: 2
 
-- id: unstable_pocket
-  weight: 5
-  trigger: begin
-  text: "STABILITY WARNING — Localized field distortion. Artifact containment may be compromised."
-  effects:
-    - instability_delta: 2
+  - id: secondary_signal
+    weight: 4
+    trigger: begin
+    text: "ANOMALY DETECTED — Artifact appears to have a secondary behavioral signature."
+    result: "A secondary harmonic imprints on the artifact."
+    effects:
+      - behavior_add: signal
 
-- id: secondary_signal
-  weight: 4
-  trigger: begin
-  text: "ANOMALY DETECTED — Artifact appears to have a secondary behavioral signature."
-  effects:
-    - behavior_add: signal
+  - id: mountain_exhales
+    weight: 2
+    trigger: begin
+    max_day: 15
+    text: "GEOPHYSICAL EVENT — The mountain vents. A loose artifact surfaces nearby."
+    result: "The venting saves you time and energy."
+    effects:
+      - ap_delta: 1
 
-- id: mountain_exhales
-  weight: 2
-  trigger: begin
-  max_day: 15
-  text: "GEOPHYSICAL EVENT — The mountain vents. A loose artifact surfaces nearby."
-  effects:
-    - ap_delta: 1
-
-- id: late_break
-  weight: 6
-  trigger: begin
-  min_day: 8
-  conditions:
-    - score_lte: 200
-  text: >
-    OPPORTUNITY ADVISORY — Anomalous signal cluster in an under-prospected
-    zone. Faction intelligence suggests high-value extraction for operators
-    with room to advance.
-  effects:
-    - scrap_delta: [10, 30]
-    - score_delta: [5, 15]
+  - id: late_break
+    weight: 6
+    trigger: begin
+    min_day: 8
+    conditions:
+      - score_lte: 200
+    text: "OPPORTUNITY ADVISORY — Anomalous signal cluster in an under-prospected zone. Faction intelligence suggests high-value extraction for operators with room to advance."
+    result: "Your underdog position pays off with a timely find."
+    effects:
+      - scrap_delta: [10, 30]
+      - score_delta: [5, 15]

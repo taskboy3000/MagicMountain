@@ -132,6 +132,22 @@ sub shed_items ($self) {
     return \@result;
 }
 
+sub can_continue ($self, $activity_type) {
+    return 0 unless $activity_type;
+    my $ap = $self->getCol('action_points') // 0;
+    if ($activity_type eq 'prospecting') {
+        return $ap >= 2;
+    }
+    if ($activity_type eq 'market') {
+        return 0 if $ap < 1;
+        my $shed_count = scalar @{ $self->app->shed->find(
+            sub { $_[0]->{char_id} eq $self->getCol('id') }
+        ) };
+        return $shed_count > 0;
+    }
+    return 0;
+}
+
 sub player_skills ($self) {
     my $skills = $self->app->skills_data;
     for my $s (@$skills) {

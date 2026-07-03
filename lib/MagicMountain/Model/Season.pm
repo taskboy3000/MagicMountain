@@ -4,8 +4,17 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'label', 'length', 'day', 'end_of_day_hour', 'status', 'faction_state', 'crier_message', 'crier_snapshot', 'last_maintenance' ];
+    return [ @$cols, qw(label length day end_of_day_hour status faction_state crier_message crier_snapshot last_maintenance daily_modifiers personal_event_counts global_event_text) ];
 };
+
+sub daily_modifier ($self, $key, $default) {
+    my $mods = $self->getCol('daily_modifiers') // {};
+    return exists $mods->{$key} ? $mods->{$key} : $default;
+}
+
+sub prospect_ap_cost ($self) {
+    return $self->daily_modifier('prospect_ap_cost', 2);
+}
 
 sub finalize ($class, $app) {
     $app->seasons->load;

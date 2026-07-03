@@ -3,7 +3,8 @@ use Test::More;
 use POSIX qw(mktime);
 use File::Temp qw(tempdir);
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use MagicMountain::Maintenance;
 

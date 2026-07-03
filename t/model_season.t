@@ -1,7 +1,8 @@
 use Modern::Perl;
 
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use Test::More;
 use File::Temp qw(tempfile);
@@ -18,7 +19,7 @@ my $season = MagicMountain::Model::Season->new(file => $file);
 subtest 'columns extend defaults with length, day, end_of_day_hour, status, faction_state' => sub {
     is_deeply(
         $season->columns,
-        [qw{id updatedAt createdAt label length day end_of_day_hour status faction_state crier_message crier_snapshot last_maintenance}],
+        [qw{id updatedAt createdAt label length day end_of_day_hour status faction_state crier_message crier_snapshot last_maintenance daily_modifiers personal_event_counts global_event_text}],
         'Season columns include all fields including faction_state and crier fields'
     );
 };

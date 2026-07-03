@@ -1,0 +1,16 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cpanminus
+          cpanm --installdeps --notest .
+      - name: Run test suite
+        run: MOJO_MODE=test prove -l t
+      - name: Run walkthrough
+        run: perl bin/walkthrough

@@ -17,6 +17,11 @@
 % if (my $ev = stash 'event') {
     <hr class="mm-hr">
     <p class="mm-text-amber" style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em"><%= $ev->{text} %></p>
+%   if ($ev->{choices}) {
+    <div class="mm-flex-center" style="gap:0.5rem;margin-top:0.5rem">
+%=     include 'components/action_buttons', actions => $ev->{choices}
+    </div>
+%   }
 % }
   </div>
 </div>

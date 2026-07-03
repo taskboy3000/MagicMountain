@@ -7,6 +7,9 @@
     <p><%= $result->{value} %> scrap</p>
 % }
     <p><%= $result->{message} %></p>
+% if (my $d = $result->{detail}) {
+    <p class="mm-text-amber" style="font-size:0.72rem"><%= $d %></p>
+% }
     <div class="mm-flex" style="gap:0.5rem;margin-top:0.5rem">
 % if ($can_continue) {
       <button class="mm-btn mm-btn-primary" data-action-url="/result/continue"

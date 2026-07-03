@@ -14,7 +14,7 @@ use YAML::XS qw(LoadFile);
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, qw(char_id type phase artifact customer) ];
+    return [ @$cols, qw(char_id type phase artifact customer pending_event) ];
 };
 
 # ── Ephemeral attributes (NOT persisted) ───────────────────────────

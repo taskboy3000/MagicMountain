@@ -2,7 +2,8 @@ use Modern::Perl;
 use Test::More;
 use Mojo::JSON qw(encode_json);
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use MagicMountain::Model::ShedItem;
 use MagicMountain::Controller::Shed;

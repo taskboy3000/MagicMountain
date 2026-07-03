@@ -3,8 +3,8 @@ use Test::More;
 use Test::Mojo;
 use File::Temp qw(tempdir);
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
-$ENV{MOJO_MODE} = 'test';
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Character;

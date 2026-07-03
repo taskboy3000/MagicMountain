@@ -1,6 +1,7 @@
 use Modern::Perl;
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 use Test::More;
 use File::Temp qw(tempdir);
 use File::Slurp qw(write_file);

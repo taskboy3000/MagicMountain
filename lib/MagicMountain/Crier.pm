@@ -37,6 +37,10 @@ sub generate ($self, $season, $opts = {}) {
             // $self->_pick('generic', {});
     }
 
+    # Global event text takes priority over faction-state diffing
+    my $global_text = $season->getCol('global_event_text');
+    return $global_text if $global_text;
+
     my $current  = $season->getCol('faction_state') // {};
     my $snapshot = $season->getCol('crier_snapshot') // {};
     my $day      = $season->getCol('day') // 1;

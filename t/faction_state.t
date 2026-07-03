@@ -3,7 +3,8 @@ use Test::More;
 use File::Temp qw(tempdir);
 use File::Slurp qw(write_file);
 use FindBin;
-use lib ("$FindBin::Bin/../lib");
+use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
+use TestEnv;
 
 use MagicMountain::Model::Season;
 use MagicMountain::Model::ShedItem;
