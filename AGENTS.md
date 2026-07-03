@@ -1,232 +1,72 @@
 # Magic Mountain — AGENTS.md
 
-> Reimplementation of Magic Mountain on a clean foundation.
+Multiplayer push-your-luck web game. Prospect artifacts → push for value →
+sell to factions. Seasonal (~30 day) tournaments. See `GAME_ARCHITECTURE.md`.
 
 ---
 
-## What Is This?
-
-**Magic Mountain** is a multiplayer, seasonal push-your-luck web game. Players
-extract strange artifacts from a mysterious mountain, destabilize ("push") them
-for greater value (risking catastrophic collapse), and sell to competing
-factions. Each ~30 day season is a tournament: highest cumulative score wins.
-
-**Core loop**: Prospect → Push (repeat) → Stop → Sell at Bazaar → Repeat until
-out of AP → Day rollover → Season ends.
-
-This is a ground-up reimplementation following the architecture spec in
-`GAME_ARCHITECTURE.md`.
-
----
-
-## Design Principles
-
-
-0. Every feature should be implementable without Mojolicious. The web controllers are adapters that expose engine functionality over HTTP; they are not part of the game engine itself. The wen UI is one client of the REST API. There will be others in the future.
-1. **Prefer data over branching.** When choosing between a data structure
-   (tables, hashes, YAML, registries, dispatch maps) and if/elsif chains,
-   prefer the data-driven design.
-2. **Every layer has one responsibility.** Business logic belongs in the domain
-   model; templates render data; JavaScript orchestrates UI events; persistence
-   stores state.
-3. **Represent decisions as data, not code.** Dispatch tables, transition
-   tables, and configuration are preferred over hard-coded control flow because
-   they are easier to inspect, test, and extend.
-4. **Design for deterministic verification.** Favor architectures validated by
-   tests, static analysis, simulations, coverage, and other automated tooling.
-5. **Eliminate duplication by improving the model.** If a feature requires
-   repeated branching or special cases, first ask whether the underlying data
-   model is missing an abstraction.
-
----
-
-## Controller Boundaries
-
-Controllers are HTTP adapters only. They must not become another business layer.
-
-**Controllers MUST NOT:**
-- implement game rules
-- calculate derived game state
-- build recommendation engines
-- assemble narrative or recap content
-- determine navigation policy (tab enable/disable, view resolution)
-- mutate domain objects except through model/service APIs
-
-**Controllers SHOULD:**
-- extract HTTP parameters and session information
-- invoke domain services or Activity dispatch
-- stash returned view models or pass them to templates
-- render templates or serialize JSON
-
-**Warning sign:** If a controller grows multiple private helper methods that
-calculate game state, that logic belongs in a model or service. Extract it.
-
-> Extracted services live in `lib/MagicMountain/Service/`. They receive `$self->app`
-> like Activities do (consistent with the existing `ShedManager` pattern).
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Web framework | Mojolicious 9.40+ (Perl) |
-| Persistence | JSON files, atomic write-via-temp-file + flock |
-| Config | YAML (`magic_mountain.yml`, `content/*.yml`) |
-| Frontend | Normalize.css, IBM Plex Mono, custom CSS, vanilla JS |
-| Testing | Test::More, Test::Mojo |
-| Perl | 5.28+ with signatures (`-signatures`) |
-
----
-
-## Running & Testing
+## Quick Reference
 
 ```bash
-bash start.sh [PORT]                                           # dev server (kill+restart on :9000 default)
-perl -Ilib script/mountain advance-day                         # manual day rollover
-prove -l t/                                                    # full test suite
-prove -lv t/nav_web.t                                          # single test
-perl bin/walkthrough                                           # end-to-end game loop
-make ci-check                                                  # tests + walkthrough + perlcritic (mirrors CI)
-make cover && make report                                      # coverage (85%+ required)
+bash start.sh                  # dev server on :9000
+perl bin/walkthrough           # end-to-end loop
+make ci-check                  # tests + walkthrough + perlcritic
+make cover && make report      # coverage (85%+ required)
+perl -Ilib script/mountain advance-day   # manual day rollover
 ```
 
 ---
 
-## Key Conventions
+## Architecture Rules
 
-- **Models**: Subclass `MagicMountain::Model`. Declare `columns`, use
-  `getCol`/`setCol` accessors. Persist with `save()`, load with `load()`,
-  query with `find()`.
-- **Activities**: Subclass `MagicMountain::Activity`. Declare `transitions`,
-  implement one handler per action. Dispatch via
-  `$activity->dispatch($char, $action)`. Handlers own all persistence
-  (saves, deletes, FK management).
-- **Controllers**: Return JSON or fragments. Use `$self->session(playerId => ...)`
-  for auth. Dumb pipes — call `dispatch`, pipe `view` to template.
-- **Commands**: Subclass `Mojolicious::Command`. Register in `MagicMountain.pm`.
-- **Tests**: Use `Test::Mojo` for integration. Use `tempdir(CLEANUP => 1)` with
-  `$ENV{MM_DATA_DIR}` for isolated state. Never `write_file` directly to `*.json`
-  — always use Model objects (`->create`, `->save`) to set up test state.
-- **Commit messages**: First explain the reasoning (why), then summarize the changes (what).
-  Example: "Restrict display names to safe characters — prevents log injection and
-  account confusion. Trims whitespace, validates [a-zA-Z0-9_-]{1,24} on creation."
-- **Commit discipline**: Never commit before the user reviews the changes. Stage files
-  for review, wait for explicit commit instruction. Group related changes into coherent
-  commits — avoid committing fixup commits that should be squashed. Git history should
-  tell a clean story.
-- **Formatting**: Run `make indent && make clean` before every commit.
-- **Coverage**: Run `make cover && make report` before every commit. All
-  `lib/*.pm` files must stay at or above **85%** statement coverage.
-- **TUNING.md**: When adding or changing defaults in `defaultConfig` (in
-  `MagicMountain.pm`), update `docs/TUNING.md §1` to match. When adding
-  parameters to content YAML files, update the corresponding section.
-  `TUNING.md` is the admin-facing reference — it must stay accurate.
-- **Dead code elimination**: Remove unreachable code on sight. Annotate false
-  positives with `# DEAD-SUPPRESS: <reason>`.
-- **Self-describing buttons**: Every action button carries `data-action-url`
-  and `data-method` so the walkthrough discovers actions by parsing HTML.
-- **Walkthrough**: Every feature addition or endpoint change must include or
-  update `bin/walkthrough`.
-- **Smoke-test**: Run `bash bin/smoke_test_endpoint GET /<resource>?_format=fragment`
-  after template/controller changes. Check for 200 (data) or 204 (no data).
-- **Health endpoint**: `GET /health` returns `{"ok":1}` — no auth, no DB reads.
-- **Test mode** (`MOJO_MODE=test`): Enables all feature flags, disables rate
-  limiter and maintenance timer. Set `MM_RAND_SEED` for reproducible sequences.
-- **State files and call path before writing**: For non-trivial changes, name the
-  affected files and the call path (e.g. "Controller::Result delegates to
-  Character::can_continue") before writing code. The human reviews this for layer
-  violations before implementation begins.
-- **No automatic commits**: Never commit without being asked.
-- **DRY**: Favor generalized, reusable functions over copy-paste.
-- **Zero-indirection wrappers**: Never create a function that is a pure
-  pass-through to another with the same signature.
-- **Plan file creation**: Plan files should by named 'docs/plan_$THING_TO_BE_DONE.md'
-- **Plan file cleanup**: Delete plan docs after implementation is committed.  NEVER COMMIT THESE PLAN FILES
+**Perl backend owns all decisions, game logic, URLs, state.** Templates iterate
+data structures blindly. JS fetches JSON, sets innerHTML, delegates clicks via
+`data-*`. Never hardcode a URL or game rule outside the backend.
+
+**Controllers MUST NOT** implement game rules, calculate derived state, build
+recs, assemble narrative, determine navigation policy, or mutate domain objects
+except through model/service APIs. They extract HTTP params, dispatch to
+services/activities, stash, render.
+
+**Services** for extracted logic live in `lib/MagicMountain/Service/`.
+
+**Activities** subclass `MagicMountain::Activity`. Declare `transitions`,
+implement one handler per action. Dispatch via `$activity->dispatch($char, $action)`.
+Handlers own all persistence (saves, deletes, FK management). Transcript writes
+use inherited `_log_event($char, \%data)` — never `$self->app->transcript`.
+
+**Models** subclass `MagicMountain::Model`. Declare `columns`, use
+`getCol`/`setCol` accessors. Never access `$self->{row}` directly outside the
+model class.
+
+**data-attribute to POST body**: camelCase dataset key → snake_case param name.
+`data-shed-item-id="abc"` → `body.shed_item_id = "abc"`.
 
 ---
 
-## Boundary Layers
+## Conventions
 
-Three strict layers. No layer leaks game logic or policy into another.
-
-**Perl backend** — owns all decisions, all game logic, all URLs, all state.
-Builds data structures (`actions`, `attrs`, tabs, `_self.actions`, etc.) and
-passes them to templates or serializes as JSON. This is the only layer where
-game rules exist.
-
-The action entry format wraps all HTML attributes in an `attrs` hash. Keys are
-exact HTML attribute names; values are attribute values. `undef` renders as a
-boolean attribute (key only, no `="..."`):
-
-```perl
-{ label => 'Push',
-  attrs => { 'data-action-url' => '/prospecting/push',
-             'data-method'     => 'POST',
-             id                => 'btn-push',
-             class             => 'mm-btn mm-btn-primary' } }
-```
-
-**Templates** — pure iterators. Receive a data structure, walk it, render it.
-Never hardcode a URL, never decide what to show based on game state, never
-contain conditional logic that encodes game policy.
-
-- `components/action_buttons.html.ep` iterates `$a->{attrs}` keys blindly.
-- Fragment templates pass an `actions` arrayref to the component.
-- The nav template iterates whatever tab entries the backend sends.
-
-**JavaScript** — declarative pipeline. Fetch JSON from backend (`/game`,
-`/nav`), set `innerHTML` from fragment responses, delegate clicks via
-`data-*` attributes. Never compute a URL, never construct HTML, never know
-what action a button performs.
-
-- `handleAction` reads `btn.dataset.actionUrl` and `btn.dataset.method` blindly.
-- `renderNavBar` iterates whatever tabs the nav response provides.
-- `applyNav` fetches `/nav`, reads `primary_fragment_url`, fetches that URL,
-  and sets `innerHTML`.
-
-**data-attribute to POST body convention**: Every `data-*` attribute on an
-action button (except `actionUrl`, `method`, `confirm`, `redirect`) is sent
-as a JSON body parameter. The JS conversion maps camelCase dataset keys to
-snake_case. The attribute name MUST match the server-side parameter name
-after conversion:
-
-- `data-shed-item-id="abc"` → `body.shed_item_id = "abc"`
-- `data-skill="prospecting"` → `body.skill = "prospecting"`
-
-**Violation example** (do not replicate): A template that hardcodes
-`data-action-url="/skills/purchase"` or checks `if ($shed_count > 0)` to
-decide rendering. That logic and URL belongs in the Perl backend where it
-can be tested.
+- **Formatting**: `make indent && make clean` before commit.
+- **Coverage**: `make cover && make report` before commit (85%+).
+- **Tests**: `Test::Mojo` integration. Use Model objects (`->create`, `->save`)
+  to set up state in tempdirs — never `write_file` to `*.json`.
+- **Walkthrough**: Every endpoint change updates `bin/walkthrough`.
+- **TUNING.md**: Update `docs/TUNING.md` when changing defaults or content YAML.
+- **State files before writing**: For non-trivial changes, name the affected files
+  and call path before code. Human reviews for layer violations.
+- **Commit discipline**: Never commit without review. Group related changes.
+  Message: reason first, then summary of changes.
+- **Plan files**: `docs/plan_$NAME.md`. Delete after implementation. Never commit.
+- **Completion checklist**: Route exercised, stash vars verified, new methods
+  tested, no State internals accessed, transcript through `_log_event`,
+  tests pass reported.
 
 ---
-
-## Completion Checklist
-
-A change is not complete until:
-
-1. **Route exercised** — Every affected route/action has been called (smoke test,
-   walkthrough, or curl). Not just "the code compiles."
-2. **Template stash verified** — Every template rendered by a changed controller
-   path has all its stash variables accounted for. Missing stash variables cause
-   500 errors at runtime that tests won't catch.
-3. **New methods covered** — New model/activity/service methods have dedicated
-   subtests. No untested public methods.
-4. **No State internals reached by leaf objects** — Activities and Services use
-   `getCol`/`setCol`/`save`/`delete` via Model APIs. No direct hash access to
-   `$self->{row}`, `$model->table`, or similar internals.
-5. **Transcript writes only through `_log_event`** — Activities must not call
-   `$self->app->transcript->log_event()` directly. Use the inherited
-   `_log_event($char, \%data)` helper on `MagicMountain::Activity`.
-6. **Tests pass, reported** — `prove -l t/` has been run and the result printed.
-   No assuming "it probably still works."
-
---- 
 
 ## Source of Truth
 
 | Concern | Authority |
 |---------|-----------|
-| What the game should do | `docs/` + `GAME_ARCHITECTURE.md` |
+| Game design | `docs/` + `GAME_ARCHITECTURE.md` |
 | Codebase structure | `GAME_ARCHITECTURE.md` (directory layout) |
 | Conventions & standards | This file |
