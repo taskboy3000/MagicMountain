@@ -16,5 +16,6 @@ on 'develop' => sub {
 on 'test' => sub {
     requires 'Test::More';
     requires 'Test::Mojo';
+    requires 'Test::Exception';
     requires 'File::Temp';
 };
