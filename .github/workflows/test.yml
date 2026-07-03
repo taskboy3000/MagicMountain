@@ -16,7 +16,8 @@ jobs:
             libcrypt-bcrypt-perl \
             libuuid-tiny-perl \
             libcpanel-json-xs-perl \
-            libfile-slurp-perl
+            libfile-slurp-perl \
+            libtest-exception-perl
           cpanm --installdeps --notest .
       - name: Run test suite
         run: MOJO_MODE=test prove -l t
