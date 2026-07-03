@@ -68,8 +68,11 @@ subtest 'purchase — missing skill_id dies' => sub {
 subtest 'purchase — unknown skill_id dies' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
-    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'nonexistent' })
-      ->status_is(400);
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'nonexistent' });
+    if ($t->tx->res->code != 400) {
+        diag "body: " . $t->tx->res->body;
+    }
+    $t->status_is(400);
 };
 
 subtest 'purchase — insufficient scrap dies' => sub {

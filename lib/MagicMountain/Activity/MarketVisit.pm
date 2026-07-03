@@ -696,7 +696,7 @@ sub send_away ($self, $char, %params) {
                 type        => 'influence_snub',
                 faction_id  => $faction_id,
                 narrative   => sprintf("%s snubbed %s — all other factions gain +1 influence.",
-                    $char->getCol('name'), $self->customer->{faction_name} // $faction_id),
+                    $char->getCol('name') // 'unknown', $self->customer->{faction_name} // $faction_id),
             });
         }
     }
@@ -711,7 +711,7 @@ sub send_away ($self, $char, %params) {
 
     $self->_log_event($char, {
         type        => 'send_away',
-        narrative   => sprintf("%s sends the customer away.", $char->getCol('name')),
+        narrative   => sprintf("%s sends the customer away.", $char->getCol('name') // 'unknown'),
     });
 
     $self->phase('idle');
