@@ -133,6 +133,10 @@ make cover && make report                                      # coverage (85%+ 
 - **Health endpoint**: `GET /health` returns `{"ok":1}` — no auth, no DB reads.
 - **Test mode** (`MOJO_MODE=test`): Enables all feature flags, disables rate
   limiter and maintenance timer. Set `MM_RAND_SEED` for reproducible sequences.
+- **State files and call path before writing**: For non-trivial changes, name the
+  affected files and the call path (e.g. "Controller::Result delegates to
+  Character::can_continue") before writing code. The human reviews this for layer
+  violations before implementation begins.
 - **No automatic commits**: Never commit without being asked.
 - **DRY**: Favor generalized, reusable functions over copy-paste.
 - **Zero-indirection wrappers**: Never create a function that is a pure
