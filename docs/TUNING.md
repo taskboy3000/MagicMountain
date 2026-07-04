@@ -104,15 +104,19 @@ with defaults are applied by `_apply_defaults()` in
 The collapse chance formula is **not** in YAML — it's hardcoded:
 
 ```
-collapse_chance = (instability / max_instability)³ × 0.95
-clamped to [0.05, 1.0]
+if ratio > stable_threshold:
+    stressed = (ratio - stable_threshold) / (1 - stable_threshold)
+    collapse_chance = (stressed³) × 0.80
 ```
+
+Collapse is zero below the stable threshold. Above it the curve is shifted so
+stressed=0 at the threshold boundary, stressed=1 at ratio=1.
 
 | Constant | Value | What it affects |
 |----------|-------|-----------------|
-| Exponent | `3` | How steeply collapse risk accelerates. Cubic = low risk early, sharp cliff late. |
-| Multiplier | `0.95` | Slightly below 1.0 so ratio=1.0 gives 95% (not 100%). |
-| Min clamp | `0.05` | Always at least 5% collapse chance, even at ratio=0. |
+| Exponent | `3` | How steeply collapse risk accelerates beyond stable. Cubic = low risk early, sharp cliff late. |
+| Multiplier | `0.80` | Slightly below 1.0 so stressed=1 gives 80% (not 100%). |
+| Min clamp | (none) | Zero at and below stable threshold — no collapse in stable. |
 | Max clamp | `1.0` | Caps at 100% (guaranteed collapse). |
 
 ---
@@ -160,7 +164,8 @@ scrap). **Mechanical effects** are hardcoded:
 | Match multiplier (sell < 3) | `1.2` | `offer`, line 152 | × base_multiplier when artifact matches desired_behaviors. |
 | Match multiplier (sell >= 3) | `1.4` | `offer`, line 152 | Same, with Selling skill 3. |
 | Mismatch multiplier | `0.5` | `offer`, line 166 | × base_multiplier when no behavior match. |
-| Irritation threshold | `5` | `begin`, line 90 | Customer storms off when irritation reaches this. |
+| Budget base range | `30 + rand(30)` = 30–59 | `begin`, line 232 | Customer soft budget before standing bonus. Absolute = 1.2× this. |
+| Irritation threshold | `4` | `begin`, line 90 | Customer storms off when irritation reaches this. |
 | Irritation gain per mismatch (sell < 2) | `1` | `offer`, line 167 | Incremented per mismatch offer. |
 | Irritation gain (sell >= 2) | `0` | `offer`, line 168 | Selling 2 eliminates irritation gain. |
 | Settle chance (default) | `0.15` | `begin`, line 91 | Probability customer accepts lowball on mismatch. Per-faction override in YAML. |

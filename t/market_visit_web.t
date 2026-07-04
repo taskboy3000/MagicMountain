@@ -389,15 +389,15 @@ subtest 'customer_left when irritation threshold hit' => sub {
     my $items = $t->app->shed->find(sub { $_[0]->{char_id} eq $char_id && $_[0]->{artifact_id} eq 'defense_item' });
     my $shed_item_id = $items->[0]->getCol('id');
 
-    # 4 mismatches = irritation 4 (threshold is 5)
-    for (1 .. 4) {
+    # 3 mismatches = irritation 3 (threshold is 4)
+    for (1 .. 3) {
         $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf},
             json => { shed_item_id => $shed_item_id })
           ->status_is(200)
           ->json_is('/result' => 'no_match');
     }
 
-    # 5th mismatch → irritation hits 5 → customer_left
+    # 4th mismatch → irritation hits 4 → customer_left
     $t->post_ok('/market/offer' => {'X-CSRF-Token' => $csrf},
         json => { shed_item_id => $shed_item_id })
       ->status_is(200)

@@ -229,7 +229,7 @@ sub begin ($self, $char, %params) {
     my $mult_bonus = ($standing->{$faction->{id}} // 0) * 0.05;
     my $sell = $char->getCol('skill_selling') // 0;
 
-    my $base_budget = 50 + int(rand(100));
+    my $base_budget = 30 + int(rand(30));
     my $standing_bonus = ($standing->{$faction->{id}} // 0) * 5;
     my $soft_budget = $base_budget + $standing_bonus;
     my $sales_to_faction = ($faction_sales->{$faction->{id}} // 0);
@@ -247,7 +247,7 @@ sub begin ($self, $char, %params) {
         base_multiplier     => ($faction->{base_multiplier} // 1.0) + $mult_bonus,
         offer_value         => undef,
         irritation          => int(rand(4)),
-        irritation_threshold => 5,
+        irritation_threshold => 4,
         settle_chance       => $faction->{settle_chance} // 0.15,
         soft_budget         => $soft_budget,
         absolute_budget     => int($soft_budget * 1.2),

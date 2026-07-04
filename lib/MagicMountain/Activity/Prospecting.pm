@@ -418,8 +418,12 @@ sub push ($self, $char, %params) {
     my $ratio           = $artifact->{instability} / $artifact->{max_instability};
     my $collapse_mult   = 1;
     $collapse_mult = $season->daily_modifier('collapse_chance_mult', 1) if $season;
-    my $collapse_chance = ($ratio ** 3) * 0.80 * $collapse_mult;
-    $collapse_chance    = 1.0  if $collapse_chance > 1.0;
+    my $collapse_chance = 0;
+    if ($ratio > $artifact->{state_thresholds}{stable}) {
+        my $stressed = ($ratio - $artifact->{state_thresholds}{stable}) / (1 - $artifact->{state_thresholds}{stable});
+        $collapse_chance = ($stressed ** 3) * 0.80 * $collapse_mult;
+    }
+    $collapse_chance = 1.0  if $collapse_chance > 1.0;
 
 
     if (rand() < $collapse_chance) {

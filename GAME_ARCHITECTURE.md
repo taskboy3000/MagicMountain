@@ -547,7 +547,7 @@ by `_dynamic_multiplier()`.
   "desired_behaviors": ["thermal", "storage", "power"],
   "base_multiplier": 1.1,
   "irritation": 2,
-  "irritation_threshold": 5,
+  "irritation_threshold": 4,
   "settle_chance": 0.15,
   "offer_value": null,
   "offer_text": null,
@@ -764,9 +764,15 @@ Each push operation:
    - `ratio > strained_threshold` → "unstable"
    - Default thresholds: `stable: 0.30`, `strained: 0.65` (set in `state_thresholds` per artifact spec)
 
-4. **Collapse check**: `collapse_chance = (ratio³) × 0.80`
-   - Clamped to maximum 100% (no minimum floor — near-zero ratio gives near-zero chance)
-   - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
+ 4. **Collapse check**: Zero below `stable` threshold; above it the curve is shifted
+    so collapse starts at 0 at the threshold boundary:
+    ```
+    if ratio > stable_threshold:
+        stressed = (ratio - stable_threshold) / (1 - stable_threshold)
+        collapse_chance = (stressed³) × 0.80
+    ```
+    - Clamped to maximum 100%
+    - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
     - Collapse is total loss: artifact destroyed, player gets nothing,
       activity row deleted
 
@@ -874,9 +880,9 @@ When a player starts a Market Visit (costs 1 AP):
    - `desired_behaviors` — a subset of the faction's interests (hidden from player)
    - `base_multiplier` — the faction's standard offer multiplier
    - `irritation` — starts at random 0–3 (varies per visit, press-your-luck from the outset)
-   - `irritation_threshold` — if exceeded, customer leaves (default 5)
+    - `irritation_threshold` — if exceeded, customer leaves (default 4)
    - `settle_chance` — probability the customer will accept a non-matching item
-   - `soft_budget` — 50–150 base + 5 per standing point with this faction
+    - `soft_budget` — 30–59 base + 5 per standing point with this faction
    - `absolute_budget` — 1.2 × soft_budget (hard cap)
    - `spent_so_far` — cumulative value of all purchases this visit (starts 0)
 
@@ -1529,7 +1535,7 @@ has prospecting => sub ($self) {
 
 # Prospecting subclass:
 has transitions => sub {
-    { idle => ['begin'], processing => ['push', 'stop'] }
+    { idle => ['begin'], processing => ['push', 'stop', 'resolve_event'] }
 };
 
 sub create ($self, %params) {
@@ -1543,9 +1549,10 @@ sub create ($self, %params) {
 
 | Phase | Action | Effect | Persistence |
 |-------|--------|--------|-------------|
-| idle | begin | Deduct 2 AP. Draw artifact. Set phase to `processing`. Set FK | `$self->save`, `$char->save` |
+| idle | begin | Deduct AP (variable, default 2). Draw artifact, or fire random event. Set phase to `processing`. Set FK | `$self->save`, `$char->save` |
 | processing | push | Destabilize. May collapse, breakthrough, or normal (update artifact) | Collapse/breakthrough: `$self->delete`, clear FK, `$char->save`. Normal: `$self->save`, `$char->save` |
 | processing | stop | Calculate estimate. Create ShedItem. Set phase to `idle` | `$item->save`, `$self->delete`, clear FK, `$char->save` |
+| processing | resolve_event | Player resolves a choice event. Effects applied via Service::RandomEvents. Ends activity. | `$self->delete`, `$char->save` |
 
 The `awaiting_buyer` phase and `offers` column have been removed. Prospecting
 no longer handles selling. Activities own all persistence — the controller
@@ -1656,7 +1663,7 @@ any model.
 | Nav | show | `GET /nav` — returns tabs (active/inactive + reasons), current view, fragment URLs, context bar. Backend-managed UI state. |
 | Idle | show | `GET /idle` — idle action panel (Prospect/Bazaar buttons). Returns 204 when activity active. |
 | Crier | show | `GET /crier` — current season's Town Crier message. Returns 204 when no active season. |
-| Prospecting | begin, push, stop, show | Prospecting lifecycle + `GET /prospecting` fragment/JSON. |
+| Prospecting | begin, push, stop, resolve_event, show | Prospecting lifecycle + choice event resolution + `GET /prospecting` fragment/JSON. |
 | PvP | show, apply | `GET /pvp` — rival list, active pressures, action buttons. `POST /pvp/apply` — spend scrap to apply a pressure. |
 | Market | begin, offer, send_away, accept_counter, stand_pat, show | Market negotiation lifecycle + `GET /market` fragment/JSON. |
 | Shed | index | List shed contents with condition and estimates. |
@@ -1758,12 +1765,17 @@ All login/recovery/admin actions are recorded in `audit.jsonl`.
     references.yml                  # Reference registry entries (factions, artifact types, terms)
     skills.yml                      # Skill definitions and costs
     factions.yml                    # Faction definitions
+    events/                         # Random event pools (YAML-driven)
+        prospecting.yml             # Passive + choice events (Prospecting::begin, 20% base)
+        market_visit.yml            # Passive events (MarketVisit::begin, 15% base)
+        global.yml                  # Global day events (maintenance, 60% base)
     flavor/
-    advisories.yml                 # System advisory messages (idle, season end, faction hunger)
-    crier.yml                      # Daily maintenance messages (surge, slump, etc.)
-    negotiation_reactions.yml      # Per-faction flavor text for market visit outcomes
-    commission_triggers.yml        # Commission issuance text (unused until §7.3)
-    system_messages.yml            # Unit status flavor text (device frame boot message)
+        advisories.yml              # System advisory messages (idle, season end, faction hunger)
+        crier.yml                   # Daily maintenance messages (surge, slump, etc.)
+        negotiation_reactions.yml   # Per-faction flavor text for market visit outcomes
+        commission_triggers.yml     # Commission issuance text (unused until §7.3)
+        pressure_reactions.yml      # PvP pressure outcome flavor text
+        system_messages.yml         # Unit status flavor text (device frame boot message)
 ```
 
 ### 12.2 Artifact Definition Shape
@@ -1954,6 +1966,7 @@ changes, no manual registration.
 | POST | `/prospecting/begin` | `Prospecting#begin` | JSON | Start prospecting (costs 2 AP) |
 | POST | `/prospecting/push` | `Prospecting#push` | JSON | Destabilize artifact |
 | POST | `/prospecting/stop` | `Prospecting#stop` | JSON | Halt, create shed entry |
+| POST | `/prospecting/resolve_event` | `Prospecting#resolve_event` | JSON | Resolve choice event, body: `{choice_id}` |
 | POST | `/market/begin` | `Market#begin` | JSON | Start market visit (costs 1 AP) |
 | POST | `/market/offer` | `Market#offer` | JSON | Offer shed item to customer |
 | POST | `/market/send_away` | `Market#send_away` | JSON | End negotiation, no sale |
@@ -2008,9 +2021,11 @@ and let it generate the markup.
 
 ### 13.3 Controller Action Contracts
 
-**Prospecting#begin**: Requires `action_points >= 2` and no active activity
-(`pending_activity_id` null). Deducts 2 AP. Draws random artifact from Content
-pool. Creates a new activity row with phase `processing`.
+**Prospecting#begin**: Requires `action_points >= prospect_ap_cost` (default 2,
+overridable by global event `daily_modifiers.prospect_ap_cost`) and no active
+activity (`pending_activity_id` null). Deducts AP. May fire a random event
+(passive or choice). If no event, draws random artifact from Content pool.
+Creates a new activity row with phase `processing`.
 
 **Prospecting#push**: Requires activity `type == "prospecting"` and
 `phase == "processing"`. Delegates to `Activity::Prospecting::push()`.
@@ -2527,7 +2542,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Service::Navigation** | `Service/Navigation.pm` | Extracted from Nav controller. Resolves tabs, active/inactive states, fragment URLs, current view. Controllers delegate view logic. |
 | **Service::SeasonManager** | `Service/SeasonManager.pm` | Extracted from Game controller. Manages season/character lifecycle: auto-creates seasons, finds or creates characters, seeds bot NPCs. |
 | **Service::Suggestion** | `Service/Suggestion.pm` | Extracted from Home controller. Produces contextual action suggestions based on activity/shed/AP state. |
-| **Random events (Phase 1)** | `Service/RandomEvents.pm`, `content/events/prospecting.yml`, `t/service_random_events.t`, `t/prospecting_events.t` | YAML-driven personal events fire during `Prospecting::begin` (20% base chance). Condition/effect dispatch tables with pool-specific registries. Six passive events including catch-up rubberbanding via `score_lte`. Load-time validation (unknown names die). Test-mode gate (`MM_EVENTS` override). 55 new tests. |
+| **Random events (Phases 1-4)** | `Service/RandomEvents.pm`, `content/events/prospecting.yml`, `content/events/market_visit.yml`, `content/events/global.yml`, `t/service_random_events.t`, `t/prospecting_events.t` | Full event system across three pools. Prospecting passive + choice events (20% base). Market visit passive events (15% base). Global day events (60% base) drawn during maintenance apply daily modifiers to all activities. Condition/effect dispatch tables with pool-specific registries and load-time validation. Test-mode gate (`MM_EVENTS` override). |
 | **NPC competitors (Phase 1)** | `Service/BotRunner.pm`, `Model/Character.pm` (`is_bot`, `bot_profile_id`), `SeasonManager.pm` (`seed_bots`), `MagicMountain.pm` (maintenance bot run, `bot_runner` helper), `Controller/Sessions.pm` (bot login exclusion), `Controller/Leaderboard.pm` (`bot`/`badge` fields) | Bots prospect, push, stop, and sell via the same Activity dispatch as human players. Bot profiles from `content/bots.yml`. Configurable bot count + AP via `bots` config key. Bot run during maintenance (before day advance). Bot transcript in `transcript_bots.jsonl`. Leaderboard `[NPC]` badge. |
 | **Rival Pressure (PvP)** | `Service/PvP.pm`, `Model/Pressure.pm`, `Controller/Pvp.pm`, `Bot/PressurePolicy.pm`, `content/flavor/pressure_reactions.yml` | Scrap-based asynchronous economic interference between players. Three one-shot effects (Corner the Market, Spoil the Lead, Outbid) on a rival's faction lead. Self-splashback on attacker. Bots participate as both targets and attackers via faction-aware `Bot::PressurePolicy`. Pressures expire lazily after `pvp_pressure_max_age_days`. |
 | **Collapse curve adjustment** | `Activity/Prospecting.pm` line 240 | Collapse multiplier reduced from 0.95 to 0.80 (~16% reduction across all instability levels). |
@@ -2549,9 +2564,6 @@ The new codebase (`lib/`) is a ground-up rebuild.
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
-| Random events Phase 2 (choice events) | Medium | Player choices during prospecting begin, skill-gated options |
-| Random events Phase 3 (market visit events) | Medium | Passive events at `MarketVisit::begin`, customer state mutations |
-| Random events Phase 4 (global events) | Medium | Once-per-day global modifiers, Crier narration, Season `daily_modifiers` column |
 | Commission system | Low | Faction notices, active commissions |
 | Desperate Recruiter (underdog catch-up) | Low | Premium standing/bonus for selling to trailing factions |
 
@@ -2811,16 +2823,19 @@ magic_mountain/
 │   ├── references.yml                # In-universe reference registry entries
 │   ├── skills.yml                    # Skill tree and costs
 │   ├── events/                       # Random event pools (one file per pool)
-│   │   └── prospecting.yml           # Personal prospecting events (Phase 1 implemented)
+│   │   ├── prospecting.yml           # Personal prospecting + choice events
+│   │   ├── market_visit.yml          # Market visit events
+│   │   └── global.yml                # Global day events
 │   └── flavor/                       # Narrative text definitions
 │       ├── advisories.yml            # System advisory messages (idle, season end, etc.)
 │       ├── commission_triggers.yml   # Commission issuance text
 │       ├── crier.yml                 # Town Crier daily messages
 │       ├── negotiation_reactions.yml # Per-faction market flavor text
+│       ├── pressure_reactions.yml    # PvP pressure outcome flavor text
 │       └── system_messages.yml       # Unit status flavor text (boot message)
 │       (recap.yml was removed — recap prose is in section templates)
 │
-├── t/                                # Test suite (53 files)
+├── t/                                # Test suite (56 files)
 │   ├── lib/
 │   │   └── TestCharacter.pm          # Test helper: character factory
 │   ├── activity.t                    # Activity base class tests

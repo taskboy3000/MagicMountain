@@ -7,4 +7,5 @@ season ends.
 
 Built with Mojolicious (Perl). See `GAME_ARCHITECTURE.md` for the full design
 specification, `AGENTS.md` for codebase conventions, and `docs/` for design
-reference.
+reference. All configurable fields for `magic_mountain.yml` are documented
+in `docs/TUNING.md`.

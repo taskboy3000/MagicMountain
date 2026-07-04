@@ -340,9 +340,8 @@ subtest 'breakthrough creates shed item and clears activity' => sub {
     $art->{breakthrough_multiplier_max} = 2.0;
     $p->artifact($art);
 
-    # Collapse has a 5% floor, so seed to avoid that roll.
-    # With srand(1), first rand() = 0.0416... < 0.05 → collapse
-    # With srand(2), first rand() = 0.7009... >= 0.05 → no collapse
+    # Collapse is zero below stable threshold with the zero-anchored
+    # formula. srand is harmless but no longer needed.
     srand(2);
     my $result = $p->dispatch($char, 'push');
 
@@ -518,7 +517,7 @@ subtest 'upcycling skill 3 increases evolution chance by 0.02' => sub {
     # Set ratio high enough to pass evolution_threshold check
     $art->{instability} = $art->{max_instability} * 0.5;
 
-    # Seed so collapse doesn't trigger (ratio^3 = 0.125 * 0.80 = 0.10, need rand > 0.10)
+    # Seed so collapse doesn't trigger (stressed³ × 0.80 ≈ 0.019, need rand > 0.019)
     srand(99);
     my $r = $p->dispatch($char, 'push');
     # If we got a breakthrough, the 0.02 bonus was applied (0.03 + 0.02 = 0.05 base evo chance)
@@ -567,7 +566,7 @@ subtest 'upcycling skill 4 reduces initial instability in _apply_defaults' => su
 
 # ── Collapse edge cases ──────────────────────────────────────────────
 
-subtest 'collapse chance floors at 5% for very low instability' => sub {
+subtest 'collapse chance zero at low instability' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
     my $char         = _fresh_char();
@@ -588,8 +587,8 @@ subtest 'collapse chance floors at 5% for very low instability' => sub {
         }
         last unless $p->phase eq 'processing';
     }
-    note("collapsed $collapsed times out of max 20 pushes (expect ~0)");
-    ok($collapsed <= 5, 'collapse floor keeps rate low (5% expected)');
+    note("collapsed $collapsed times out of max 20 pushes (expect 0)");
+    ok($collapsed == 0, 'zero collapse below stable threshold');
 };
 
 # ── Evolution negative checks ────────────────────────────────────────

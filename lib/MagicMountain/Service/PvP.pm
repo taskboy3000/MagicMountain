@@ -112,7 +112,7 @@ sub _consume ($self, $char_id, $faction_id, $moment, $age_key) {
         next unless $info->{moment} eq $moment;
 
         if ($type eq 'spoil_lead') {
-            my $threshold = $self->app->config->{market_irritation_threshold} // 5;
+            my $threshold = $self->app->config->{market_irritation_threshold} // 4;
             $effects->{irritation_floor} = $threshold - 1;
         } elsif ($type eq 'outbid') {
             $effects->{budget_ratio} = $self->app->config->{pvp_splash_budget_ratio} // 0.80;

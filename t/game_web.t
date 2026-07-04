@@ -119,7 +119,7 @@ subtest 'JSON — shows market resume when activity active' => sub {
             faction_id => 'syndicate', faction_name => 'The Syndicate',
             disposition => 'commercial_resale', irritation => 2,
             desired_behaviors => ['thermal'], base_multiplier => 1.1,
-            irritation_threshold => 5, settle_chance => 0.15,
+            irritation_threshold => 4, settle_chance => 0.15,
         },
     );
     $act->save;
