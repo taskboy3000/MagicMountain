@@ -1,31 +1,92 @@
 package MagicMountain::Command::delete_account;
 use Mojo::Base 'Mojolicious::Command', '-signatures';
 
-has description => 'Delete a player account and all associated data';
-has usage       => "Usage: $0 delete-account --name <username>\n";
+has description => 'Delete one or more player accounts and all associated data';
+has usage       => "Usage: $0 delete-account --name <username>\n"
+                 . "       $0 delete-account --prefix <prefix> [--force]\n";
 
 sub run ($self, @args) {
-    my $name;
+    my ($name, $prefix, $force);
     while (@args) {
         my $arg = shift @args;
         if ($arg eq '--name' && @args) {
             $name = shift @args;
+        } elsif ($arg eq '--prefix' && @args) {
+            $prefix = shift @args;
+        } elsif ($arg eq '--force') {
+            $force = 1;
         }
     }
 
-    die "Usage: $0 delete-account --name <username>\n" unless $name;
+    if ($prefix) {
+        $self->_delete_by_prefix($prefix, $force);
+        return;
+    }
 
+    die "Usage: $0 delete-account --name <username>\n"
+      . "       $0 delete-account --prefix <prefix> [--force]\n"
+        unless $name;
+
+    $self->_delete_one($name);
+}
+
+sub _delete_one ($self, $name) {
     my $account = $self->app->accounts->find_by_username($name);
     die "Account '$name' not found.\n" unless $account;
 
     my $player_id = $account->getCol('id');
+    $self->_remove_account_data($player_id, $name);
+    say "Account '$name' deleted.";
+}
 
+sub _delete_by_prefix ($self, $prefix, $force) {
+    my $accounts = $self->app->accounts->find({ username => qr/^\Q$prefix\E/ });
+    die "No accounts found with prefix '$prefix'.\n" unless @$accounts;
+
+    unless ($force) {
+        print "Found " . scalar(@$accounts) . " account(s) matching prefix '$prefix'.\n";
+        print "Delete them all? [y/N] ";
+        my $answer = <STDIN>;
+        chomp $answer;
+        die "Aborted.\n" unless lc($answer) eq 'y';
+    }
+
+    for my $account (@$accounts) {
+        my $name      = $account->getCol('username');
+        my $player_id = $account->getCol('id');
+        $self->_remove_account_data($player_id, $name);
+    }
+    say "Deleted " . scalar(@$accounts) . " account(s) matching prefix '$prefix'.";
+}
+
+sub _remove_account_data ($self, $player_id, $name) {
+    # Sessions
     $self->app->session_store->delete_by_player_id($player_id);
 
+    # Characters and their shed items
     my $chars = $self->app->characters;
     my $existing = $chars->find({ account_id => qr/^\Q$player_id\E$/ });
     for my $char (@$existing) {
-        $chars->delete($char->getCol('id'));
+        my $char_id = $char->getCol('id');
+        my $shed_items = $self->app->shed->find(sub { $_[0]->{char_id} eq $char_id });
+        for my $item (@$shed_items) {
+            $self->app->shed->delete($item->getCol('id'));
+        }
+        $chars->delete($char_id);
+    }
+
+    # Dispositions (permanent sale records)
+    $self->app->disposition->load;
+    my $disps = $self->app->disposition->find(sub { $_[0]->{player_id} eq $player_id });
+    for my $d (@$disps) {
+        $self->app->disposition->delete($d->getCol('disposition_id'));
+    }
+
+    # Season records (post-season archives)
+    $self->app->season_records->load;
+    my $recs = $self->app->season_records->find(sub { $_[0]->{player_id} eq $player_id });
+    for my $r (@$recs) {
+        $self->app->season_records->delete($r->getCol('record_id'));
     }
 
     $self->app->accounts->delete($player_id);
@@ -34,9 +95,6 @@ sub run ($self, @args) {
         player_id   => $player_id,
         player_name => $name,
     );
-
-    say "Account '$name' deleted.";
-    say "Associated characters and sessions have been removed.";
 }
 
 1;
