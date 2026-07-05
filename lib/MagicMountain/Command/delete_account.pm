@@ -45,8 +45,8 @@ sub _delete_by_prefix ($self, $prefix, $force) {
     die "No accounts found with prefix '$prefix'.\n" unless @$accounts;
 
     unless ($force) {
-        print "Found " . scalar(@$accounts) . " account(s) matching prefix '$prefix'.\n";
-        print "Delete them all? [y/N] ";
+        say "Found " . scalar(@$accounts) . " account(s) matching prefix '$prefix'.";
+        print STDERR "Delete them all? [y/N] ";
         my $answer = <STDIN>;
         chomp $answer;
         die "Aborted.\n" unless lc($answer) eq 'y';
@@ -69,9 +69,10 @@ sub _remove_account_data ($self, $player_id, $name) {
     my $existing = $chars->find({ account_id => qr/^\Q$player_id\E$/ });
     for my $char (@$existing) {
         my $char_id = $char->getCol('id');
-        my $shed_items = $self->app->shed->find(sub { $_[0]->{char_id} eq $char_id });
-        for my $item (@$shed_items) {
-            $self->app->shed->delete($item->getCol('id'));
+        $self->app->shed->load;
+        for my $sid (keys %{ $self->app->shed->table }) {
+            next unless $self->app->shed->table->{$sid}{char_id} && $self->app->shed->table->{$sid}{char_id} eq $char_id;
+            $self->app->shed->delete($sid);
         }
         $chars->delete($char_id);
     }
