@@ -6,6 +6,7 @@ has usage       => "Usage: $0 delete-account --name <username>\n"
                  . "       $0 delete-account --prefix <prefix> [--force]\n";
 
 sub run ($self, @args) {
+    $| = 1;
     my ($name, $prefix, $force);
     while (@args) {
         my $arg = shift @args;
