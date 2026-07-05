@@ -157,7 +157,7 @@ sub consume_attacker_splashbacks ($self, $char_id, $faction_id, $moment) {
 
 sub reaction_text ($self, $effect_type, $faction_id, $side) {
     my $reactions = $self->_reactions;
-    unless (defined $reactions) {
+    if (!defined $reactions) {
         my $file = $self->app->home . '/content/flavor/pressure_reactions.yml';
         $reactions = -e $file ? LoadFile($file) : {};
         $self->_reactions($reactions);

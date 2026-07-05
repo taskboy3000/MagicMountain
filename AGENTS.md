@@ -46,6 +46,8 @@ model class.
 
 ## Conventions
 
+- **CI check**: `make ci-check` before every `git push` — catches test failures,
+  walkthrough regressions, and perlcritic violations before they reach CI.
 - **Formatting**: `make indent && make clean` before commit.
 - **Coverage**: `make cover && make report` before commit (85%+).
 - **Tests**: `Test::Mojo` integration. Use Model objects (`->create`, `->save`)
