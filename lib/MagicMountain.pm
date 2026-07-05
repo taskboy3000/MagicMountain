@@ -27,6 +27,7 @@ use MagicMountain::RateLimiter;
 use MagicMountain::Service::RandomEvents;
 use MagicMountain::Service::BotRunner;
 use MagicMountain::Service::PvP;
+use MagicMountain::Service::Dominance;
 use MagicMountain::Model::Pressure;
 
 has configFile => sub ($self) {
@@ -222,6 +223,9 @@ has maintenance => sub ($self) {
             }
             $season->setCol('faction_state', $fs);
 
+            # Faction climate calculation
+            $self->dominance_service->calculate_climate($season);
+
             # Global event: draw and apply modifiers
             if ($maint->app->can('random_events')) {
                 my $global_event = $maint->app->random_events->draw(
@@ -348,6 +352,10 @@ has pressures => sub ($self) {
 
 has pvp_service => sub ($self) {
     MagicMountain::Service::PvP->new(app => $self);
+};
+
+has dominance_service => sub ($self) {
+    MagicMountain::Service::Dominance->new(app => $self);
 };
 
 sub startup ($self) {

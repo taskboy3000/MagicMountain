@@ -98,6 +98,13 @@ sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors, $saturation_fl
         if defined $saturation_floor && $sat_factor > $saturation_floor;
     $mult *= $sat_factor;
 
+    if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
+        my $dom = $self->app->dominance_service;
+        if ($dom->saturation_floor_active($season, $faction_id, $behaviors->[0] // '')) {
+            $mult = $faction->{base_multiplier} if $mult < $faction->{base_multiplier};
+        }
+    }
+
     my $daily_intake  = $fdata->{daily_intake} // 0;
     my $appetite_base = $faction->{daily_appetite_base} // 3;
     if ($daily_intake >= $appetite_base) {
@@ -255,6 +262,22 @@ sub begin ($self, $char, %params) {
         loyalty_free_mismatches => $sales_to_faction >= 1 ? 1 : 0,
     };
 
+    # ── Faction climate: modify customer struct ────────────────────
+    if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
+        my $dom = $self->app->dominance_service;
+
+        $customer->{soft_budget}     += $dom->budget_delta($season);
+        $customer->{absolute_budget}  = int($customer->{soft_budget} * 1.2);
+
+        if ($customer->{faction_id} eq ($dom->dominant_faction($season) // '')) {
+            $customer->{irritation_threshold} += $dom->patience_delta($season);
+        }
+
+        my $trait_biases = $dom->buyer_trait_biases($season);
+        $customer->{climate_trait_biases} = $trait_biases if keys %$trait_biases;
+    }
+    # ────────────────────────────────────────────────────────────────
+
     # ── Rival Pressure: consume effects that fire on visit begin ────
     my $pvp = $self->app->can('pvp_service') ? $self->app->pvp_service : undef;
     if ($pvp) {
@@ -365,6 +388,11 @@ sub offer ($self, $char, %params) {
 
     if ($intersect) {
         my $match_mult = $sell >= 3 ? 1.4 : 1.2;
+        if ($customer->{climate_trait_biases}) {
+            for my $b (@{ $item->getCol('behaviors') // [] }) {
+                $match_mult *= (1 + ($customer->{climate_trait_biases}->{$b} // 0));
+            }
+        }
         $offer_value = int($decayed * $dyn_mult * $match_mult);
         $offer_value = $self->_apply_loyalty_bonus($char, $customer->{faction_id}, $offer_value);
         my $narrative = $self->_pick_reaction($customer->{faction_id}, 'match',

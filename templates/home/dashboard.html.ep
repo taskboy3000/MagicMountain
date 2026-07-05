@@ -1,3 +1,5 @@
+<%= include 'components/climate_card' %>
+
 <div class="mm-panel">
   <div class="mm-panel-header">SYSTEM DASHBOARD</div>
   <div class="mm-panel-body">

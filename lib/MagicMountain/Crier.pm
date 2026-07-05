@@ -6,6 +6,7 @@ has content_file => sub { die "content_file is required" };
 has log          => sub { sub {} };
 
 my %PRIORITY = (
+    faction_climate => 6,
     faction_dominance => 5,
     faction_surge     => 4,
     milestone         => 3,
@@ -41,6 +42,14 @@ sub generate ($self, $season, $opts = {}) {
     my $global_text = $season->getCol('global_event_text');
     return $global_text if $global_text;
 
+    my $best_priority = -1;
+    my $best_message;
+
+    my $climate = $season->getCol('faction_climate') // {};
+    if ($climate->{crier_text} && $climate->{intensity} ne 'contested') {
+        _consider($climate->{crier_text}, 'faction_climate', \$best_priority, \$best_message);
+    }
+
     my $current  = $season->getCol('faction_state') // {};
     my $snapshot = $season->getCol('crier_snapshot') // {};
     my $day      = $season->getCol('day') // 1;
@@ -75,9 +84,6 @@ sub generate ($self, $season, $opts = {}) {
             $prev_leader = $fid;
         }
     }
-
-    my $best_priority = -1;
-    my $best_message;
 
     for my $fid (keys %$current) {
         my $cur  = $current->{$fid};

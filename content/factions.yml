@@ -8,6 +8,14 @@ factions:
     base_multiplier: 1.1
     daily_appetite_base: 3
     desperation_days: 3
+    climate:
+      draw_biases: { thermal: 1.3, storage: 1.2, food_processing: 1.1, power: 1.1, force: 0.75, instability: 0.8, revelation: 0.8 }
+      starting_instability_mod: 1
+      budget_delta: 2
+      mood_delta: -1
+      patience_delta: -1
+      risk_tolerance_delta: 1
+      buyer_trait_biases: { volatile: 1, luxury: 1 }
   - id: libremount
     name: "LibreMount"
     disposition: "survivalist collective — needs the basics"
@@ -17,6 +25,14 @@ factions:
     base_multiplier: 0.9
     daily_appetite_base: 4
     desperation_days: 2
+    climate:
+      draw_biases: { thermal: 1.3, water: 1.2, sanitation: 1.2, medical_response: 1.1, power: 1.1, signal: 0.75, revelation: 0.8, force: 0.8 }
+      starting_instability_mod: 0
+      budget_delta: -1
+      mood_delta: 1
+      patience_delta: 1
+      risk_tolerance_delta: 0
+      buyer_trait_biases: { thermal: 1, water: 1, medical_response: 1 }
   - id: faculty
     name: "The Faculty"
     disposition: "academic order — catalogues the unknown"
@@ -26,6 +42,14 @@ factions:
     base_multiplier: 1.0
     daily_appetite_base: 3
     desperation_days: 3
+    climate:
+      draw_biases: { signal: 1.3, revelation: 1.2, field: 1.2, medical_response: 1.1, thermal: 0.8, food_processing: 0.8, water: 0.8 }
+      starting_instability_mod: 0
+      budget_delta: 1
+      mood_delta: 0
+      patience_delta: 1
+      risk_tolerance_delta: -1
+      buyer_trait_biases: { signal: 1, field: 1, archival: 1 }
   - id: purifiers
     name: "The Purifiers"
     disposition: "zealous reformers — contain the old world"
@@ -35,6 +59,14 @@ factions:
     base_multiplier: 1.2
     daily_appetite_base: 2
     desperation_days: 4
+    climate:
+      draw_biases: { force: 1.4, instability: 1.3, medical_response: 1.2, thermal: 0.75, storage: 0.8, water: 0.8 }
+      starting_instability_mod: 1
+      budget_delta: 0
+      mood_delta: -1
+      patience_delta: -1
+      risk_tolerance_delta: 0
+      buyer_trait_biases: { force: 1, instability: 1 }
   - id: revelationists
     name: "The Revelationists"
     disposition: "truth seekers — the mountain speaks to them"
@@ -44,3 +76,11 @@ factions:
     base_multiplier: 0.8
     daily_appetite_base: 3
     desperation_days: 2
+    climate:
+      draw_biases: { revelation: 1.4, signal: 1.3, field: 1.2, transformation: 1.1, thermal: 0.75, food_processing: 0.8, power: 0.8 }
+      starting_instability_mod: 1
+      budget_delta: 1
+      mood_delta: 1
+      patience_delta: 0
+      risk_tolerance_delta: 1
+      buyer_trait_biases: { revelation: 1, signal: 1, field: 1 }

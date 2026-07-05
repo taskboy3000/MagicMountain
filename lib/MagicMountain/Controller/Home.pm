@@ -41,16 +41,17 @@ sub show ($self) {
         }
         my $fresh_player = !$type && !$shed_count && !$char->getCol('scrap');
         $self->stash(
-            suggestions   => $suggestions,
-            season_day    => $season_day,
-            season_len    => $season ? $season->getCol('length') // 30 : 30,
-            ap            => $char->getCol('action_points') // 0,
-            scrap         => $char->getCol('scrap') // 0,
-            shed_count    => $shed_count,
-            shed_items    => \@shed_rows,
-            market_active => $market_active,
-            crier_msg     => $crier,
-            fresh_player  => $fresh_player,
+            suggestions     => $suggestions,
+            season_day      => $season_day,
+            season_len      => $season ? $season->getCol('length') // 30 : 30,
+            ap              => $char->getCol('action_points') // 0,
+            scrap           => $char->getCol('scrap') // 0,
+            shed_count      => $shed_count,
+            shed_items      => \@shed_rows,
+            market_active   => $market_active,
+            crier_msg       => $crier,
+            fresh_player    => $fresh_player,
+            faction_climate => $season ? $season->faction_climate : {},
         );
         return $self->render('home/dashboard', layout => undef);
     }

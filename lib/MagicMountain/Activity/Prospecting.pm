@@ -34,22 +34,32 @@ sub _find_spec ($self, $artifact_id) {
 
 # ── Artifact drawing ─────────────────────────────────────────────────
 
+sub _get_spec_weight ($self, $spec, $char) {
+    my $weight = $spec->{weight} // 1;
+    my $prosp  = $char->getCol('skill_prospecting') // 0;
+    $weight *= 2 if $prosp >= 2 && ($spec->{base_value} // 0) >= 8;
+
+    if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
+        my $biases = $self->app->dominance_service->draw_biases($season);
+        for my $b (@{ $spec->{behaviors} // [] }) {
+            $weight *= ($biases->{$b} // 1);
+        }
+    }
+
+    return int($weight + 0.5);
+}
+
 sub _draw_artifact ($self, $char) {
     my $specs = $self->_specs;
     die "no artifact specs loaded" unless @$specs;
-    my $prosp = $char->getCol('skill_prospecting') // 0;
     my $total_weight = 0;
     for my $spec (@$specs) {
-        my $w = $spec->{weight} // 1;
-        $w *= 2 if $prosp >= 2 && ($spec->{base_value} // 0) >= 8;
-        $total_weight += $w;
+        $total_weight += $self->_get_spec_weight($spec, $char);
     }
     my $roll = rand($total_weight);
     my $cumulative = 0;
     for my $spec (@$specs) {
-        my $w = $spec->{weight} // 1;
-        $w *= 2 if $prosp >= 2 && ($spec->{base_value} // 0) >= 8;
-        $cumulative += $w;
+        $cumulative += $self->_get_spec_weight($spec, $char);
         if ($roll < $cumulative) {
             return $spec;
         }
@@ -103,6 +113,12 @@ sub _apply_defaults ($self, $artifact, $char) {
     $rand_instability -= $upcyc if ($upcyc_effects->{initial_instability_reduction} // 0);
     $rand_instability = 0 if $rand_instability < 0;
     $artifact->{instability} = ($artifact->{starting_instability} // 0) + $rand_instability;
+
+    if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
+        my $mod = $self->app->dominance_service->starting_instability_mod($season);
+        $artifact->{instability} += $mod if $mod;
+    }
+
     $artifact->{push_count}                   = 0;
     $artifact->{has_evolved}                  = 0;
     $artifact->{value}                        = ($artifact->{base_value} // 5) + ($prosp >= 1 ? 2 : 0) + ($prosp >= 2 ? 2 : 0);
