@@ -33,7 +33,7 @@ sub create ($self) {
     # Check for existing valid session or remember-me cookie (skip if token provided)
     my $auth = $self->app->auth_service;
     my $submitted_token = uc ($body->{token} // '');
-    unless ($submitted_token) {
+    if (!$submitted_token) {
         my $player_id = $self->session('playerId');
         if ($player_id) {
             $self->app->session_store->load;
@@ -100,7 +100,7 @@ sub create ($self) {
 
     # Check if account has a token set
     my $token_hash = $account->getCol('token_hash');
-    unless (defined $token_hash && length $token_hash > 0) {
+    if (!(defined $token_hash && length $token_hash > 0)) {
         if (($ENV{MOJO_MODE} // '') eq 'test') {
             # In test mode, auto-generate token_hash for legacy accounts
             my $auth = $self->app->auth_service;
@@ -151,7 +151,7 @@ sub recover ($self) {
     return $self->render(json => { ok => 0, error => 'Recovery code required' }, status => 400) unless $code;
 
     my $account = $self->app->accounts->find_by_username($name);
-    unless ($account) {
+    if (!$account) {
         $self->app->audit_log->log('recovery_failed', player_name => $name);
         return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
     }
@@ -162,7 +162,7 @@ sub recover ($self) {
         return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
     }
 
-    unless ($self->app->auth_service->verify_recovery_code($account, $code)) {
+    if (!$self->app->auth_service->verify_recovery_code($account, $code)) {
         $self->app->rate_limiter->record_failure($ip);
         $self->app->rate_limiter->record_name_failure(lc $name);
         $self->app->audit_log->log('recovery_failed',
@@ -246,9 +246,9 @@ sub _set_remember_cookie ($self, $remember_token, $account) {
 
 sub _read_remember_cookie ($self) {
     my $data = $self->signed_cookie('mm_remember') // '';
-    return undef unless length $data > 0;
+    return unless length $data > 0;
     my ($account_id, $token) = split /\|/, $data, 2;
-    return undef unless $account_id && $token;
+    return unless $account_id && $token;
     return { account_id => $account_id, token => $token };
 }
 

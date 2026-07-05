@@ -31,12 +31,12 @@ sub run ($self, @args) {
     my $app   = $self->app;
     my $dir   = $app->dataDir;
 
-    unless ($force) {
+    if (!$force) {
         say "This will DELETE all accounts, characters, seasons, and game data in $dir.";
         say "Are you sure? Type 'yes' to continue:";
         my $answer = <STDIN>;
         chomp $answer;
-        unless ($answer eq 'yes') {
+        if ($answer ne 'yes') {
             say "Aborted.";
             exit 1;
         }

@@ -16,7 +16,7 @@ sub import {
     my $class = shift;
     my %args  = @_;
 
-    unless ($ENV{MM_DATA_DIR}) {
+    if (!$ENV{MM_DATA_DIR}) {
         $ENV{MM_DATA_DIR} = tempdir(CLEANUP => 1);
     }
 }

@@ -304,7 +304,7 @@ sub draw ($self, %args) {
     my $trigger = $args{trigger} or die "trigger required";
     my $rng     = $args{seeded_rng};
 
-    return undef if $self->app && $self->app->mode eq 'test' && !$ENV{MM_EVENTS};
+    return if $self->app && $self->app->mode eq 'test' && !$ENV{MM_EVENTS};
 
     # Ensure pool is loaded so _pool_config is populated (YAML may set event_chance)
     $self->_events_for_pool($pool);
@@ -314,15 +314,15 @@ sub draw ($self, %args) {
     my $chance = defined $pool_cfg->{event_chance}
         ? $pool_cfg->{event_chance}{$trigger}
         : $self->event_chance->{$pool}{$trigger};
-    $chance // return undef;
+    $chance // return;
 
     my $roll = $rng ? $rng->() : rand();
-    return undef if $roll >= $chance;
+    return if $roll >= $chance;
 
     my $ctx = $args{context} // {};
 
     my $event_def = $self->_select($pool, $trigger, $ctx);
-    return undef unless $event_def;
+    return unless $event_def;
 
     # Choice events: return with choices populated, effects NOT applied.
     # Caller must call apply_choice() to resolve.
@@ -391,7 +391,7 @@ sub apply_choice ($self, %args) {
 
 sub _select ($self, $pool, $trigger, $ctx) {
     my $events = $self->_events_for_pool($pool);
-    return undef unless $events && @$events;
+    return unless $events && @$events;
 
     my $season = $ctx->{season};
     my $day    = $season ? ($season->{day} // $season->getCol('day')) : undef;
@@ -418,7 +418,7 @@ sub _select ($self, $pool, $trigger, $ctx) {
         push @candidates, $event;
     }
 
-    return undef unless @candidates;
+    return unless @candidates;
 
     # Resolve _filtered_choices into 'choices' for the selected event
     for my $c (@candidates) {

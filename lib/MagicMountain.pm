@@ -160,7 +160,7 @@ has maintenance => sub ($self) {
             my $season = $maint->app->active_season;
             return unless $season;
 
-            unless ($maint->_catching_up) {
+            if (!$maint->_catching_up) {
                 my $bots_cfg = $maint->app->config->{bots} // {};
                 if (($bots_cfg->{count} // 0) > 0) {
                     my $bot_transcript = MagicMountain::Model::Transcript->new(
@@ -476,7 +476,7 @@ sub startup ($self) {
 
     $self->_catch_up_maintenance;
 
-    unless ($self->mode eq 'test') {
+    if ($self->mode ne 'test') {
         Mojo::IOLoop->recurring(60 => sub {
             $self->maintenance->dailyMaintenance;
         });
@@ -565,7 +565,7 @@ sub buildRoutes ($self) {
         }
         $c->app->audit_log->log('admin_auth_failed');
         $c->render(json => { ok => 0, error => 'Unauthorized' }, status => 401);
-        return undef;
+        return;
     });
     $admin_bridge->post('/admin/account/reset-token')->to('admin#reset_token');
     $admin_bridge->post('/admin/account/ban')->to('admin#ban');

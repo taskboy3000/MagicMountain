@@ -10,7 +10,7 @@ has [qw(
 )];
 
 sub portrait_url ($self) {
-    my $pid = $self->portrait_id or return undef;
+    my $pid = $self->portrait_id or return;
     my $mood = ($self->irritation // 0) <= 1 ? 'happy'
              : ($self->irritation // 0) <= 3 ? 'neutral'
              : 'mad';

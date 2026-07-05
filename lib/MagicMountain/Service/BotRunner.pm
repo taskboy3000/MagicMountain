@@ -60,7 +60,7 @@ sub run_day ($self, $char, $profile = undef) {
         eval {
             my $activity = $prospecting->create(char_id => $char->getCol('id'));
             my $result = $activity->dispatch($char, 'begin');
-            unless ($result->{view}{ok}) { $phase_done = 1; return; }
+            if (!$result->{view}{ok}) { $phase_done = 1; return; }
 
             # Random event replaces the prospecting action entirely
             if ($result->{view}{result} eq 'event') {
@@ -84,7 +84,7 @@ sub run_day ($self, $char, $profile = undef) {
             while (1) {
                 my $r = $activity->dispatch($char, 'push');
                 my $view = $r->{view};
-                unless ($view->{ok}) { $phase_done = 1; return; }
+                if (!$view->{ok}) { $phase_done = 1; return; }
                 $actions++;
 
                 if ($view->{result} eq 'collapse' || $view->{result} eq 'breakthrough') {
@@ -130,7 +130,7 @@ sub run_day ($self, $char, $profile = undef) {
         my $phase_done = 0;
         eval {
             my $shed_items = $shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
-            unless (@$shed_items) { $phase_done = 1; return; }
+            if (!@$shed_items) { $phase_done = 1; return; }
 
             if ($sell_pol->{name} eq 'hoarder') {
                 if ($transcript) {
@@ -148,7 +148,7 @@ sub run_day ($self, $char, $profile = undef) {
 
             my $activity = $market->create(char_id => $char->getCol('id'));
             my $result = $activity->dispatch($char, 'begin');
-            unless ($result->{view}{ok}) { $phase_done = 1; return; }
+            if (!$result->{view}{ok}) { $phase_done = 1; return; }
             $actions++;
 
             # Market event replaces the visit entirely

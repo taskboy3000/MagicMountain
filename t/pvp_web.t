@@ -19,7 +19,7 @@ $t->app->config->{pvp_enabled} = 1;
 # Create season
 $t->app->seasons->load;
 my $s = $t->app->active_season;
-unless ($s) {
+if (!$s) {
     $s = $t->app->seasons->create(
         label => 'Test Season', length => 30, day => 1,
         end_of_day_hour => 0, status => 'active',

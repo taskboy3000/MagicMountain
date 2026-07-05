@@ -44,7 +44,7 @@ sub _delete_by_prefix ($self, $prefix, $force) {
     my $accounts = $self->app->accounts->find({ username => qr/^\Q$prefix\E/ });
     die "No accounts found with prefix '$prefix'.\n" unless @$accounts;
 
-    unless ($force) {
+    if (!$force) {
         say "Found " . scalar(@$accounts) . " account(s) matching prefix '$prefix'.";
         print STDERR "Delete them all? [y/N] ";
         my $answer = <STDIN>;

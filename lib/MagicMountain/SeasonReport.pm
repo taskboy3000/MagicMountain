@@ -127,11 +127,11 @@ sub _faction_name ($self, $id) {
 }
 
 sub _faction_icon ($self, $id) {
-    return undef unless $id && $self->factions;
+    return unless $id && $self->factions;
     for my $f (@{ $self->factions }) {
         return '/images/' . $f->{icon} if $f->{id} eq $id && $f->{icon};
     }
-    return undef;
+    return;
 }
 
 sub build_standing_rows ($self) {

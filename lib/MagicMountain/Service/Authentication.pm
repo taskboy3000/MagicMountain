@@ -110,7 +110,7 @@ sub login_or_create ($self, $display_name) {
     }
 
     my $token_hash = $account->getCol('token_hash');
-    unless (defined $token_hash && length $token_hash > 0) {
+    if (!(defined $token_hash && length $token_hash > 0)) {
         return { need_admin_reset => 1, display_name => $display_name };
     }
 

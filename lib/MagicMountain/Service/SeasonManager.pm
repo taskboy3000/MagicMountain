@@ -131,7 +131,7 @@ sub _update_onboarding ($self, $char) {
 }
 
 sub rank_of ($self, $char) {
-    my $season = $self->app->active_season or return undef;
+    my $season = $self->app->active_season or return;
     $self->app->characters->load;
     my $chars = $self->app->characters->find(
         sub { $_[0]->{season_id} eq $season->getCol('id') }
@@ -140,7 +140,7 @@ sub rank_of ($self, $char) {
     for my $i (0 .. $#sorted) {
         return $i + 1 if $sorted[$i]->getCol('id') eq $char->getCol('id');
     }
-    return undef;
+    return;
 }
 
 sub seed_bots ($self, $season) {

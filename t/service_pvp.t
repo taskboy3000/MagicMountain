@@ -31,7 +31,7 @@ sub _create_player {
     $t->app->seasons->load;
     $t->app->characters->load;
     my $s = $t->app->active_season;
-    unless ($s) {
+    if (!$s) {
         # create one
         $s = $t->app->seasons->create(
             label => 'Test Season', length => 30, day => 1,

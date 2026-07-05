@@ -1,0 +1,14 @@
+cli admin ban-account
+
+If we max out a customer's budget, we need a screen telling them that the play did great and what the bonus is
+
+On the random marketvisit where a courier gives the play some scrap, we need to tell the player the amount.
+
+I think we should nerf the affinity that factions have for players.  A customer in a marketvisit should always be from a random faction.  Perhaps factions will still give slight scrap bonuses or have a more positive mood adjust based on prior sales with the player.
+
+We need a more concrete way to show the effects of the factional dominance race to the player. I think when a faction leads, this should have a global affect on prospecting and marketvisits.  We need to define these parameters.
+   what could be affected for prospecting: artifact stability, artifact traits, artifact breakthroughs
+   what player skills could be affected: prospecting, upcycling
+   what could be affected during marketvisits: customer budgets, customer moods
+The global affects of factional dominance should only be calculated at the end of the day during the daily maintenance right after the bots have played.
+The town crier needs to communicate the shift using in-universe language

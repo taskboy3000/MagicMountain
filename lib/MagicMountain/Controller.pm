@@ -19,12 +19,12 @@ sub _require_character ($self) {
 }
 
 sub _active_activity_type ($self, $char) {
-    my $id = $char->getCol('pending_activity_id') or return undef;
+    my $id = $char->getCol('pending_activity_id') or return;
     $self->app->prospecting->load;
-    my $row = $self->app->prospecting->table->{$id} or return undef;
+    my $row = $self->app->prospecting->table->{$id} or return;
     return 'prospecting' if $row->{type} eq 'prospecting';
     return 'market'      if $row->{type} eq 'market_visit';
-    return undef;
+    return;
 }
 
 sub _render_action ($self, $result, $action_name) {

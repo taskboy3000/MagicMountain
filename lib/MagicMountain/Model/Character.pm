@@ -69,13 +69,13 @@ sub add_score ($self, $n) {
 }
 
 sub prospecting_view ($self) {
-    my $id = $self->getCol('pending_activity_id') or return undef;
+    my $id = $self->getCol('pending_activity_id') or return;
     $self->app->prospecting->load;
     my $type = $self->app->prospecting->table->{$id}{type} // '';
-    return undef unless $type eq 'prospecting';
+    return unless $type eq 'prospecting';
 
     my $activity = $self->app->prospecting->get($id);
-    return undef unless $activity && $activity->phase ne 'idle';
+    return unless $activity && $activity->phase ne 'idle';
 
     my $a = $activity->artifact;
     return {
@@ -88,13 +88,13 @@ sub prospecting_view ($self) {
 }
 
 sub market_view ($self) {
-    my $id = $self->getCol('pending_activity_id') or return undef;
+    my $id = $self->getCol('pending_activity_id') or return;
     $self->app->prospecting->load;
     my $type = $self->app->prospecting->table->{$id}{type} // '';
-    return undef unless $type eq 'market_visit';
+    return unless $type eq 'market_visit';
 
     my $activity = $self->app->market->get($id);
-    return undef unless $activity && $activity->phase ne 'idle';
+    return unless $activity && $activity->phase ne 'idle';
 
     my $c = $activity->customer;
     my $pressure_state = $c ? $activity->budget_pressure_state($c)->{state} : undef;

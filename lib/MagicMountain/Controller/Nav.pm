@@ -109,10 +109,10 @@ sub toggle ($self) {
 }
 
 sub _resolve_requested_view ($self, $tabs) {
-    my $requested = $self->req->headers->header('X-Nav-View') or return undef;
-    my $target = $TAB_TO_VIEW{$requested} or return undef;
+    my $requested = $self->req->headers->header('X-Nav-View') or return;
+    my $target = $TAB_TO_VIEW{$requested} or return;
     my ($tab) = grep { $_->{id} eq $requested } @$tabs;
-    return undef unless $tab && $tab->{active};
+    return unless $tab && $tab->{active};
     return $target;
 }
 

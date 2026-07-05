@@ -15,7 +15,7 @@ my %OUTCOME_ACTIVITY = (
 sub show ($self) {
     my $char = $self->_require_character or return;
     my $result = $char->getCol('result');
-    unless ($result) {
+    if (!$result) {
         return $self->render(text => '', status => 204);
     }
 

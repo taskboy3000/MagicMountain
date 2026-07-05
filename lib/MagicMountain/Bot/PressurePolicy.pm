@@ -5,7 +5,7 @@ sub decide ($self, $bot_char, $context) {
     my $app    = $context->{app};
     my $season = $context->{season};
 
-    return undef unless $app->config->{pvp_enabled};
+    return unless $app->config->{pvp_enabled};
 
     my $profile_pct = $context->{profiles}
         ? ($context->{profiles}{ $bot_char->getCol('id') }{pvp_aggressiveness} // undef)
@@ -13,12 +13,12 @@ sub decide ($self, $bot_char, $context) {
     my $agg = defined $profile_pct
         ? $profile_pct
         : ($app->config->{pvp_bot_aggressiveness} // 0.20);
-    return undef if rand() > $agg;
+    return if rand() > $agg;
 
     my $my_score = $bot_char->getCol('score') // 0;
     my $my_sales = $bot_char->getCol('faction_sales') // {};
     my @my_factions = grep { ($my_sales->{$_} // 0) >= 1 } keys %$my_sales;
-    return undef unless @my_factions;
+    return unless @my_factions;
 
     my $chars = $context->{characters} || [];
     my %already_on;
@@ -51,7 +51,7 @@ sub decide ($self, $bot_char, $context) {
             push @candidates, { row => $rival, faction_id => $fid, weight => $weight };
         }
     }
-    return undef unless @candidates;
+    return unless @candidates;
 
     my $total = 0;
     $total += $_->{weight} for @candidates;
@@ -66,7 +66,7 @@ sub decide ($self, $bot_char, $context) {
                 my $cost = $app->config->{"pvp_cost_$e"} // 50;
                 push @effects, $e if $scrap >= $cost;
             }
-            return undef unless @effects;
+            return unless @effects;
 
             # Prefer cheaper effects (spoil_lead < outbid < corner_market).
             @effects = sort {
@@ -80,7 +80,7 @@ sub decide ($self, $bot_char, $context) {
             };
         }
     }
-    return undef;
+    return;
 }
 
 1;

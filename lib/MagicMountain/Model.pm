@@ -156,7 +156,7 @@ sub _saveTable ($self) {
 }
 
 sub _read_version_from_disk ($self) {
-    return undef unless -e $self->file;
+    return unless -e $self->file;
     my $content = read_file($self->file);
     my $data = eval { decode_json($content) };
     die "version read: bad JSON in " . $self->file . ": $@" if $@;
