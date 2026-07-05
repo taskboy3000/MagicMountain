@@ -16,13 +16,11 @@
         <tr>
           <td>
 % if ($s->{status} eq 'active') {
-            <span class="mm-text-green" style="cursor:pointer;text-decoration:underline"
-               data-action-url="/leaderboard?_format=fragment" data-method="GET"
-               class="season-recap-link"><%= $s->{label} %></span>
+            <span class="mm-text-green season-recap-link" style="cursor:pointer;text-decoration:underline"
+               data-action-url="/leaderboard?_format=fragment" data-method="GET"><%= $s->{label} %></span>
 % } else {
-            <span class="mm-text-dim" style="cursor:pointer;text-decoration:underline"
-               data-action-url="/season/recap?season_id=<%= $s->{id} %>&_format=fragment" data-method="GET"
-               class="season-recap-link"><%= $s->{label} %></span>
+            <span class="mm-text-dim season-recap-link" style="cursor:pointer;text-decoration:underline"
+               data-action-url="/season/recap?season_id=<%= $s->{id} %>&_format=fragment" data-method="GET"><%= $s->{label} %></span>
 % }
           </td>
           <td>
