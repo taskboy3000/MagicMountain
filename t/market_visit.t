@@ -226,6 +226,7 @@ subtest 'offer with mismatched behavior fails' => sub {
 
     $m->dispatch($char, 'begin');
     $m->customer->{settle_chance} = 0.0;
+    $m->customer->{irritation} = 0;
     srand(42);
     my $result = $m->dispatch($char, 'offer', shed_item_id => 'mismatch-item');
 
