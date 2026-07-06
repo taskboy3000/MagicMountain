@@ -66,7 +66,7 @@ The device screen is laid out as a fixed-chrome terminal display:
 
 ```
 ┌─ ProspectBoy 3000 // LOCAL NODE 07 ──── PB3K-0042 ─┐
-│  OPERATOR: player       DAY: 12/30   AP: 15  ...   │  ← status strip
+│  OPERATOR: player       DAY: 12/30   AP: --  ...   │  ← status strip
 ├─────────────────────────────────────────────────────┤
 │ [HOME] [PROSPECT] [BAZAAR] [FACTIONS] [CERTS] [...] │  ← nav bar
 ├─────────────────────────────────────────────────────┤
@@ -285,7 +285,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
 | **Shed** (inventory manager) | ShedItem rows in `shed.json`, decay logic in `ShedManager.pm`, query/filter by traits | Market, Faction objects, Account model |
-| **Model::Character** | App reference (for association accessors), file path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–4), association accessors: `prospecting_view()`, `market_view()`, `shed_items()`, `player_skills()` | Game math, artifact logic, state mutation outside of CRUD |
+| **Model::Character** | App reference (for association accessors), file path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skill bounds per YAML max_level), association accessors: `prospecting_view()`, `market_view()`, `shed_items()`, `player_skills()` | Game math, artifact logic, state mutation outside of CRUD |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
 | **Model::Season** | File path, column definitions, JSON CRUD, finalize class method | Per-player character data, game logic |
@@ -1036,7 +1036,7 @@ When a player starts a Market Visit (costs 1 AP):
 ### 6.6 Skills / CERTS (Mechanical Effects)
 
 Cert modules are purchasable per season via the Skills controller (`POST /skills/purchase`).
-Each has 3 levels, costs defined in `content/skills.yml`. Effects are applied
+Cert modules have YAML-defined max levels. Current maxes are GEO-SENSE 3, DEFRAG 4, and UP-CEL 3. Effects are applied
 at the point of use (draw, push, stop, offer) by reading the character's
 skill columns. The internal column names use the legacy IDs (`skill_prospecting`,
 `skill_upcycling`, `skill_selling`); the UI labels are the cert module names.
@@ -1056,6 +1056,7 @@ skill columns. The internal column names use the legacy IDs (`skill_prospecting`
 | 1 | Instability growth reduced by 1 per push (min 1) |
 | 2 | Growth reduced by 2; value gain per push increased by +1 |
 | 3 | Growth reduced by 3; value gain increased by +2; `evolution_chance` increased by +0.02 |
+| 4 | Phase cancellation array — reduces initial artifact instability according to the YAML effects block |
 
 Instability growth floors at 1 — even max upcycling cannot fully
 eliminate instability.
@@ -1068,8 +1069,7 @@ eliminate instability.
 | 2 | Irritation gain on mismatches eliminated (gain = 0 instead of 1) |
 | 3 | Match multiplier increased from 1.2× to 1.4× `base_multiplier`; one `desired_behaviors` revealed to player |
 
-Skill costs are defined in `content/skills.yml`. Cost scales per level (e.g.
-level 1 costs 10 scrap, level 2 costs 25, level 3 costs 50). Skill training
+Skill costs are defined entirely in `content/skills.yml`. Skill training
 does not cost AP.
 
 ### 6.7 Market Dynamics (Supply/Demand)
@@ -1616,7 +1616,7 @@ characters.json                    activities.json
 │ name: "J"  │──────FK────→│ char_id: "abc"          │
 │ score: 42          │             │ type: "prospecting"     │
 │ pending_activity_id│             │ phase: "processing"     │
-│ action_points: 15  │             │ artifact: {...}         │
+│ action_points: --  │             │ artifact: {...}         │
 └────────────────────┘             └─────────────────────────┘
 
   │
@@ -2642,7 +2642,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Prospecting activity** | `Activity::Prospecting` | Push/collapse/breakthrough math, stop → shed entry, activity-owned persistence |
 | **MarketVisit activity** | `Activity::MarketVisit`, `Controller::Market` | Customer generation, match-based selling, settle rolls, irritation tracking, empty shed guard, skill effects |
 | **ShedItem model** | `Model::ShedItem` | `shed.json` CRUD, per-character queries |
-| **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skills 0–4 |
+| **Character invariants** | `Model.pm` validate hook, `Model::Character` override | AP bounds, scrap non-negative, score never decreases, skill bounds per YAML max_level |
 | **Character column expansion** | `Model::Character` | `action_points`, `action_points_max`, skill columns |
 | **Prospecting/Market controllers** | `Controller::Prospecting`, `Controller::Market` | Thin dispatch+render, no persistence |
 | **Shed controller** | `Controller::Shed` | `GET /shed` with query-string filtering (condition, artifact_id, behavior, min/max value, sort, order); `respond_to` JSON/HTML |
@@ -2754,7 +2754,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
    decay pressure, market timing decisions, and inventory strategy —
    the player must decide when to sell, not just sell immediately.
 
-7. **Single action pool with weighted costs**: 15 AP/day shared across all
+7. **Single action pool with weighted costs**: 20 AP/day shared across all
    activities. Prospecting costs 2 AP (heavier commitment). Market visits cost
    1 AP (lighter commitment). This lets players choose their daily mix rather
    than forcing a fixed split.
