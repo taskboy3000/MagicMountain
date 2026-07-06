@@ -22,18 +22,19 @@ sub setup {
     my $a = $accts->create(username => 'player');
     $a->save;
 
-    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
-    $chars->create(
+    my $t = Test::Mojo->new('MagicMountain');
+
+    # Use the app's model instances to avoid mtime cache collisions (Model.pm
+    # keys its load cache by hashref memory address, which can collide when
+    # local model instances go out of scope and Perl reuses the address).
+    $t->app->characters->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $char = $chars->find(sub { 1 })->[0];
-    my $char_id = $char->getCol('id');
+    my $char_id = $t->app->characters->find(sub { 1 })->[0]->getCol('id');
 
-    # Add a shed item so shed fragment has content
-    my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
-    $shed->create(
+    $t->app->shed->create(
         char_id => $char_id,
         artifact_id => 'test_artifact_001',
         original_value => 20, decayed_value => 20,
@@ -43,7 +44,6 @@ sub setup {
         estimated_value_min => 16, estimated_value_max => 24,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
