@@ -413,9 +413,9 @@ then discarded. Token reset (`/admin/account/reset-token` or CLI
 | faction_sales | map | Per-faction sale count this season |
 | standing | map | Per-faction reputation integer |
 | pending_activity_id | string or null | FK to activities.json row. null when idle |
-| skill_prospecting | integer | 0–3, Prospecting skill level |
-| skill_upcycling | integer | 0–4, Upcycling skill level |
-| skill_selling | integer | 0–3, Selling skill level |
+| skill_prospecting | integer | 0–max (per YAML), Prospecting skill level |
+| skill_upcycling | integer | 0–max (per YAML), Upcycling skill level |
+| skill_selling | integer | 0–max (per YAML), Selling skill level |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
 | current_view | string | Last active view (idle/shed/factions/skills/account/market/prospecting). Managed by Nav controller — synced on every `/nav` response. Activity-only views invalidate when activity ends. |
 | loyalty_visits_since | integer | Consecutive market visits without seeing the player's top faction. Used by loyalty access guarantee (see §6.5 step 1). |
@@ -726,7 +726,7 @@ PlayerAccount ─── persists forever ─────────────
 A Model::Character may be deleted ONLY after:
 1. Season finalization creates a SeasonRecord
 2. All SeasonRecords are verified as stored
-3. All owned ShedItems are discarded (artifacts are forfeit at season end)
+3. All owned ShedItems are liquidated at 25% via clearance sale, then forfeit
 4. Then hard-deletion is permitted
 
 ### 5.12 Pressure (pressures.json)
@@ -842,6 +842,12 @@ When a player stops (not collapse, not breakthrough):
 
 No buyer offers are generated at stop time. Selling is a separate activity.
 
+**Player-facing value**: The player never sees the exact `decayed_value`.
+What is shown is either a fuzzy tier label (via `ValueTier::describe`) or the
+estimated range (`estimated_value_min`–`estimated_value_max`). The raw
+`decayed_value` and `original_value` are server-only — they are computed and
+stored but never rendered to the player.
+
 ### 6.4 Artifact Decay
 
 Decay is applied during daily maintenance. Managed by `MagicMountain::ShedManager`
@@ -900,8 +906,8 @@ prefer or even pay premiums for decayed artifacts.
 
 When a player starts a Market Visit (costs 1 AP):
 
-1. **Customer generation**: A customer is generated from the eligible faction
-   pool, with:
+1. **Customer generation** (read-only — does not modify state): A customer
+   struct is generated from the eligible faction pool, with:
    - `faction_id`, `faction_name`
    - `desired_behaviors` — a subset of the faction's interests (hidden from player)
    - `base_multiplier` — the faction's standard offer multiplier
@@ -994,9 +1000,13 @@ When a player starts a Market Visit (costs 1 AP):
       - +1 if 2nd+ sale to this faction (repeat customer bonus)
       - +1 if 4th+ sale to this faction (deep loyalty bonus)
     - Record transcript event
-    - Delete ShedItem
+    - Delete ShedItem (via `$self->app->shed->delete`)
     - With multi-item disabled: activity row deleted, `pending_activity_id` cleared
     - With multi-item enabled: activity persists, `pending_activity_id` stays set
+
+   All sale persistence goes through public Character/Shed APIs (`setCol`, `save`,
+   `delete`) — never internal model state. The generated customer struct itself is
+   never persisted as a standalone entity; it lives only in the activity row.
 
 5. **On failed/abandoned negotiation**:
    - **Mismatch under irritation threshold (counter-offers disabled)**: Artifact
@@ -1039,7 +1049,7 @@ skill columns. The internal column names use the legacy IDs (`skill_prospecting`
 | 2 | `base_value` increased by +4 total; weight doubled for artifacts with `base_value >= 8` (higher chance of rich finds) |
 | 3 | `base_gain_min` and `base_gain_max` each increased by +1 per push |
 
-**DEFRAG (upcycling, levels 1–3)** — reduces instability growth during pushes:
+**DEFRAG (upcycling, levels 1–4)** — reduces instability growth during pushes:
 
 | Level | Effect |
 |-------|--------|
@@ -1125,7 +1135,7 @@ days_since_purchase++).
 
 #### Implemented
 
-- **Random events (Phase 1)**: Personal events fire during `Prospecting::begin` (20% base chance). Three event pools defined: `content/events/prospecting.yml` (implemented), `content/events/market_visit.yml` (planned), `content/events/global.yml` (planned). Events use YAML-driven condition/effect dispatch tables with `Service::RandomEvents`. Six prospecting events shipped including catch-up rubberbanding via `score_lte`.
+- **Random events (Phase 1)**: Three event pools defined: `content/events/prospecting.yml` (fires during `Prospecting::begin`, 20% base chance), `content/events/market_visit.yml` (fires during `MarketVisit::begin`, 15% base chance), `content/events/global.yml` (fires during daily maintenance on `day_start` trigger, 60% base chance). All three are implemented. Events use YAML-driven condition/effect dispatch tables with `Service::RandomEvents`. Prospecting events include catch-up rubberbanding via `score_lte`.
 
 #### Planned (not yet implemented)
 
@@ -2222,7 +2232,7 @@ character.
   "player": {
     "name": "Joe",
     "action_points": 13,
-    "action_points_max": 15,
+    "action_points_max": 20,
     "scrap": 42,
     "score": 42,
     "faction_sales": { "syndicate": 2, "libremount": 1 },
@@ -2402,11 +2412,15 @@ simulation analysis, balance evaluation, and diagnostics. Events include:
 
 **Transcript lifecycle**: There is no request-scoped context. The transcript
 is a shared JSONL file (`transcript.jsonl`) with an open file handle in the
-app object. Activities write events directly via `$self->app->transcript->log_event({...})`,
-which appends one JSON line with an auto-populated `ts` (unix timestamp).
-The `_log_event` method inherited from `MagicMountain::Activity` provides a
-convenience wrapper that adds `type` and `narrative` to every event. No
-open/close/duration tracking is performed — events are fire-and-forget.
+app object. Activities write events via the API (`$self->app->transcript->log_event({...})`
+or the inherited `_log_event` wrapper), which appends one JSON line with an
+auto-populated `ts` (unix timestamp). No open/close/duration tracking is
+performed — events are fire-and-forget.
+
+**Transcript boundary**: Activities MAY record domain events through the
+transcript API (`log_event`), but they NEVER own the transcript lifecycle
+(creation, file handle, rotation) and NEVER access the file handle directly.
+The file handle and lifecycle belong to the app class (`MagicMountain.pm`).
 Bot events are written to a separate `transcript_bots.jsonl` file during
 maintenance to keep the game transcript readable.
 
@@ -2501,7 +2515,8 @@ These are non-negotiable rules for all content. The style guides in
 ### Characters & Deletion
 
 12. **Seasonal characters may be deleted only after** final SeasonRecord
-    creation succeeds. ShedItems are forfeit at season end.
+    creation succeeds. ShedItems are liquidated at 25% of decayed_value
+    via clearance sale, then forfeit at season end.
 
 ### Gameplay Invariants
 
@@ -2543,7 +2558,7 @@ These are non-negotiable rules for all content. The style guides in
 
 ### Shed & Decay
 
-22. **Shed items are forfeit at season end.** They are never carried over.
+22. **Shed items are forfeit at season end.** They are never carried over. Before forfeit, the clearance sale liquidates unsold items at 25% of decayed_value, awarding scrap and score to the character.
 
 23. **Estimated values are ranges, not exact figures.** The player sees
     `estimated_value_min` and `estimated_value_max`, never the precise
