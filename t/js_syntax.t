@@ -5,13 +5,14 @@ use FindBin;
 use lib ("$FindBin::Bin/lib");
 use TestEnv;
 
-my $js = 'public/js/game.js';
-ok -f $js, "$js exists";
+for my $js (qw(public/js/game.js public/js/ambient.js)) {
+    ok -f $js, "$js exists";
 
-my $output = `node --check '$js' 2>&1`;
-my $exit   = $? >> 8;
+    my $output = `node --check '$js' 2>&1`;
+    my $exit   = $? >> 8;
 
-is $exit, 0, "node --check $js exits 0"
-    or diag $output;
+    is $exit, 0, "node --check $js exits 0"
+        or diag $output;
+}
 
 done_testing;

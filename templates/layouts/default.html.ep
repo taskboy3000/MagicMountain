@@ -17,6 +17,7 @@
       <a href="https://github.com/taskboy3000/MagicMountain" style="color:inherit;text-decoration:none;border-bottom:1px dotted rgba(255,255,255,0.15)" target="_blank" rel="noopener">Magic Mountain on GitHub</a>
     </footer>
 % unless (current_player) {
+<script src="/js/ambient.js?<%= (stat app->home->child('public/js/ambient.js'))[9] // 0 %>"></script>
 <script>
 let _pendingDisplayName = '';
 const panel = document.getElementById('panel-primary');
@@ -41,6 +42,7 @@ async function showTokenPrompt() {
       errEl.style.display = 'block';
       return;
     }
+    if (typeof window.stopAmbient === 'function') window.stopAmbient(500);
     window.location.href = '/game';
   });
 }
@@ -71,14 +73,14 @@ async function showRecoveryForm() {
 
 async function showCredentials() {
   const resp = await fetch('/sessions/credentials?_format=fragment');
-  if (resp.status === 204) { window.location.href = '/game'; return; }
+  if (resp.status === 204) { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '/game'; return; }
   panel.innerHTML = await resp.text();
 }
 
 panel.addEventListener('click', (ev) => {
   if (ev.target.id === 'forgot-token-link') showRecoveryForm();
   if (ev.target.id === 'back-to-token-link') showTokenPrompt();
-  if (ev.target.id === 'continue-btn') window.location.href = '/game';
+  if (ev.target.id === 'continue-btn') { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '/game'; }
 });
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -110,6 +112,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     showCredentials();
     return;
   }
+  if (typeof window.stopAmbient === 'function') window.stopAmbient(500);
   window.location.href = '/game';
 });
 </script>

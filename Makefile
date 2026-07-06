@@ -15,7 +15,7 @@ test-perl:
 	MOJO_MODE=test prove t
 
 test-js:
-	node -c public/js/game.js && echo "JS syntax OK"
+	node -c public/js/ambient.js && node -c public/js/game.js && echo "JS syntax OK"
 
 clean:
 	rm -rf t/cover_db coverage
