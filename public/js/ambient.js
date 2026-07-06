@@ -6,6 +6,10 @@
     var noiseSource = null;
     var droneOsc = null;
     var lfo = null;
+    var noisePanner = null;
+    var noisePanLfo = null;
+    var chirpPanner = null;
+    var panLfo = null;
     var timerIds = [];
     var stopped = false;
 
@@ -26,7 +30,7 @@
         }
 
         masterGain = ctx.createGain();
-        masterGain.gain.value = 1;
+        masterGain.gain.value = 0.25;
         masterGain.connect(ctx.destination);
 
         var buf = randomBuf(4, ctx.sampleRate);
@@ -37,18 +41,31 @@
         var lowpass = ctx.createBiquadFilter();
         lowpass.type = 'lowpass';
         lowpass.frequency.value = 800;
-        lowpass.Q.value = 1;
+        lowpass.Q.value = 2;
 
         lfo = ctx.createOscillator();
-        lfo.frequency.value = 0.15;
+        lfo.frequency.value = 0.075;
         var lfoGain = ctx.createGain();
-        lfoGain.gain.value = 300;
+        lfoGain.gain.value = 600;
         lfo.connect(lfoGain);
         lfoGain.connect(lowpass.frequency);
         lfo.start();
 
+        noisePanner = ctx.createStereoPanner();
+        noisePanner.pan.value = 0;
+
+        noisePanLfo = ctx.createOscillator();
+        noisePanLfo.type = 'sine';
+        noisePanLfo.frequency.value = 0.015;
+        var noisePanGain = ctx.createGain();
+        noisePanGain.gain.value = 0.5;
+        noisePanLfo.connect(noisePanGain);
+        noisePanGain.connect(noisePanner.pan);
+        noisePanLfo.start();
+
         noiseSource.connect(lowpass);
-        lowpass.connect(masterGain);
+        lowpass.connect(noisePanner);
+        noisePanner.connect(masterGain);
         noiseSource.start();
 
         droneOsc = ctx.createOscillator();
@@ -60,11 +77,24 @@
         droneGain.connect(masterGain);
         droneOsc.start();
 
+        chirpPanner = ctx.createStereoPanner();
+        chirpPanner.pan.value = 0;
+        chirpPanner.connect(masterGain);
+
+        panLfo = ctx.createOscillator();
+        panLfo.type = 'sine';
+        panLfo.frequency.value = 0.03;
+        var panLfoGain = ctx.createGain();
+        panLfoGain.gain.value = 0.75;
+        panLfo.connect(panLfoGain);
+        panLfoGain.connect(chirpPanner.pan);
+        panLfo.start();
+
         scheduleNextChirp();
     }
 
     function scheduleNextChirp() {
-        var delay = 20000 + Math.random() * 20000;
+        var delay = 10000 + Math.random() * 10000;
         var id = setTimeout(function () {
             playChirp();
             var idx = timerIds.indexOf(id);
@@ -75,23 +105,29 @@
     }
 
     function playChirp() {
-        if (!ctx || stopped) return;
-        var burst = randomBuf(0.08, ctx.sampleRate);
-        var source = ctx.createBufferSource();
-        source.buffer = burst;
-
-        var bandpass = ctx.createBiquadFilter();
-        bandpass.type = 'bandpass';
-        bandpass.frequency.value = 2000;
-        bandpass.Q.value = 15;
-
-        var chirpGain = ctx.createGain();
-        chirpGain.gain.value = 0.15;
-
-        source.connect(bandpass);
-        bandpass.connect(chirpGain);
-        chirpGain.connect(masterGain);
-        source.start();
+        if (!ctx || stopped || !chirpPanner) return;
+        var numNotes = 1 + Math.floor(Math.random() * 3);
+        var baseTime = ctx.currentTime;
+        for (var i = 0; i < numNotes; i++) {
+            var noteTime = baseTime + (i === 0 ? 0 : 0.5 + Math.random() * 0.75);
+            var freq = 4000 + Math.random() * 4000;
+            var vol = 0.6 * Math.pow(0.7, i);
+            var dur = 0.04 + Math.random() * 0.04;
+            var burst = randomBuf(dur, ctx.sampleRate);
+            var source = ctx.createBufferSource();
+            source.buffer = burst;
+            var bandpass = ctx.createBiquadFilter();
+            bandpass.type = 'bandpass';
+            bandpass.frequency.value = freq;
+            bandpass.Q.value = 15;
+            var noteGain = ctx.createGain();
+            noteGain.gain.value = vol;
+            source.connect(bandpass);
+            bandpass.connect(noteGain);
+            noteGain.connect(chirpPanner);
+            source.start(noteTime);
+            source.stop(noteTime + dur);
+        }
     }
 
     function onVisibilityChange() {
@@ -103,19 +139,24 @@
         }
     }
 
-    function setupGestureListener() {
-        var input = document.getElementById('display-name');
-        if (!input) return;
-        input.addEventListener('pointerdown', function () {
-            init();
-            if (ctx && ctx.state === 'suspended') ctx.resume();
-        }, { once: true });
+    var started = false;
+
+    function startOnGesture() {
+        if (started) return;
+        started = true;
+        init();
+        if (ctx && ctx.state === 'suspended') ctx.resume();
     }
+
+    function setupGestureListener() {
+        document.addEventListener('click', startOnGesture);
+        document.addEventListener('keydown', startOnGesture);
+    }
+
+    setupGestureListener();
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', setupGestureListener);
-    } else {
-        setupGestureListener();
     }
     document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -135,6 +176,8 @@
             try { if (noiseSource) noiseSource.stop(); } catch (e) { /* ok */ }
             try { if (droneOsc) droneOsc.stop(); } catch (e) { /* ok */ }
             try { if (lfo) lfo.stop(); } catch (e) { /* ok */ }
+            try { if (noisePanLfo) noisePanLfo.stop(); } catch (e) { /* ok */ }
+            try { if (panLfo) panLfo.stop(); } catch (e) { /* ok */ }
         }, durationMs || 500);
     };
 }());
