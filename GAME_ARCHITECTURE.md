@@ -92,8 +92,8 @@ Visual language:
 
 ```
 Login/join season
-  → Each day: 15–20 Action Points (AP, configurable via `default_action_points`, default 20)
-    → Prospecting (costs 2 AP)
+  → Each day: 20 Action Points (AP, configurable via `default_action_points`, default 20). AP are fully refreshed at day rollover — unused AP are lost.
+    → Prospecting (costs `prospect_ap_cost`, default 2 AP)
       → Artifact is drawn from weighted pool
       → Random event may fire (personal, per-character, 20% base chance per begin)
         → Events apply immediate effects: scrap, score, artifact value/instability,
@@ -135,7 +135,8 @@ Login/join season
 
 ### Key structural rules:
 - Prospecting and selling are **separate activities** with different AP costs.
-  Prospecting costs 2 AP. Market visits cost 1 AP.
+  Prospecting costs `prospect_ap_cost` (default 2 AP, overridable by global events
+  via `daily_modifiers.prospect_ap_cost`). Market visits cost 1 AP.
 - Artifacts enter the Shed after prospecting. Selling happens later, possibly
   on a different day.
 - AP are refreshed fully at day rollover. Unused AP are lost.
@@ -201,12 +202,14 @@ needed.
 Mojo::IOLoop (every 60s) → Maintenance::dailyMaintenance
   │
   ├── Check: is it time? (compare now against next_run)
+  ├── Backup data files to date-stamped directory
   ├── Set in_maintenance flag (gates write routes → HTTP 503)
   ├── Advance next_run to next day
   ├── Invoke on_maintenance callback
-  │     (extension point for: run NPC bot daily actions (before day advance),
-  │      increment season.day, refresh AP, apply artifact decay,
-  │      generate Crier message, capture faction snapshots, check season end)
+  │     (see §8.1 for full 15+ step sequence including: bot daily runs,
+  │      clearing daily_modifiers, increment season.day, refresh AP,
+  │      artifact decay, faction climate, global events, crier,
+  │      faction snapshots, transcript logging, check season end)
   └── Clear in_maintenance flag
 ```
 
@@ -245,7 +248,7 @@ second coordinator layered over one that already exists.
 **The real architectural rule is not "all gameplay must go through Engine."**
 It is: *gameplay behavior must not leak into controllers, raw state hashes,
 timers, or persistence plumbing.* That rule is satisfied by focused service
-classes (Activity, Market, Shed, Model::Character) without a central dispatcher.
+classes (Activity, Shed, Model::Character) without a central dispatcher.
 
 **Daily maintenance is an application lifecycle concern, not an ad hoc game
 action.** Mojolicious is the correct place to schedule it. The maintenance
@@ -282,7 +285,6 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
 | **Shed** (inventory manager) | ShedItem rows in `shed.json`, decay logic in `ShedManager.pm`, query/filter by traits | Market, Faction objects, Account model |
-| **Market** (customer generator) | Faction objects, content reference, customer generation | Character model, Account model, Shed |
 | **Model::Character** | App reference (for association accessors), file path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skills 0–4), association accessors: `prospecting_view()`, `market_view()`, `shed_items()`, `player_skills()` | Game math, artifact logic, state mutation outside of CRUD |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
 | **Model::Account** | File path, column definitions, JSON CRUD | Game logic, season data, character data |
@@ -295,7 +297,7 @@ Each module has strict constraints on what it may and must never hold.
 | **ValueTier** (pure function) | Static threshold/label table | App reference, game state, model objects |
 | **Artifact** (view model) | Artifact data hash, `value_label`, `icon_url`, `stage_badge_css` | Game logic, persistence |
 | **Customer** (view model) | Customer data hash, `faction_id`, `faction_name`, `faction_icon_url`, `portrait_url`, `pressure_state`, `pressure_label` | Game logic, persistence |
-| **Content** (YAML loader) | Directory path, parsed YAML data | Model persistence, game rules |
+| **Content** (YAML helpers via MagicMountain.pm) | Per-file stateful YAML loaders registered as app helpers (`factions_data`, `skills_data`, `references_data`, `advisories`, `negotiation_reactions`, `customer_portraits`) | Model persistence, game rules, URL construction |
 | **SeasonReport** (recap builder) | Plain data inputs, `log` coderef | Model objects, app reference, game logic, formatting, HTML |
 | **Service::SkillTraining** (service) | App reference, `skills_data` helper, Model::Character queries | Game rules, view logic, URL construction |
 | **Service::Navigation** (service) | App reference, tab/fragment mappings, nav state logic | Game rules, persistence, template rendering |
@@ -304,7 +306,9 @@ Each module has strict constraints on what it may and must never hold.
 | **Service::RandomEvents** (service) | App reference, condition/effect dispatch tables, YAML event pools, range resolution, weighted selection | Character models, Market, Faction objects, transcript references, persistence operations (read-only — callers persist event counts) |
 | **Service::Authentication** (service) | App reference, bcrypt cost/salt, token/recovery/remember-token generation + verification, account `new_account`/`reset_token`/`recover_account`/`ban`/`unban`/`admin_authenticate` | Direct persistence (mutates Account columns via Account model API), session management, character data, game logic |
 | **Service::BotRunner** (service) | App reference (`prospecting`, `market`, `shed`), optional `transcript` for bot event logging | Direct model mutation except through Activity dispatch. Writes bot events to separate transcript file. |
-| **Transcript** (event recorder) | File handle, app reference (for request context) | Game rules, account management |
+| **Service::Dominance** (service) | App reference, faction profiles from YAML, calculate_climate | Character data, market negotiation state, persistence (read-only — writes via season model API) |
+| **Service::PvP** (service) | App reference, pressure stack CRUD, effect-type registry, reaction text from YAML | Character state mutation outside of `apply_pressure`, market negotiation logic |
+| **Transcript** (event recorder) | File handle, app reference | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
 | **Bot** (automated player) | Policy name, parameters, activity access | Direct persistence (uses same models and activities as controllers) |
 
@@ -385,9 +389,14 @@ then discarded. Token reset (`/admin/account/reset-token` or CLI
 | day | integer | Current season day (starts at 1) |
 | length | integer | Total days in this season |
 | end_of_day_hour | integer | Hour (0–23) when maintenance fires for day rollover |
-| faction_state | map | Per-faction influence, artifacts_received, intake_by_trait, and name |
+| faction_state | map | Per-faction influence, artifacts_received, daily_intake, days_since_purchase, intake_by_trait, and name. Updated on every sale. |
+| faction_climate | map or null | Current dominant faction climate: prospecting draw_biases, starting_instability_mod, market budget/patience/trait_biases, crier_text. Computed by `Service::Dominance::calculate_climate` during maintenance. |
 | crier_message | string or null | Most recent Town Crier narrative text, generated during maintenance |
 | crier_snapshot | map or null | Copy of faction_state from previous day, used for crier diffing |
+| daily_modifiers | map or null | Per-day global modifiers set by global events: `instability_growth_delta`, `artifact_value_mult`, `market_multiplier_delta`, `prospect_ap_cost`, `collapse_mult`. Cleared at the start of each maintenance cycle. |
+| global_event_text | string or null | Narrative text of the most recent global event, drawn from `content/events/global.yml` during maintenance. Cleared daily. Read by Crier with priority over faction-diff messages. |
+| personal_event_counts | map or null | Per-character event occurrence tracking for catch-up/rubberbanding. |
+| last_maintenance | timestamp | Unix epoch of the most recent maintenance completion. Used by catch-up logic on server restart. |
 
 ### 5.3 Model::Character (one per player per season)
 
@@ -420,9 +429,11 @@ then discarded. Token reset (`/admin/account/reset-token` or CLI
 | onboarding | integer | Bitmask of revealed tabs (1=bazaar, 2=factions, 4=skills, 8=intel). Set progressively as player hits milestones; all bits set on fast-track for returning players. |
 | pending_notices | integer | Bitmask of un-dismissed onboarding notice cards. Cleared as player dismisses each notice via `/onboarding/dismiss-notice`. |
 
-> `turns_remaining` has been replaced by `action_points` / `action_points_max`.
-> The old "lazy rollover" design using `last_refreshed_day` was already removed
-> in favor of in-process maintenance AP refresh.
+> `turns_remaining` is still present in the column declaration but is
+> vestigial — never read or updated during gameplay. It was set by the
+> `create_season` command for legacy support. The old "lazy rollover" design
+> using `last_refreshed_day` was already removed in favor of in-process
+> maintenance AP refresh.
 
 **Invariants enforced by Model::Character:**
 - `action_points` cannot go below zero and cannot exceed `action_points_max`
@@ -500,6 +511,7 @@ returns to `'idle'`, the row is deleted and the FK cleared.
 | phase | string | State-machine phase (varies by type) |
 | artifact | hashref or null | Live artifact state (prospecting only, null when idle) |
 | customer | hashref or null | Current customer state (market_visit only, null when idle) |
+| pending_event | hashref or null | Active choice event awaiting resolution (prospecting only). Set when a choice-type random event fires; cleared after `resolve_event`. |
 | createdAt | unix timestamp | Row creation time |
 | updatedAt | unix timestamp | Last save time |
 
@@ -510,8 +522,10 @@ MarketVisit activity.
 The `customer` column shape during negotiating includes market dynamics
 state: faction_id, faction_name, desired_behaviors, base_multiplier
 (the faction's static rate, before saturation/appetite/desperation adjustments
-from §6.7 are applied). The effective multiplier is computed at offer time
-by `_dynamic_multiplier()`.
+from §6.7 are applied). Also stores `portrait_id`, `disposition`,
+`climate_trait_biases` (from faction climate, see §7.5), `pending_counter`,
+`last_message`, and `last_sale`. The effective multiplier is computed at
+offer time by `_dynamic_multiplier()`.
 
 **Prospecting — artifact column shape** (same as before):
 
@@ -544,17 +558,21 @@ by `_dynamic_multiplier()`.
 {
   "faction_id": "syndicate",
   "faction_name": "The Syndicate",
+  "disposition": "commercial_resale",
+  "portrait_id": "syndicate_merchant_01",
   "desired_behaviors": ["thermal", "storage", "power"],
   "base_multiplier": 1.1,
   "irritation": 2,
   "irritation_threshold": 4,
   "settle_chance": 0.15,
-  "offer_value": null,
-  "offer_text": null,
   "soft_budget": 120,
   "absolute_budget": 144,
   "spent_so_far": 0,
-  "loyalty_free_mismatches": 0
+  "loyalty_free_mismatches": 0,
+  "last_message": null,
+  "pending_counter": null,
+  "last_sale": null,
+  "climate_trait_biases": {}
 }
 ```
 
@@ -757,6 +775,10 @@ Each push operation:
 
 2. **Instability growth**: `growth = instability_growth_min + random_int(0, instability_growth_max - instability_growth_min)`
    - The random component uses a uniform distribution for the integer range
+   - Global events may set `daily_modifiers.instability_growth_delta` which is
+     added to growth. The per-character upcycling skill's
+     `instability_growth_reduction` from `content/skills.yml` is subtracted
+     (growth floors at 1).
 
 3. **Stage determination**: `ratio = instability / max_instability`
    - `ratio <= stable_threshold` → "stable"
@@ -764,17 +786,19 @@ Each push operation:
    - `ratio > strained_threshold` → "unstable"
    - Default thresholds: `stable: 0.30`, `strained: 0.65` (set in `state_thresholds` per artifact spec)
 
- 4. **Collapse check**: Zero below `stable` threshold; above it the curve is shifted
-    so collapse starts at 0 at the threshold boundary:
-    ```
-    if ratio > stable_threshold:
-        stressed = (ratio - stable_threshold) / (1 - stable_threshold)
-        collapse_chance = (stressed³) × 0.80
-    ```
-    - Clamped to maximum 100%
-    - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
-    - Collapse is total loss: artifact destroyed, player gets nothing,
-      activity row deleted
+  4. **Collapse check**: Zero below `stable` threshold; above it the curve is shifted
+     so collapse starts at 0 at the threshold boundary:
+     ```
+     if ratio > stable_threshold:
+         stressed = (ratio - stable_threshold) / (1 - stable_threshold)
+         collapse_chance = (stressed³) × 0.80 × collapse_mult
+     ```
+     - `collapse_mult` comes from `daily_modifiers.collapse_mult` (set by global events).
+       Default is 1.0. This allows global events to increase or decrease collapse severity.
+     - Clamped to maximum 100%
+     - Roll uniform random [0,1); if roll < collapse_chance → **COLLAPSE**
+     - Collapse is total loss: artifact destroyed, player gets nothing,
+       activity row deleted
 
 5. **Evolution check** (only if collapse did not occur, `can_evolve` is true,
    `has_evolved` is false, AND `ratio >= evolution_threshold`):
@@ -791,7 +815,9 @@ Each push operation:
 
 6. **Value gain** (if no collapse and no breakthrough):
    - `gain = base_gain_min + random_int(0, base_gain_max - base_gain_min)`
-   - `gain` is further increased by `upcycling_level - 1` when upcycling >= 2 (so +1 at level 2, +2 at level 3)
+   - `gain` is further increased by the upcycling `value_gain_bonus` from
+     `content/skills.yml` (not `upcycling_level - 1` — the bonus is defined
+     per-level in the YAML effects block)
    - `artifact.value += gain`
    - A random signal text is selected from the YAML spec for the current stage
 
@@ -887,9 +913,10 @@ When a player starts a Market Visit (costs 1 AP):
    - `spent_so_far` — cumulative value of all purchases this visit (starts 0)
 
    Customer selection is standing-weighted: each faction's weight starts at 1.0
-   and increases by +0.5 per point of personal standing with that faction. The
-   higher a player's standing with a faction, the more likely its customers
-   appear.
+   and increases by +0.25 per point of personal standing with that faction
+   (standing capped at 10 for weight calculation). Each prior snub (send_away
+   or storm-off) subtracts 0.25 from weight, floored at 0.2. The higher a
+   player's standing with a faction, the more likely its customers appear.
 
 **Loyalty access guarantee**: If the player has 2+ sales to a single top
     faction and the rolled customer is from a different faction, a `loyalty_visits_since`
@@ -1222,13 +1249,14 @@ If the answer to #2 is yes, rewrite the line until only one faction could have
 spoken those words. No faction is a cartoon villain or paladin; each sincerely
 believes its own worldview and is never written as lying to the player about it.
 
-**Presentation contract**: the static `disposition` label currently surfaced by
-`Market#begin` ("commercial_resale", "sacred_custody", "destruction") is
-exposition — it tells rather than shows. It will be superseded by an
-in-character **arrival line** drawn from faction-voiced content
-(`content/flavor/negotiation_reactions.yml` `arrival:` category, planned). The
-label remains a server-only classification for styling and commodity hooks; it is
-not displayed to the player.
+**Presentation contract**: the static `disposition` label ("commercial_resale",
+"sacred_custody", "destruction") is exposition — it tells rather than shows.
+It is currently returned to the client but not directly displayed to the
+player. It will eventually be superseded by an in-character **arrival line**
+drawn from faction-voiced content (`content/flavor/negotiation_reactions.yml`
+`arrival:` category, **not yet implemented**). The `disposition` label is a
+server-only classification for styling and commodity hooks; it should not
+be displayed to the player.
 
 ### 7.4 Commission System — Planned
 
@@ -1256,6 +1284,63 @@ player and may issue a commission:
   new prospecting attempt. At 0, the commission expires.
 - **Constraints**: At most ONE active commission. No quest-acceptance UI
   required. Player may always ignore the commission.
+
+### 7.5 Faction Climate / Dominance
+
+Each day during maintenance, `Service::Dominance::calculate_climate` computes
+which faction has the highest influence (`faction_state.influence`). If the
+influence margin between leader and runner-up exceeds a threshold (contested ≤4,
+leading ≤12, strong ≤24, dominant >24), the leader's climate profile applies.
+Climate profiles are defined per-faction in `content/factions.yml` under a
+`climate` key:
+
+```yaml
+climate:
+  budget_delta: 10           # Adds to soft_budget in MarketVisit
+  patience_delta: 1          # Adds to irritation_threshold (dominant faction only)
+  draw_biases:               # Prospecting: boosts certain behavior weights
+    thermal: 1.5
+  starting_instability_mod: -1  # Reduces starting instability
+  buyer_trait_biases:        # Market: premium for certain traits
+    force: 0.10
+```
+
+All deltas are scaled by intensity factor (1× for leading, 1.5× for strong,
+2× for dominant). The resulting climate object is stored in
+`season.faction_climate` and affects:
+
+| Mechanic | Effect | Source |
+|----------|--------|--------|
+| Prospecting draw biases | Multiplies artifact behavior weights during draw | `climate.draw_biases` |
+| Starting instability | Modifies base instability of drawn artifacts | `climate.starting_instability_mod` |
+| Buyer budgets | Adds/subtracts from soft_budget | `climate.budget_delta` |
+| Buyer patience | Adds to irritation_threshold (dominant only) | `climate.patience_delta` |
+| Buyer trait biases | Adds multiplier to match offers for specific traits | `climate.buyer_trait_biases` |
+| Crier text | Generates per-faction headline/hint for Town Crier | `climate → crier_text` |
+
+The climate object also generates `crier_text` for the Town Crier, providing
+in-character narrative about market conditions. Climate is recalculated daily
+and stored on the season model (not appended — replaced each cycle).
+
+### 7.6 Global Events & Daily Modifiers
+
+Global events are drawn from `content/events/global.yml` with trigger
+`day_start` during maintenance (60% base chance). Unlike personal events,
+they affect the entire season for one day by setting `daily_modifiers` keys
+on the season:
+
+| Modifier Key | Effect | Default |
+|-------------|--------|---------|
+| `instability_growth_delta` | Added to instability growth per push | 0 |
+| `artifact_value_mult` | Multiplier on base_value during artifact draw | 1.0 |
+| `market_multiplier_delta` | Added to market dynamic_multiplier | 0 |
+| `prospect_ap_cost` | AP cost for `Prospecting::begin` | 2 |
+| `collapse_mult` | Multiplier applied to collapse chance formula | 1.0 |
+
+Modifiers are cleared at the start of each maintenance cycle (before the new
+day's event is drawn), so they last exactly one day. Condition gating uses
+the same `conditions` system as personal events (see `Service::RandomEvents`),
+with a `global`-pool condition registry that includes `any_faction_days_no_buy_gte`.
 
 ---
 
@@ -1288,24 +1373,61 @@ maintenance_window_minutes: 5   # reserved — route guard is currently a simple
 **`on_maintenance` callback** (day-rollover logic):
 
 This callback is the single place where day-advancement logic lives. It
-receives the Maintenance object (`$self`). Implementation:
+receives the Maintenance object (`$self`). Implementation (executed in this
+exact order):
 
-1. Increment `season.day` by 1
-2. For every Model::Character: reset `action_points` to `action_points_max`
-3. Apply artifact decay to every ShedItem (see 6.4)
-4. Generate Town Crier message: diff current `faction_state` against
-   `crier_snapshot`, select highest-priority message template, fill with
-   faction name and values. Store in `crier_message`.
-5. Update `crier_snapshot` to current `faction_state`.
-6. Write FactionSnapshot rows: for each faction in `faction_state`, create
-   a snapshot row with season_id, day, faction_id, influence,
-   artifacts_received, intake_by_trait.
-7. **Reset market dynamics state**: For each faction in `faction_state`:
+1. **Bot daily runs** (only when NOT catching up): If bots are configured
+   (`bots.count > 0`), seed RNG with season_id + day, shuffle bot characters,
+   and run each bot's daily cycle via `BotRunner::run_day`. Bot events are
+   written to a separate transcript file (`transcript_bots.jsonl`) to keep
+   the main game transcript clean.
+
+2. **Clear yesterday's modifiers**: `daily_modifiers` and `global_event_text`
+   are cleared to make way for the new day's global events.
+
+3. **Increment `season.day`** by 1
+
+4. **For every Model::Character**: reset `action_points` to
+   `action_points_max` (default 20, configurable)
+
+5. **Apply artifact decay** to every ShedItem (see 6.4)
+
+6. **Reset market dynamics state**: For each faction in `faction_state`:
    `daily_intake = 0` and `days_since_purchase++`.
-8. Log transcript event with full faction_state.
-9. Preserve activity rows — in-progress prospecting survives rollover
-10. If `season.day > season_length`, emit a warning (season end is manual)
-11. Record `season.last_maintenance` as a Unix epoch timestamp for catch-up
+
+7. **Faction climate calculation**: `Service::Dominance::calculate_climate`
+   computes the dominant faction based on influence ranking, scales their
+   climate profile by intensity tier (contested/leading/strong/dominant),
+   and writes `faction_climate` to the season. Climate affects prospecting
+   draw biases, buyer budgets/patience, and crier text.
+
+8. **Global event draw**: `Service::RandomEvents::draw` selects from
+   `content/events/global.yml` with trigger `day_start`. If an event fires,
+   its effects are applied to the season (setting `daily_modifiers` keys
+   like `instability_growth_delta`, `artifact_value_mult`, etc.) and
+   `global_event_text` is stored for Crier priority.
+
+9. **Generate Town Crier message**: Crier reads `global_event_text` first
+   (highest priority). If none, it diffs current `faction_state` against
+   `crier_snapshot`, selects the highest-priority message template (faction
+   dominance, surge, milestone, slump, daily progress, or generic), and
+   stores the result in `crier_message`.
+
+10. **Update `crier_snapshot`** to current `faction_state`.
+
+11. **Write FactionSnapshot rows**: For each faction in `faction_state`,
+    create a snapshot row with season_id, day, faction_id, influence,
+    artifacts_received, intake_by_trait.
+
+12. **Log transcript event** with full faction_state and crier message.
+
+13. **Record `season.last_maintenance`** as a Unix epoch timestamp.
+
+14. **Preserve activity rows** — in-progress prospecting/market visits
+    survive rollover naturally (no explicit cleanup).
+
+15. **If `season.day > season_length`**, emit a warning (season end is
+    manual — the game does not auto-finalize).
 
 **Catch-up on server restart** (`_catch_up_maintenance`):
 
@@ -2037,12 +2159,13 @@ ShedItem with estimated value range. Deletes activity row. Returns shed item
 summary to client.
 
 **Market#begin**: Requires `action_points >= 1` and no active activity.
-Deducts 1 AP. Generates customer. Creates activity row with phase
-`negotiating`. Returns customer info (faction name, arrival line — NOT
-desired_behaviors, NOT the static `disposition` label, which is server-only).
-The arrival line is an in-character greeting drawn from
-`content/flavor/negotiation_reactions.yml` that sharply expresses the faction's
-worldview (see §7.3).
+May fire a random event (15% base chance, see §12.1). If no event, deducts
+1 AP, generates a weighted customer, and creates an activity row with phase
+`negotiating`. Returns `{ faction_id, faction_name, disposition }`. The
+`disposition` label is server-only — it is NOT displayed to the player.
+An in-character **arrival line** from `negotiation_reactions.yml` is planned
+but NOT yet implemented (§7.3). If Selling skill >= 3, one `desired_behaviors`
+tag is revealed as `revealed_behavior`.
 
 **Market#offer**: Requires activity `type == "market_visit"` and
 `phase == "negotiating"`. Receives `shed_item_id` in request body.
@@ -2150,14 +2273,24 @@ Bots are automated players that invoke the same service classes as the web
 controllers. The simulate CLI command reads artifact content, iterates through
 a population of bots, and calls `Activity::Prospecting`, `Activity::MarketVisit`,
 `Shed`, and `Model::Character` mutators directly — producing game outcomes
-identical to human play. The simulation framework lives across three layers:
+identical to human play. Additionally, during daily maintenance,
+`Service::BotRunner` runs each bot's daily cycle (prospect, visit market, apply
+PvP pressure) using the same activity dispatch path as human players. The
+simulation framework lives across four layers:
 
 - **`MagicMountain::Bot::PushPolicy`** — stateless evaluation of push/stop
   decisions given character state, artifact state, and policy parameters.
 - **`MagicMountain::Bot::SellPolicy`** — stateless evaluation of three
   selling decisions: accept customer, offer item, try another after mismatch.
-- **`Command::simulate`** — orchestrates the simulation loop, creates bot
-  accounts/characters, drives prospecting and market phases, calls policies,
+- **`MagicMountain::Bot::PressurePolicy`** — stateless evaluation of PvP
+  pressure decisions. Bots press rivals on factions they sell to, using a
+  per-profile `pvp_aggressiveness` field (default global: `pvp_bot_aggressiveness`, 0.20).
+- **`MagicMountain::Service::BotRunner`** — orchestrates the daily bot cycle.
+  Called during maintenance (before day advance, only when not catching up).
+  Loads bot characters, shuffles for fairness, runs each bot's day via
+  `run_day()`, writing bot events to a separate transcript (`transcript_bots.jsonl`).
+- **`Command::simulate`** — CLI orchestrator for the simulation loop, creates
+  bot accounts/characters, drives prospecting and market phases, calls policies,
   and records transcripts.
 
 ### 14.1 CLI Interface
@@ -2267,12 +2400,15 @@ simulation analysis, balance evaluation, and diagnostics. Events include:
 `market_visit`, `offer`, `sale`, `sim_start`, `sim_end`, and future
 `commission_triggered`, `commission_fulfilled`, `commission_expired`.
 
-**Transcript lifecycle**: The app class opens a transcript context on each
-request, capturing session, player, endpoint, and timestamp. Activities
-enrich the transcript with game events during their execution. The app
-class closes the transcript with duration and outcome after the response
-is rendered. No single module is the sole transcript writer — the app,
-activities, and future diagnostics all contribute to the same event stream.
+**Transcript lifecycle**: There is no request-scoped context. The transcript
+is a shared JSONL file (`transcript.jsonl`) with an open file handle in the
+app object. Activities write events directly via `$self->app->transcript->log_event({...})`,
+which appends one JSON line with an auto-populated `ts` (unix timestamp).
+The `_log_event` method inherited from `MagicMountain::Activity` provides a
+convenience wrapper that adds `type` and `narrative` to every event. No
+open/close/duration tracking is performed — events are fire-and-forget.
+Bot events are written to a separate `transcript_bots.jsonl` file during
+maintenance to keep the game transcript readable.
 
 ---
 
