@@ -35,6 +35,7 @@ sub show ($self) {
         $activity->save;
     }
 
+    my $sell = $char->getCol('skill_selling') // 0;
     my $customer = $c ? MagicMountain::Customer->new({
         %$c,
         faction_icon_url => $faction_icon_url,
@@ -42,6 +43,10 @@ sub show ($self) {
         pressure_label   => $pressure ? $pressure->{display} : undef,
         last_sale        => $last_sale,
         last_message     => $last_message,
+        ($sell >= 3 ? (
+            budget_min => $c->{soft_budget},
+            budget_max => $c->{absolute_budget},
+        ) : ()),
     }) : undef;
 
     my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });

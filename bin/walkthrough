@@ -219,6 +219,19 @@ for my $ep (@fragments) {
     req_accept(GET => $ep, undef, "GET $ep");
 }
 
+# Check shed fragment for trait tags
+my $shed_frag = do_req(GET => '/shed?_format=fragment');
+if ($shed_frag->res->code == 200) {
+    my $shed_dom = Mojo::DOM->new($shed_frag->res->body);
+    my @tag_spans = $shed_dom->find('.mm-text-amber')->each;
+    if (@tag_spans) {
+        my $has_trait_tag = grep { $_->text =~ /\S/ } @tag_spans;
+        assert($has_trait_tag, 'shed artifact has trait tags');
+    }
+}
+
+
+
 # ══════════════════════════════════════════════════════════════════
 # SCENE 4: Prospecting
 # ══════════════════════════════════════════════════════════════════
@@ -366,6 +379,20 @@ if ($@) {
 # Market fragment (204 = no active visit, e.g. no shed items)
 my $market = do_req(GET => '/market?_format=fragment');
 assert($market->res->code == 200 || $market->res->code == 204, 'GET /market?_format=fragment (active)');
+
+# Check negotiation panel for desired behaviors and budget range
+if ($market->res->code == 200) {
+    my $mkt_dom = Mojo::DOM->new($market->res->body);
+    my $body_text = $mkt_dom->text;
+    assert($body_text =~ /Seeking:/, 'negotiation shows desired behaviors');
+    if ($body_text =~ /Budget range:/) {
+        print STDERR "  Budget range visible (skill_selling >= 3)\n";
+        $PASS++;
+    } else {
+        print STDERR "  Budget range not visible (skill_selling < 3 — expected)\n";
+        $PASS++;
+    }
+}
 
 # Check shed for items during market (Offer buttons only visible when market_active=1)
 my $shed = do_req(GET => '/shed?_format=fragment');

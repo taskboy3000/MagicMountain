@@ -14,6 +14,13 @@
 <%== $icon_html %><strong class="ref-link" data-reference-id="faction_<%= $customer->faction_id %>"><%= $customer->faction_name %></strong>
         </div>
         <div class="mm-text-dim" style="font-size:0.72rem"><%= $customer->disposition %></div>
+% my @seeking = @{ $customer->desired_behaviors // [] };
+% if (@seeking) {
+        <p class="mm-text-dim" style="font-size:0.78rem;margin-top:0.25rem">Seeking: <%= join(', ', @seeking) %></p>
+% }
+% if (defined $customer->budget_min && defined $customer->budget_max) {
+        <p class="mm-text-dim" style="font-size:0.78rem">Budget range: <%= $customer->budget_min %>–<%= $customer->budget_max %> scrap</p>
+% }
       </div>
     </div>
 % if ($customer->last_sale) {
@@ -22,6 +29,9 @@
         <span class="mm-badge mm-badge-green"><%= $customer->last_sale->{sale_type} %></span>
 % if ($customer->last_sale->{precision_bonus}) {
         <span class="mm-text-green" style="font-size:0.78rem">+<%= $customer->last_sale->{precision_bonus} %> precision bonus!</span>
+% }
+% if ($customer->last_sale->{climate_premium_pct}) {
+        <span class="mm-badge mm-badge-green">+<%= $customer->last_sale->{climate_premium_pct} %>% climate premium</span>
 % }
       </p>
     </div>

@@ -26,6 +26,7 @@ sub setup {
     $chars->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 1,
     )->save;
 
     return $dataDir;
@@ -223,7 +224,115 @@ subtest 'fragment — renders dashboard with advisory text' => sub {
       ->content_like(qr/Shed inventory detected/, 'fragment contains shed_available advisory')
       ->content_like(qr/Mountain intake/, 'fragment contains ap_available advisory')
       ->content_like(qr/OFFER/, 'fragment contains offer suggestion icon')
-      ->content_like(qr/DRILL/, 'fragment contains drill suggestion icon');
+      ->content_like(qr/DRILL/, 'fragment contains drill suggestion icon')
+      ->content_like(qr/thermal/, 'fragment shed row shows trait tags');
+};
+
+subtest 'fragment — climate premium badge in salvage ledger' => sub {
+    my $dataDir = setup;
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    my $char = $chars->find(sub { 1 })->[0];
+    add_shed_item($dataDir, $char->getCol('id'));
+
+    # Give item a climate-matching behavior
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
+    $shed->load;
+    my $it = $shed->find(sub { 1 })->[0];
+    $it->setCol('behaviors', ['thermal']);
+    $it->save;
+
+    # Set climate with buyer_trait_biases matching "thermal"
+    my $season = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
+    $season->load;
+    my $s = $season->find(sub { 1 })->[0];
+    $s->setCol('faction_climate', {
+        dominant_faction_name => 'TestFaction',
+        intensity_label => 'Mild',
+        intensity => 1,
+        market => {
+            buyer_trait_biases => { thermal => 1, volatile => 1 },
+            market_summary => 'Testing',
+        },
+        town_crier => { hint => 'test' },
+    });
+    $s->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
+    $t->get_ok('/home?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/mm-badge-amber/, 'home shed premium badge class present');
+    like($html, qr/✦ premium/, 'home shed premium badge text present');
+};
+
+subtest 'fragment — tags gated when skill_prospecting=0' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'rookie'); $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'rookie', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 0,
+    )->save;
+
+    my $char = $chars->find(sub { 1 })->[0];
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
+    $shed->create(
+        char_id => $char->getCol('id'), artifact_id => 'test_cog',
+        original_value => 10, decayed_value => 10, condition => 'fresh',
+        days_in_shed => 0, instability => 0, stage => 'stable', push_count => 0,
+        has_evolved => 0, behaviors => ['thermal'],
+        estimated_value_min => 8, estimated_value_max => 12,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'rookie' })->status_is(200);
+    $t->get_ok('/home?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/\b-\b/, 'gated tags show dash placeholder');
+    unlike($html, qr/thermal/, 'trait names not visible when gated');
+};
+
+subtest 'fragment — climate card visible when skill_prospecting=0' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $season = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
+    $season->load;
+    my $s = $season->find(sub { 1 })->[0];
+    $s->setCol('faction_climate', {
+        dominant_faction_name => 'Syndicate',
+        intensity_label => 'Mild', intensity => 1,
+        market => { buyer_trait_biases => { volatile => 1 }, market_summary => 'Test' },
+        town_crier => { hint => 'test' },
+    });
+    $s->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'rookie2'); $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'rookie2', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 0,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'rookie2' })->status_is(200);
+    $t->get_ok('/home?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/Paying premium for:/, 'climate card shows premium text even without prospecting skill');
 };
 
 done_testing;

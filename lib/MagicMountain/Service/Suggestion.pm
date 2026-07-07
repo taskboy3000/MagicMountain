@@ -3,11 +3,12 @@ use Mojo::Base '-base', '-signatures';
 
 has app => sub { die "app is required" };
 
-sub build ($self, $char, $season, $advisories, $shed_count) {
-    my $ap    = $char->getCol('action_points') // 0;
-    my $scrap = $char->getCol('scrap') // 0;
-    my $day   = $season ? $season->getCol('day') // 1     : 1;
-    my $len   = $season ? $season->getCol('length') // 30  : 30;
+sub build ($self, $char, $season, $advisories, $all_shed) {
+    my $ap        = $char->getCol('action_points') // 0;
+    my $scrap     = $char->getCol('scrap') // 0;
+    my $day       = $season ? $season->getCol('day') // 1     : 1;
+    my $len       = $season ? $season->getCol('length') // 30  : 30;
+    my $shed_count = scalar @$all_shed;
 
     my @suggestions;
 
@@ -63,6 +64,32 @@ sub build ($self, $char, $season, $advisories, $shed_count) {
                 }),
                 view => 'bazaar',
             };
+        }
+    }
+
+    if ($season && $shed_count > 0) {
+        my $climate = $season->getCol('faction_climate') // {};
+        my $biases  = $climate->{market}{buyer_trait_biases} // {};
+        if (keys %$biases) {
+            my $found;
+            my %wanted = map { $_ => 1 } keys %$biases;
+            ITEM: for my $shed (@$all_shed) {
+                for my $b (@{ $shed->getCol('behaviors') // [] }) {
+                    if ($wanted{$b}) { $found = 1; last ITEM; }
+                }
+            }
+            if ($found) {
+                my $faction_name = $climate->{dominant_faction_name} // '';
+                my $traits_str   = join(', ', sort keys %$biases);
+                push @suggestions, {
+                    icon => 'PREMIUM',
+                    text => _interpolate($advisories->{climate_match} // '', {
+                        faction => $faction_name,
+                        traits  => $traits_str,
+                    }),
+                    view => 'bazaar',
+                };
+            }
         }
     }
 

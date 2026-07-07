@@ -23,7 +23,8 @@ sub _faction_name ($self, $fid) {
 }
 
 sub _scale_biases ($self, $biases, $factor) {
-    return {} unless $biases && $factor != 1;
+    return {} unless $biases && $factor != 0;
+    return $biases if $factor == 1;
     my %scaled = map { $_ => $biases->{$_} * $factor } keys %$biases;
     return \%scaled;
 }

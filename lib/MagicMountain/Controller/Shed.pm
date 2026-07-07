@@ -15,11 +15,17 @@ sub index ($self) {
     if ($format && $format eq 'fragment') {
         my $type = $self->_active_activity_type($char);
         my $is_secondary = ($self->param('panel') || '') eq 'secondary';
-        my $items = _enriched_items($filtered, $is_secondary, $self);
+        my $skill = $char->getCol('skill_prospecting') // 0;
+        my $items = _enriched_items($filtered, $is_secondary, $skill, $self);
+        my $season = $self->app->active_season;
+        my $fc = $season ? $season->faction_climate : {};
+        my $biases = $fc->{market}{buyer_trait_biases} // {};
         $self->stash(
-            items         => $items,
-            market_active => ($type && $type eq 'market') ? 1 : 0,
-            layout        => undef,
+            items                 => $items,
+            market_active         => ($type && $type eq 'market') ? 1 : 0,
+            climate_premium_traits => [ sort keys %$biases ],
+            show_trait_tags       => $skill >= 1 ? 1 : 0,
+            layout                => undef,
         );
         return $self->render('shed/ledger', layout => undef);
     }
@@ -62,20 +68,22 @@ sub _artifact_short_names ($c) {
     return +{ map { $_->{id} => ($_->{short_name} // $_->{id}) } @$specs };
 }
 
-sub _enriched_items ($items, $is_secondary, $c) {
+sub _enriched_items ($items, $is_secondary, $skill, $c) {
     my $short = $is_secondary ? _artifact_short_names($c) : undef;
     my @out;
     for my $item (@$items) {
         my $aid = $item->getCol('artifact_id');
+        my $behaviors = $item->getCol('behaviors') // [];
         push @out, {
             id          => $item->getCol('id'),
             label       => $is_secondary ? ($short->{$aid} // $aid) : $aid,
             label_full  => $aid,
             icon        => '/images/artifact_' . $aid . '.svg',
             condition   => $item->getCol('condition'),
+            tags        => $skill >= 1 ? join(', ', @$behaviors) : '-',
             value_label => $item->value_label,
             days        => $item->getCol('days_in_shed'),
-            behaviors   => $item->getCol('behaviors'),
+            behaviors   => $behaviors,
         };
     }
     return \@out;

@@ -434,7 +434,7 @@ subtest 'stop deletes activity row and creates shed item' => sub {
 
 # ── Prospecting Skill ────────────────────────────────────────────────
 
-subtest 'prospecting skill 1 adds +2 base value' => sub {
+subtest 'prospecting skill 1 has no value bonus (trait resonance scan only)' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
     my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 1);
@@ -442,35 +442,46 @@ subtest 'prospecting skill 1 adds +2 base value' => sub {
     $p->dispatch($char, 'begin');
     my $art = $p->artifact;
     my $spec = $p->_find_spec($art->{id});
-    my $expected = ($spec->{base_value} // 5) + 2;
-    is($art->{value}, $expected, 'value = base_value + 2 with prospecting 1');
+    is($art->{value}, $spec->{base_value} // 5, 'value = base_value with prospecting 1 (no bonus)');
 };
 
-subtest 'prospecting skill 2 adds +4 total and doubles weight for high-value artifacts' => sub {
+subtest 'prospecting skill 2 adds +2 base value' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
     my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 2);
+
+    $p->dispatch($char, 'begin');
+    my $art = $p->artifact;
+    my $spec = $p->_find_spec($art->{id});
+    my $expected = ($spec->{base_value} // 5) + 2;
+    is($art->{value}, $expected, 'value = base_value + 2 with prospecting 2');
+};
+
+subtest 'prospecting skill 3 adds +4 total and doubles weight for high-value artifacts' => sub {
+    my $content_file = _make_content_file();
+    my $p            = _make_singleton($content_file);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 3);
 
     srand(0);
     $p->dispatch($char, 'begin');
     my $art = $p->artifact;
     my $spec = $p->_find_spec($art->{id});
     my $expected = ($spec->{base_value} // 5) + 4;
-    is($art->{value}, $expected, 'value = base_value + 4 with prospecting 2');
+    is($art->{value}, $expected, 'value = base_value + 4 with prospecting 3');
 };
 
-subtest 'prospecting skill 3 adds base gain +1 to min and max' => sub {
+subtest 'prospecting skill 4 adds base gain +1 to min and max' => sub {
     my $content_file = _make_content_file();
     my $p            = _make_singleton($content_file);
-    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 3);
+    my $char         = TestCharacter->new(action_points => 15, scrap => 0, score => 0, skill_prospecting => 4);
 
     # Force draw of thermal_box_001 which uses defaults (3/5)
     my $spec = $p->_find_spec('thermal_box_001');
     $p->artifact({ %$spec, value => 5 });
     $p->_apply_defaults($p->artifact, $char);
     my $art = $p->artifact;
-    is($art->{base_gain_min}, 4, 'base_gain_min = 3 + 1 with prospecting 3');
-    is($art->{base_gain_max}, 6, 'base_gain_max = 5 + 1 with prospecting 3');
+    is($art->{base_gain_min}, 4, 'base_gain_min = 3 + 1 with prospecting 4');
+    is($art->{base_gain_max}, 6, 'base_gain_max = 5 + 1 with prospecting 4');
 };
 
 # ── Upcycling Skill ──────────────────────────────────────────────────

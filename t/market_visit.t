@@ -330,8 +330,11 @@ subtest 'selling skill 3 reveals behavior and uses 1.4x multiplier' => sub {
     );
 
     my $begin_result = $m->dispatch($char, 'begin');
-    ok(exists $begin_result->{view}{customer}{revealed_behavior},
-        'revealed_behavior is present with sell 3');
+    ok(exists $begin_result->{view}{customer} && $begin_result->{view}{customer},
+        'begin result has customer');
+    my $customer_data = $m->customer;
+    ok($customer_data->{desired_behaviors} && @{ $customer_data->{desired_behaviors} },
+        'desired_behaviors are set on customer');
 
     # Force customer to want 'thermal' so match is deterministic
     $m->customer->{desired_behaviors} = ['thermal'];
@@ -707,6 +710,35 @@ subtest 'sale exceeding absolute_budget returns over_budget with irritation' => 
     my $result = $m->dispatch($char, 'offer', shed_item_id => 'ob-item');
     is($result->{view}{result}, 'over_budget', 'over_budget result');
     is($m->customer->{irritation}, 2, 'irritation +2 on over_budget');
+};
+
+subtest 'sale exactly exhausting absolute_budget returns maxed_out with bonus and deletes item' => sub {
+    my $content_file = _make_content_file();
+    my $m            = _make_singleton($content_file);
+    my $char         = _fresh_char();
+    $char->setCol('name', 'TestBot');
+
+    # Use decayed_value=5 so match offer = int(5 * mult * 1.2) = 6 for both factions
+    $m->app->shed->create(id => 'mx-item', char_id => 'char-1',
+        artifact_id => 'thermal_box_001', behaviors => ['thermal'],
+        decayed_value => 5, original_value => 5);
+
+    $m->dispatch($char, 'begin');
+    $m->customer->{desired_behaviors} = ['thermal'];
+    $m->customer->{soft_budget} = 6;
+    $m->customer->{absolute_budget} = 6;
+    $m->customer->{irritation} = 0;
+    $m->customer->{spent_so_far} = 0;
+
+    my $result = $m->dispatch($char, 'offer', shed_item_id => 'mx-item');
+    is($result->{view}{result}, 'maxed_out', 'maxed_out result');
+    ok($result->{view}{bonus} > 0, 'bonus awarded on maxed_out');
+    is($result->{view}{bonus}, 1, 'bonus = int(6 * 0.20) = 1');
+    is($result->{view}{value}, 6, 'sale value is 6');
+    is($char->getCol('scrap'), 7, 'scrap increased by value + bonus (6 + 1 = 7)');
+
+    my @remaining = @{ $m->app->shed->find(sub { 1 }) };
+    is(scalar @remaining, 0, 'sold item deleted from shed');
 };
 
 subtest 'budget pressure state tracks spending' => sub {

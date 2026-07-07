@@ -7,6 +7,10 @@
   <div class="mm-text-dim">
     <div>Finds: <%= $cc->{town_crier}{hint} %></div>
     <div>Market: <%= $cc->{market}{market_summary} %></div>
+% my %biases = %{ $cc->{market}{buyer_trait_biases} // {} };
+% if (keys %biases) {
+    <div class="mm-text-amber">Paying premium for: <%= join(', ', sort keys %biases) %></div>
+% }
   </div>
 </div>
 % }

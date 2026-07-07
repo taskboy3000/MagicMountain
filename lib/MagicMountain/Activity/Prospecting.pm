@@ -37,7 +37,7 @@ sub _find_spec ($self, $artifact_id) {
 sub _get_spec_weight ($self, $spec, $char) {
     my $weight = $spec->{weight} // 1;
     my $prosp  = $char->getCol('skill_prospecting') // 0;
-    $weight *= 2 if $prosp >= 2 && ($spec->{base_value} // 0) >= 8;
+    $weight *= 2 if $prosp >= 3 && ($spec->{base_value} // 0) >= 8;
 
     if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
         my $biases = $self->app->dominance_service->draw_biases($season);
@@ -121,13 +121,13 @@ sub _apply_defaults ($self, $artifact, $char) {
 
     $artifact->{push_count}                   = 0;
     $artifact->{has_evolved}                  = 0;
-    $artifact->{value}                        = ($artifact->{base_value} // 5) + ($prosp >= 1 ? 2 : 0) + ($prosp >= 2 ? 2 : 0);
+    $artifact->{value}                        = ($artifact->{base_value} // 5) + ($prosp >= 2 ? 2 : 0) + ($prosp >= 3 ? 2 : 0);
     $artifact->{max_instability}            //= 14;
     $artifact->{instability_growth_min}     //= 1;
     $artifact->{instability_growth_max}     //= 2;
     $artifact->{base_gain_min}              //= 3;
     $artifact->{base_gain_max}              //= 5;
-    if ($prosp >= 3) {
+    if ($prosp >= 4) {
         $artifact->{base_gain_min} += 1;
         $artifact->{base_gain_max} += 1;
     }

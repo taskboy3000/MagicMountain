@@ -49,11 +49,18 @@ sub _weighted_faction ($self, $char) {
     return $factions->[0];
 }
 
-sub _pick_behaviors ($self, $faction) {
+sub _pick_behaviors ($self, $faction, $climate_biases = undef) {
     my $interests = $faction->{interests} // [];
     my $count = 1 + int(rand(scalar @$interests > 1 ? 3 : 1));
-    $count = scalar @$interests if $count > scalar @$interests;
-    my @pool = @$interests;
+    my @pool;
+    if ($climate_biases && keys %$climate_biases) {
+        my %seen;
+        for my $t (sort keys %$climate_biases) { $seen{$t} = 1; push @pool, $t; }
+        for my $t (@$interests) { push @pool, $t unless $seen{$t}++; }
+    } else {
+        @pool = @$interests;
+    }
+    $count = scalar @pool if $count > scalar @pool;
     my @picked;
     for (1 .. $count) {
         last unless @pool;
@@ -245,12 +252,22 @@ sub begin ($self, $char, %params) {
         my $portraits = $self->app->customer_portraits;
         $portrait_id = @$portraits ? $portraits->[rand @$portraits] : undef;
     }
+    # ── Climate trait biases (extracted before customer struct) ─────
+    my $climate_biases = {};
+    if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
+        my $dom = $self->app->dominance_service;
+        my $biases = $dom->buyer_trait_biases($season);
+        $climate_biases = $biases if keys %$biases;
+
+        $soft_budget += $dom->budget_delta($season);
+    }
+
     my $customer = {
         faction_id          => $faction->{id},
         faction_name        => $faction->{name},
         disposition         => $faction->{disposition},
         portrait_id         => $portrait_id,
-        desired_behaviors   => $self->_pick_behaviors($faction),
+        desired_behaviors   => $self->_pick_behaviors($faction, $climate_biases),
         base_multiplier     => ($faction->{base_multiplier} // 1.0) + $mult_bonus,
         offer_value         => undef,
         irritation          => int(rand(4)),
@@ -260,21 +277,16 @@ sub begin ($self, $char, %params) {
         absolute_budget     => int($soft_budget * 1.2),
         spent_so_far        => 0,
         loyalty_free_mismatches => $sales_to_faction >= 1 ? 1 : 0,
+        (keys %$climate_biases ? (climate_trait_biases => $climate_biases) : ()),
     };
 
-    # ── Faction climate: modify customer struct ────────────────────
-    if ($self->app->can('dominance_service') && (my $season = $self->app->active_season)) {
+    # ── Faction climate: patience delta for dominant faction ────────
+    if (keys %$climate_biases) {
+        my $season = $self->app->active_season;
         my $dom = $self->app->dominance_service;
-
-        $customer->{soft_budget}     += $dom->budget_delta($season);
-        $customer->{absolute_budget}  = int($customer->{soft_budget} * 1.2);
-
         if ($customer->{faction_id} eq ($dom->dominant_faction($season) // '')) {
             $customer->{irritation_threshold} += $dom->patience_delta($season);
         }
-
-        my $trait_biases = $dom->buyer_trait_biases($season);
-        $customer->{climate_trait_biases} = $trait_biases if keys %$trait_biases;
     }
     # ────────────────────────────────────────────────────────────────
 
@@ -292,11 +304,6 @@ sub begin ($self, $char, %params) {
     }
     # ────────────────────────────────────────────────────────────────
 
-    my $revealed = [];
-    if ($sell >= 3) {
-        $revealed = [$customer->{desired_behaviors}[0]];
-    }
-
     $char->setCol('action_points', $char->getCol('action_points') - 1);
     $self->customer($customer);
     $self->phase('negotiating');
@@ -312,15 +319,20 @@ sub begin ($self, $char, %params) {
             $char->getCol('name') // 'unknown', $faction->{name}),
     });
 
+    my $budget_range = ($sell >= 3) ? {
+        budget_min => $customer->{soft_budget},
+        budget_max => $customer->{absolute_budget},
+    } : undef;
+
     return {
         view => {
             ok       => 1,
             result   => 'negotiating',
+            (defined $budget_range ? (budget => $budget_range) : ()),
             customer => {
                 faction_id   => $faction->{id},
                 faction_name => $faction->{name},
                 disposition  => $faction->{disposition} // 'unknown',
-                (scalar @$revealed ? (revealed_behavior => $revealed->[0]) : ()),
             },
             player => $self->_player_snapshot($char),
         },
@@ -388,11 +400,14 @@ sub offer ($self, $char, %params) {
 
     if ($intersect) {
         my $match_mult = $sell >= 3 ? 1.4 : 1.2;
+        my $base_match = $match_mult;
         if ($customer->{climate_trait_biases}) {
             for my $b (@{ $item->getCol('behaviors') // [] }) {
                 $match_mult *= (1 + ($customer->{climate_trait_biases}->{$b} // 0));
             }
         }
+        $customer->{climate_premium_pct} = $match_mult > $base_match
+            ? int(($match_mult / $base_match - 1) * 100 + 0.5) : 0;
         $offer_value = int($decayed * $dyn_mult * $match_mult);
         $offer_value = $self->_apply_loyalty_bonus($char, $customer->{faction_id}, $offer_value);
         my $narrative = $self->_pick_reaction($customer->{faction_id}, 'match',
@@ -439,6 +454,45 @@ sub offer ($self, $char, %params) {
             $counter_pct = 0.95 if $counter_pct > 0.95;
 
             my $counter_value = int($decayed * $dyn_mult * $counter_pct);
+
+            # Cap the counter at the customer's remaining budget
+            my $remaining = ($customer->{absolute_budget} // 999999) - ($customer->{spent_so_far} // 0);
+            $counter_value = $remaining if $counter_value > $remaining;
+
+            # ── Budget exhausted: can't offer a 0-scrap counter ──
+            if ($remaining <= 0) {
+                my $narrative = sprintf("%s taps their empty purse. \"That's all I've got for today.\"",
+                    $customer->{faction_name});
+                $char->setCol('result', {
+                    outcome      => 'maxed_out',
+                    icon         => 'STAR',
+                    outcome_text => 'Sale Maxed Out!',
+                    total        => $customer->{spent_so_far},
+                    message      => sprintf('Congratulations! The customer spent %d scrap in total!', $customer->{spent_so_far}),
+                });
+                $char->setCol('current_view', 'result');
+                $self->phase('idle');
+                $self->customer(undef);
+                $self->delete;
+                $char->setCol('pending_activity_id', undef);
+                $char->save;
+                $self->_log_event($char, {
+                    type          => 'budget_exhausted',
+                    shed_item_id  => $shed_item_id,
+                    faction_id    => $customer->{faction_id},
+                    remaining     => $remaining,
+                    narrative     => $narrative,
+                });
+                return {
+                    view => {
+                        ok      => 1,
+                        result  => 'maxed_out',
+                        message => $narrative,
+                        player  => $self->_player_snapshot($char),
+                    },
+                };
+            }
+
             $customer->{pending_counter} = { value => $counter_value, item_id => $shed_item_id };
             $customer->{last_message} = undef;
             $self->customer($customer);
@@ -818,7 +872,114 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
 
     # ── Track budget ─────────────────────────────────────────────
     $customer->{spent_so_far} = $new_spent;
-    my $over_soft = $new_spent > ($customer->{soft_budget} // 999999);
+    my $abs_budget = $customer->{absolute_budget} // 999999;
+    my $over_soft  = $new_spent > ($customer->{soft_budget} // 999999);
+
+    # ── Budget exhausted: maxed out this sale (precision bonus can't
+    #    fire because we're at >=100%, so bonus_base is 0) ─────────
+    if ($new_spent >= $abs_budget) {
+        my $maxed_bonus = int($value * 0.20);
+        $char->setCol('scrap', $char->getCol('scrap') + $value + $maxed_bonus);
+        $char->setCol('score', $char->getCol('score') + $value + $maxed_bonus);
+
+        # ── Standing ──────────────────────────────────────────────
+        my $fid = $customer->{faction_id};
+        my $sales    = $char->getCol('faction_sales') // {};
+        my $standing = $char->getCol('standing') // {};
+
+        $sales->{$fid}++;
+        my $total_to_faction = $sales->{$fid} // 0;
+        my $delta;
+        if ($sale_type eq 'match') {
+            $delta = $over_soft ? 1 : 2;
+        } else {
+            $delta = ($sale_type eq 'counter' || $sale_type eq 'stand_pat') ? 1 : 0;
+        }
+        $delta++ if $item->getCol('has_evolved');
+        $delta++ if $total_to_faction >= 2;
+        $delta++ if $total_to_faction >= 4;
+        $standing->{$fid} += $delta;
+
+        $char->setCol('faction_sales', $sales);
+        $char->setCol('standing', $standing);
+
+        my $snubs = $char->getCol('faction_snubs') // {};
+        delete $snubs->{$fid};
+        $char->setCol('faction_snubs', $snubs);
+
+        # ── Faction state ───────────────────────────────────────
+        my $season = $self->app->active_season;
+        if ($season) {
+            my $fs = $season->getCol('faction_state') // {};
+            $fs->{$fid}->{name}                //= $customer->{faction_name};
+            $fs->{$fid}->{influence}            += $value + $maxed_bonus;
+            $fs->{$fid}->{artifacts_received}++;
+            $fs->{$fid}->{daily_intake}++;
+            $fs->{$fid}->{days_since_purchase} = 0;
+            for my $t (@{ $item->getCol('behaviors') // [] }) {
+                $fs->{$fid}->{intake_by_trait}->{$t}++;
+            }
+            $season->setCol('faction_state', $fs);
+            $season->save;
+        }
+
+        $self->app->shed->delete($item->getCol('id'));
+        $self->_record_disposition($char, $item, $value + $maxed_bonus, $delta, $fid) if $season;
+
+        $customer->{last_message} = undef;
+        $customer->{last_sale} = {
+            value               => $value,
+            sale_type           => $sale_type,
+            precision_bonus     => 0,
+            maxed_bonus         => $maxed_bonus,
+            total               => $new_spent,
+            climate_premium_pct => $customer->{climate_premium_pct} || 0,
+        };
+
+        $char->setCol('result', {
+            outcome      => 'maxed_out',
+            icon         => 'STAR',
+            outcome_text => 'Sale Maxed Out!',
+            item_name    => $item->getCol('artifact_id'),
+            value        => $value,
+            bonus        => $maxed_bonus,
+            total        => $new_spent,
+            message      => sprintf('Congratulations! You maxed out this sale! Total: %d scrap (+%d bonus).',
+                $new_spent, $maxed_bonus),
+        });
+        $char->setCol('current_view', 'result');
+        $self->customer($customer);
+        $self->delete;
+        $char->setCol('pending_activity_id', undef);
+        $char->save;
+
+        $self->_log_event($char, {
+            type          => 'sale_maxed',
+            shed_item_id  => $item->getCol('id'),
+            faction_id    => $customer->{faction_id},
+            value         => $value,
+            sale_type     => $sale_type,
+            spent_so_far  => $customer->{spent_so_far},
+            soft_budget   => $customer->{soft_budget},
+            maxed_bonus   => $maxed_bonus,
+            narrative     => sprintf("Sale maxed out! Sold to %s for %d scrap (%d total, +%d bonus).",
+                $customer->{faction_name}, $value, $new_spent, $maxed_bonus),
+        });
+
+        return {
+            view => {
+                ok                  => 1,
+                result              => 'maxed_out',
+                value               => $value,
+                bonus               => $maxed_bonus,
+                total               => $new_spent,
+                sale_type           => $sale_type,
+                sold_item_id        => $item->getCol('id'),
+                climate_premium_pct => $customer->{climate_premium_pct} || 0,
+                player              => $self->_player_snapshot($char),
+            },
+        };
+    }
 
     # ── Precision bonus (within 5% of absolute, < 100%) ──────────
     my $bonus = 0;
@@ -910,10 +1071,11 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
             $customer->{pending_counter} = undef;
             $customer->{last_message} = $mood_text;
             $customer->{last_sale} = {
-                value           => $value + $bonus,
-                sale_type       => $sale_type,
-                precision_bonus => $bonus,
-                pressure_state  => $pressure->{state},
+                value               => $value + $bonus,
+                sale_type           => $sale_type,
+                precision_bonus     => $bonus,
+                pressure_state      => $pressure->{state},
+                climate_premium_pct => $customer->{climate_premium_pct} || 0,
             };
             $self->customer($customer);
             $self->save;
@@ -921,13 +1083,14 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
             $char->save;
             return {
                 view => {
-                    ok              => 1,
-                    result          => 'sold_more',
-                    value           => $value + $bonus,
-                    sale_type       => $sale_type,
-                    sold_item_id    => $item->getCol('id'),
-                    pressure_state  => $pressure->{state},
-                    precision_bonus => $bonus,
+                    ok                  => 1,
+                    result              => 'sold_more',
+                    value               => $value + $bonus,
+                    sale_type           => $sale_type,
+                    sold_item_id        => $item->getCol('id'),
+                    pressure_state      => $pressure->{state},
+                    precision_bonus     => $bonus,
+                    climate_premium_pct => $customer->{climate_premium_pct} || 0,
                     irritation      => $customer->{irritation},
                     message         => $mood_text,
                     player          => $self->_player_snapshot($char),
@@ -952,13 +1115,14 @@ sub _do_sale ($self, $char, $item, $value, $sale_type) {
 
     return {
         view => {
-            ok              => 1,
-            result          => 'sold',
-            value           => $value + $bonus,
-            sale_type       => $sale_type,
-            sold_item_id    => $item->getCol('id'),
-            pressure_state  => $pressure->{state},
-            precision_bonus => $bonus,
+            ok                  => 1,
+            result              => 'sold',
+            value               => $value + $bonus,
+            sale_type           => $sale_type,
+            sold_item_id        => $item->getCol('id'),
+            pressure_state      => $pressure->{state},
+            precision_bonus     => $bonus,
+            climate_premium_pct => $customer->{climate_premium_pct} || 0,
             player          => $self->_player_snapshot($char),
         },
     };

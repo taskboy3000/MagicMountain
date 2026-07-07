@@ -2,16 +2,19 @@ skills:
   - id: prospecting
     name: GEO-SENSE
     description: "Survey analysis module. Enhances artifact detection sensitivity."
-    max_level: 3
+    max_level: 4
     levels:
       - level: 1
         cost: 100
-        description: "signal-filter v1 — noise reduction, target isolation"
+        description: "trait resonance scan — reveals artifact behavioral traits"
       - level: 2
         cost: 250
-        description: "deep-scan protocol — prioritizes high-yield signatures"
+        description: "signal-filter v1 — noise reduction, target isolation"
       - level: 3
         cost: 500
+        description: "deep-scan protocol — prioritizes high-yield signatures"
+      - level: 4
+        cost: 1000
         description: "predictive litho-analysis — anomaly classification engine"
 
   - id: upcycling
@@ -65,4 +68,4 @@ skills:
         description: "stress analysis — detects buyer irritation thresholds"
       - level: 3
         cost: 500
-        description: "persuasion algorithm — improves offer multipliers"
+        description: "persuasion algorithm — reveals buyer budget range"

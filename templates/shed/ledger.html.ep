@@ -1,1 +1,1 @@
-%= include 'components/salvage_ledger', items => $items, market_active => stash('market_active')
+%= include 'components/salvage_ledger', items => $items, market_active => stash('market_active'), climate_premium_traits => stash('climate_premium_traits') // [], show_trait_tags => stash('show_trait_tags') // 0

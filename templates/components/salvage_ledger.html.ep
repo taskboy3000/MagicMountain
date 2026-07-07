@@ -4,7 +4,7 @@
 % if (@$items) {
     <div class="mm-ledger-wrap"><table class="mm-ledger">
       <thead><tr>
-        <th>Item</th><th>Value</th>
+        <th>Item</th><th>Tags</th><th>Value</th>
 % if ($market_active) {
         <th></th>
 % }
@@ -21,6 +21,19 @@
               <span style="display:block;width:20px;height:2px;border-radius:1px;background:<%= $bar{$item->{condition}} // 'var(--mm-green)' %>"></span>
             </span>
             <span title="<%= $item->{label_full} %>"><%= $item->{label} %></span></td>
+          <td>
+% my $show_tags = stash('show_trait_tags') // 0;
+% if ($show_tags) {
+%   my $cpt = stash('climate_premium_traits') // [];
+%   my $has_match = $item->{behaviors} && grep { my $t = $_; grep { $t eq $_ } @$cpt } @{$item->{behaviors}};
+            <span class="mm-text-amber" style="font-size:0.7rem"><%= $item->{tags} // '' %></span>
+%   if ($has_match) {
+            <span class="mm-badge mm-badge-amber" style="font-size:0.6rem;margin-left:4px">✦ premium</span>
+%   }
+% } else {
+            <span class="mm-text-dim" style="font-size:0.7rem">-</span>
+% }
+          </td>
           <td><%= $item->{value_label} // '?' %></td>
 % if ($market_active) {
           <td>

@@ -657,16 +657,19 @@ skills:
   - id: prospecting
     name: GEO-SENSE
     description: "Survey analysis module. Enhances artifact detection sensitivity."
-    max_level: 3
+    max_level: 4
     levels:
       - level: 1
         cost: 100
-        description: "signal-filter v1 — noise reduction, target isolation"
+        description: "trait resonance scan — reveals artifact behavioral traits"
       - level: 2
         cost: 250
-        description: "deep-scan protocol — prioritizes high-yield signatures"
+        description: "signal-filter v1 — noise reduction, target isolation"
       - level: 3
         cost: 500
+        description: "deep-scan protocol — prioritizes high-yield signatures"
+      - level: 4
+        cost: 1000
         description: "predictive litho-analysis — anomaly classification engine"
   - id: upcycling
     name: DEFRAG
@@ -1041,13 +1044,14 @@ at the point of use (draw, push, stop, offer) by reading the character's
 skill columns. The internal column names use the legacy IDs (`skill_prospecting`,
 `skill_upcycling`, `skill_selling`); the UI labels are the cert module names.
 
-**GEO-SENSE (prospecting, levels 1–3)** — affects artifact drawing and base value:
+**GEO-SENSE (prospecting, levels 1–4)** — affects artifact drawing and base value:
 
 | Level | Effect |
 |-------|--------|
-| 1 | `base_value` of drawn artifact increased by +2 |
-| 2 | `base_value` increased by +4 total; weight doubled for artifacts with `base_value >= 8` (higher chance of rich finds) |
-| 3 | `base_gain_min` and `base_gain_max` each increased by +1 per push |
+| 1 | Trait tags visible in salvage ledger; `-` placeholder when untrained |
+| 2 | `base_value` of drawn artifact increased by +2 |
+| 3 | `base_value` increased by +4 total; weight doubled for artifacts with `base_value >= 8` (higher chance of rich finds) |
+| 4 | `base_gain_min` and `base_gain_max` each increased by +1 per push |
 
 **DEFRAG (upcycling, levels 1–4)** — reduces instability growth during pushes:
 
@@ -1067,7 +1071,7 @@ eliminate instability.
 |-------|--------|
 | 1 | Estimate range narrowed from ±20% to ±15% at stop time |
 | 2 | Irritation gain on mismatches eliminated (gain = 0 instead of 1) |
-| 3 | Match multiplier increased from 1.2× to 1.4× `base_multiplier`; one `desired_behaviors` revealed to player |
+| 3 | Customer budget range revealed; match multiplier increased from 1.2× to 1.4× `base_multiplier` |
 
 Skill costs are defined entirely in `content/skills.yml`. Skill training
 does not cost AP.
@@ -1967,16 +1971,19 @@ skills:
   - id: prospecting
     name: Prospecting
     description: "Find better artifacts and richer yields"
-    max_level: 3
+    max_level: 4
     levels:
       - level: 1
         cost: 10
-        description: "Better leads"
+        description: "Trait resonance scan"
       - level: 2
         cost: 25
-        description: "Richer veins"
+        description: "Better leads"
       - level: 3
         cost: 50
+        description: "Richer veins"
+      - level: 4
+        cost: 100
         description: "Eye for the unusual"
   - id: upcycling
     name: Upcycling
@@ -2174,8 +2181,8 @@ May fire a random event (15% base chance, see §12.1). If no event, deducts
 `negotiating`. Returns `{ faction_id, faction_name, disposition }`. The
 `disposition` label is server-only — it is NOT displayed to the player.
 An in-character **arrival line** from `negotiation_reactions.yml` is planned
-but NOT yet implemented (§7.3). If Selling skill >= 3, one `desired_behaviors`
-tag is revealed as `revealed_behavior`.
+but NOT yet implemented (§7.3). If Selling skill >= 3, the customer's
+budget range is revealed as `budget_min` and `budget_max`.
 
 **Market#offer**: Requires activity `type == "market_visit"` and
 `phase == "negotiating"`. Receives `shed_item_id` in request body.

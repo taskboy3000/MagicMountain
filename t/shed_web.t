@@ -26,6 +26,7 @@ sub setup {
     $chars->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 1,
     )->save;
 
     my $char = $chars->find(sub { 1 })->[0];
@@ -95,6 +96,72 @@ subtest 'filter by condition' => sub {
     my $t = setup;
     $t->get_ok('/shed' => {Accept => 'application/json'})
       ->status_is(200);
+};
+
+subtest 'climate premium badge in shed fragment' => sub {
+    my $t = setup;
+
+    # Give one shed item a climate-matching behavior
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$ENV{MM_DATA_DIR}/shed.json");
+    $shed->load;
+    my $it = $shed->find(sub { 1 })->[0];
+    $it->setCol('behaviors', ['volatile']);
+    $it->save;
+
+    # Set climate with buyer_trait_biases
+    my $season = MagicMountain::Model::Season->new(file => "$ENV{MM_DATA_DIR}/seasons.json");
+    $season->load;
+    my $s = $season->find(sub { 1 })->[0];
+    $s->setCol('faction_climate', {
+        dominant_faction_name => 'The Syndicate',
+        intensity_label => 'Intense',
+        intensity => 2,
+        market => {
+            buyer_trait_biases => { volatile => 1, luxury => 1 },
+            market_summary => 'Rich buyers',
+        },
+        town_crier => { hint => 'test' },
+    });
+    $s->save;
+
+    $t->get_ok('/shed?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/mm-badge-amber/, 'climate premium badge class present');
+    like($html, qr/✦ premium/, 'premium badge text present');
+};
+
+subtest 'shed fragment — tags gated when skill_prospecting=0' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'rookie'); $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'rookie', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 0,
+    )->save;
+
+    my $char = $chars->find(sub { 1 })->[0];
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
+    $shed->create(
+        char_id => $char->getCol('id'), artifact_id => 'thermal_box_001',
+        original_value => 20, decayed_value => 18, condition => 'fresh',
+        days_in_shed => 1, instability => 3, stage => 'strained', push_count => 2,
+        has_evolved => 0, behaviors => ['thermal'],
+        estimated_value_min => 14, estimated_value_max => 22,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'rookie' })->status_is(200);
+    $t->get_ok('/shed?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/\b-\b/, 'gated shed tags show dash placeholder');
+    unlike($html, qr/mm-text-amber/, 'no amber tag spans when gated in shed');
 };
 
 done_testing;

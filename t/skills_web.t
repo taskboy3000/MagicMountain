@@ -23,7 +23,7 @@ sub setup {
     my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
     $chars->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
-        score => 0, scrap => 1000, action_points => 15, action_points_max => 15,
+        score => 0, scrap => 2000, action_points => 15, action_points_max => 15,
     )->save;
 
     my $t = Test::Mojo->new('MagicMountain');
@@ -110,7 +110,7 @@ subtest 'purchase — already at max dies' => sub {
     $chars->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 999, action_points => 15, action_points_max => 15,
-        skill_prospecting => 3,
+        skill_prospecting => 4,
     )->save;
 
     my $t = Test::Mojo->new('MagicMountain');
@@ -133,7 +133,7 @@ subtest 'index — max-level skill has no upgrade action' => sub {
     $chars->create(
         name => 'master', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 9999, action_points => 15, action_points_max => 15,
-        skill_prospecting => 3,
+        skill_prospecting => 4,
     )->save;
 
     my $t = Test::Mojo->new('MagicMountain');
@@ -145,7 +145,7 @@ subtest 'index — max-level skill has no upgrade action' => sub {
     my $json = $t->tx->res->json;
     my ($prospecting) = grep { $_->{id} eq 'prospecting' } @{ $json->{skills} };
     ok $prospecting, 'prospecting skill present';
-    is $prospecting->{current_level}, 3, 'at max level';
+    is $prospecting->{current_level}, 4, 'at max level';
 
     # Verify no purchase action in _self for max-level skill
     my @prospecting_actions = grep {
@@ -161,9 +161,25 @@ subtest 'index — max-level skill has no upgrade action' => sub {
 };
 
 subtest 'purchase — success deducts scrap and increases level' => sub {
-    my $t = setup;
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'player'); $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'player', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 2000, action_points => 15, action_points_max => 15,
+    )->save;
+    my $char = $chars->find(sub { 1 })->[0];
+    my $prev_scrap = $char->getCol('scrap');
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
-    my $prev_scrap = 1000;
 
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
       ->status_is(200)
@@ -194,6 +210,15 @@ subtest 'purchase — success deducts scrap and increases level' => sub {
 
     $t->get_ok('/skills')
       ->json_is('/skills/0/current_level' => 3);
+
+    $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+    my $scrap4 = $t->tx->res->json->{player}{scrap};
+    ok $scrap4 < $scrap3, 'scrap decreased after level 4 purchase';
+
+    $t->get_ok('/skills')
+      ->json_is('/skills/0/current_level' => 4);
 };
 
 done_testing;
