@@ -192,7 +192,7 @@ sub begin ($self, $char, %params) {
                 $detail = $self->app->random_events->describe_effects($resolved, 'market_visit');
             }
             chomp $detail if $detail;
-            $char->setCol('action_points', $char->getCol('action_points') - 1);
+            # No AP consumed — the event replaced the market visit
             $self->delete;
             $char->setCol('pending_activity_id', undef);
             $char->setCol('result', {
