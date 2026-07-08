@@ -82,11 +82,20 @@ sub _activity_action ($self, $action, %params) {
     my $m   = $self->app->market;
     my $id  = $char_model->getCol('pending_activity_id');
 
+    if (!$id) {
+        if ($action ne 'begin') {
+            return $self->render(json => { ok => 0, error => 'No active market visit' }, status => 400);
+        }
+    }
+
     my $activity = $id
         ? $m->get($id)
         : $m->create(char_id => $char_model->getCol('id'));
 
-    my $result = $activity->dispatch($char_model, $action, %params);
+    my $result = eval { $activity->dispatch($char_model, $action, %params) };
+    if (my $err = $@) {
+        return $self->render(json => { ok => 0, error => $err }, status => 409);
+    }
 
     $self->_render_action($result, 'market_' . $action);
 }

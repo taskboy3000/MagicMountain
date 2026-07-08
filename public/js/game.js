@@ -140,6 +140,8 @@ async function handleAction(btn) {
   const actionUrl = btn.dataset.actionUrl;
   if (!actionUrl) return;
   if (btn.dataset.confirm && !confirm(btn.dataset.confirm)) return;
+  if (btn.disabled) return;
+  btn.disabled = true;
   const method = btn.dataset.method || 'POST';
   const body = {};
   for (const key of Object.keys(btn.dataset)) {
@@ -147,8 +149,8 @@ async function handleAction(btn) {
     body[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = btn.dataset[key];
   }
   const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
-  if (!data) return;
-  if (!data.ok) { window.location.href = '/game'; return; }
+  if (!data) { btn.disabled = false; return; }
+  if (!data.ok) { btn.disabled = false; window.location.href = '/game'; return; }
   if (data.result === 'sold' || data.result === 'sold_more' || data.result === 'breakthrough') playSale();
   if (data.result === 'collapse' || data.result === 'sent_away' || data.result === 'customer_left' || data.result === 'over_budget') playFail();
   if (data.result === 'stopped') playStop();

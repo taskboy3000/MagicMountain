@@ -358,6 +358,22 @@ subtest 'send_away works' => sub {
     is($char->getCol('pending_activity_id'), undef, 'activity cleared after send_away');
 };
 
+subtest 'double send_away returns error on second call' => sub {
+    my $t = setup;
+    my $csrf = _csrf($t);
+
+    $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
+
+    $t->post_ok('/market/send_away' => {'X-CSRF-Token' => $csrf})
+      ->status_is(200)
+      ->json_is('/result' => 'sent_away');
+
+    $t->post_ok('/market/send_away' => {'X-CSRF-Token' => $csrf})
+      ->status_is(400)
+      ->json_is('/ok' => 0)
+      ->json_is('/error' => 'No active market visit');
+};
+
 subtest 'customer_left when irritation threshold hit' => sub {
     my $t = setup;
     $t->app->config->{market_counter_offers} = 0;

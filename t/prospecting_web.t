@@ -57,7 +57,9 @@ subtest 'begin while processing fails' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
     $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
-    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(500);
+    $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})
+      ->status_is(409)
+      ->json_is('/ok' => 0);
 };
 
 subtest 'push — advances artifact' => sub {
