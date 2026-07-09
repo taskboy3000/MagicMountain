@@ -500,8 +500,21 @@ sub startup ($self) {
 }
 
 sub _catch_up_maintenance ($self) {
-    my $season = $self->active_season;
-    return unless $season;
+    $self->seasons->load;
+    my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
+    return unless @$active;
+
+    my $season = $active->[0];
+    my $day    = $season->getCol('day') // 0;
+    my $length = $season->getCol('length') // 30;
+    if ($day > $length) {
+        $self->log->info(sprintf(
+            "Auto-finalizing season '%s' at day %d (length %d)",
+            $season->getCol('label') // '?', $day, $length
+        ));
+        MagicMountain::Model::Season->finalize($self);
+        return;
+    }
 
     my $last = $season->getCol('last_maintenance');
     return unless defined $last;
@@ -672,19 +685,7 @@ sub buildRoutes ($self) {
 sub active_season ($self) {
     $self->seasons->load;
     my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
-    return undef unless @$active;
-    my $season = $active->[0];
-    my $day    = $season->getCol('day') // 0;
-    my $length = $season->getCol('length') // 30;
-    if ($day > $length) {
-        $self->log->info(sprintf(
-            "Auto-finalizing season '%s' at day %d (length %d)",
-            $season->getCol('label') // '?', $day, $length
-        ));
-        MagicMountain::Model::Season->finalize($self);
-        return undef;
-    }
-    return $season;
+    return @$active ? $active->[0] : undef;
 }
 
 sub ensureActiveSeason ($self) {
