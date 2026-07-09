@@ -141,4 +141,54 @@ subtest 'maintenance callback fires all 8 steps' => sub {
     cmp_ok $season->getCol('last_maintenance'), '>', 0, 'last_maintenance timestamp set';
 };
 
+subtest 'season ends automatically when day exceeds length' => sub {
+    my $dir = tempdir(CLEANUP => 1);
+    local $ENV{MM_DATA_DIR} = $dir;
+
+    MagicMountain::Model::Season->new(file => "$dir/seasons.json")
+        ->create(
+            id      => 's1',
+            label   => 'Expiring Season',
+            status  => 'active',
+            day     => 31,
+            length  => 30,
+            faction_state => {
+                syndicate => { influence => 50, artifacts_received => 5, intake_by_trait => {}, daily_intake => 0, days_since_purchase => 0, name => 'Syndicate' },
+            },
+        )->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dir/accounts.json");
+    my $a = $accts->create(username => 'player');
+    $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dir/characters.json");
+    my $char = $chars->create(name => 'player', account_id => $a->getCol('id'), season_id => 's1', score => 50, scrap => 10, action_points => 5, action_points_max => 15);
+    $char->save;
+
+    my $shed = MagicMountain::Model::ShedItem->new(file => "$dir/shed.json");
+    my $shed_item = $shed->create(id => 'sh1', char_id => $char->getCol('id'), artifact_id => 'test', original_value => 10, decayed_value => 10, condition => 'fresh', days_in_shed => 0, estimated_value_min => 8, estimated_value_max => 12);
+    $shed_item->save;
+
+    MagicMountain::Model::Account->new(file => "$dir/sessions.json")->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    my $maint = $t->app->maintenance;
+
+    $maint->on_maintenance->($maint);
+
+    my $season = $t->app->seasons->get('s1');
+    is($season->getCol('status'), 'archived', 'season archived after day exceeds length');
+
+    my $active = $t->app->active_season;
+    is($active, undef, 'no active season after finalize');
+
+    $t->app->season_records->load;
+    my $records = $t->app->season_records->find(sub { $_[0]->{season_id} eq 's1' });
+    is(scalar @$records, 1, 'season record created for player');
+
+    $t->app->characters->load;
+    my $remaining = $t->app->characters->find(sub { $_[0]->{season_id} eq 's1' });
+    is(scalar @$remaining, 0, 'characters cleaned up');
+};
+
 done_testing;

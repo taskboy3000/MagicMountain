@@ -280,10 +280,11 @@ has maintenance => sub ($self) {
 
             my $length = $season->getCol('length');
             if ($day > $length) {
-                $maint->app->log->warn(sprintf(
-                    "Season '%s' day %d exceeds configured length %d",
+                $maint->app->log->info(sprintf(
+                    "Season '%s' day %d exceeds configured length %d — finalizing",
                     $season->getCol('label'), $day, $length
                 ));
+                MagicMountain::Model::Season->finalize($maint->app);
             }
         },
     );
