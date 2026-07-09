@@ -10,14 +10,16 @@ sub ensure_season ($self, $player_id) {
     my $season = $self->app->active_season;
     my $season_recap;
 
-    if (!$season) {
-        $self->app->season_records->load;
-        my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
-        if (@$archived) {
-            my @sorted = sort { ($b->getCol('day') // 0) <=> ($a->getCol('day') // 0) } @$archived;
-            my $last = $sorted[0];
-            my $recs = $self->app->season_records->find(sub { $_[0]->{player_id} eq $player_id && $_[0]->{season_id} eq $last->getCol('id') });
-            if (@$recs) {
+    $self->app->season_records->load;
+    my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
+    if (@$archived) {
+        my @sorted = sort { ($b->getCol('day') // 0) <=> ($a->getCol('day') // 0) } @$archived;
+        my $last = $sorted[0];
+        my $recs = $self->app->season_records->find(sub { $_[0]->{player_id} eq $player_id && $_[0]->{season_id} eq $last->getCol('id') });
+        if (@$recs) {
+            my $season_id = $season ? $season->getCol('id') : undef;
+            my $existing = $self->app->characters->find(sub { $_[0]->{account_id} eq $player_id && (!$season_id || $_[0]->{season_id} eq $season_id) });
+            if (!@$existing) {
                 $season_recap = {
                     label         => $last->getCol('label'),
                     final_score   => $recs->[0]->getCol('final_score'),
@@ -29,7 +31,9 @@ sub ensure_season ($self, $player_id) {
                 };
             }
         }
+    }
 
+    if (!$season) {
         my $prefix = $self->app->config->{default_season_label_prefix} // 'Season';
         my $max_num = 0;
         my $all = $self->app->seasons->all;
