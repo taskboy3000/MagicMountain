@@ -29,4 +29,4 @@
   </div>
 </div>
 
-%= include 'components/salvage_ledger', items => $shed_items, market_active => $market_active, show_trait_tags => stash('show_trait_tags') // 0
+%= include 'components/salvage_ledger', items => $shed_items, market_active => $market_active, show_trait_tags => stash('show_trait_tags') // 0, offer_url => ''

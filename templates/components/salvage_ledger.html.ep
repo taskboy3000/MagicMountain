@@ -37,7 +37,7 @@
           <td><%= $item->{value_label} // '?' %></td>
 % if ($market_active) {
           <td>
-% my $offer = { label => 'Offer', attrs => { 'data-action-url' => '/market/offer', 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item->{id} } };
+% my $offer = { label => 'Offer', attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item->{id} } };
 %=           include 'components/action_buttons', actions => [$offer]
           </td>
 % }

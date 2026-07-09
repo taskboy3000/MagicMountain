@@ -18,7 +18,7 @@
 %   my $purchase = { 
 %      label => "Upgrade:<br>$next_cost scrap", 
 %      attrs => { 
-%          'data-action-url' => '/skills/purchase', 
+%          'data-action-url' => $purchase_url, 
 %          'data-method' => 'POST', 
 %          class => 'mm-btn mm-btn-primary mm-btn-upgrade buy-skill-btn', 
 %          'data-skill-id' => $s->{id}, 

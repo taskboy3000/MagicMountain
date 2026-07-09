@@ -24,7 +24,13 @@ sub show ($self) {
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        $self->stash(result => $result, can_continue => $can_continue, activity_type => $activity_type);
+        $self->stash(
+            result       => $result,
+            can_continue => $can_continue,
+            activity_type => $activity_type,
+            continue_url => $self->url_for('result_continue'),
+            dismiss_url  => $self->url_for('result_dismiss'),
+        );
         return $self->render('result/show', layout => undef);
     }
     $self->render(json => { ok => 1, result => $result, can_continue => $can_continue });

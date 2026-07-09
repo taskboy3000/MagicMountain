@@ -169,7 +169,7 @@ sub reaction_text ($self, $effect_type, $faction_id, $side) {
     return @$pool > 0 ? $pool->[int(rand(@$pool))] : 'Your rival has been busy.';
 }
 
-sub build_view ($self, $char) {
+sub build_view ($self, $char, %params) {
     my $app = $self->app;
     return { disabled => 1 } unless $app->config->{pvp_enabled};
 
@@ -213,11 +213,11 @@ sub build_view ($self, $char) {
         active_target   => [ map { _pressure_view($_) } @active_target ],
         active_attacker => [ map { _pressure_view($_) } @active_attacker ],
         scrap           => $char->getCol('scrap'),
-        actions         => $self->_rival_actions($char, \@rivals_view),
+        actions         => $self->_rival_actions($char, \@rivals_view, $params{apply_url}),
     };
 }
 
-sub _rival_actions ($self, $char, $rivals_view) {
+sub _rival_actions ($self, $char, $rivals_view, $apply_url) {
     my $cfg   = $self->app->config;
     my $scrap = $char->getCol('scrap') // 0;
     my %cost  = (
@@ -239,7 +239,7 @@ sub _rival_actions ($self, $char, $rivals_view) {
                 push @actions, {
                     label => "$label{$effect} ($r->{name}, $fid) \x{2014} $c scrap",
                     attrs => {
-                        'data-action-url'  => '/pvp/apply',
+                        'data-action-url'  => $apply_url,
                         'data-method'      => 'POST',
                         'data-target-id'   => $r->{id},
                         'data-faction-id'  => $fid,

@@ -12,7 +12,7 @@ sub index ($self) {
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        $self->stash(skills => $result->{skills}, scrap => $result->{scrap}, actions => $result->{actions});
+        $self->stash(skills => $result->{skills}, scrap => $result->{scrap}, actions => $result->{actions}, purchase_url => $self->url_for('skills_purchase'));
         return $self->render('skills/training', layout => undef);
     }
 

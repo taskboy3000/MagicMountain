@@ -53,6 +53,8 @@ sub recap ($self) {
         final_scrap   => $rec->getCol('final_scrap'),
         rank          => $rec->getCol('rank'),
         standing_rows => $standing_rows,
+        dismiss_url   => $self->url_for('result_dismiss'),
+        redirect_url  => $self->url_for('game'),
     );
 
     my $format = $self->param('_format');

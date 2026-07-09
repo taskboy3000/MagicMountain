@@ -2,7 +2,7 @@ package MagicMountain::Controller::Crier;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub show ($self) {
-    my $player_id = $self->current_player or return $self->redirect_to('/login');
+    my $player_id = $self->current_player or return $self->redirect_to('login_form');
     my $season = $self->app->active_season;
     return $self->rendered(204) unless $season;
 

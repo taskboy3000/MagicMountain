@@ -40,9 +40,11 @@ sub show ($self) {
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(
-            notice_id => $notice,
-            label     => $LABEL{$notice},
-            flavor    => $FLAVOR{$notice},
+            notice_id    => $notice,
+            label        => $LABEL{$notice},
+            flavor       => $FLAVOR{$notice},
+            dismiss_url  => $self->url_for('onboarding_dismiss'),
+            redirect_url => $self->url_for('game'),
         );
         return $self->render('onboarding/notice', layout => undef);
     }

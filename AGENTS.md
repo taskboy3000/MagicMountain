@@ -39,6 +39,19 @@ use inherited `_log_event($char, \%data)` — never `$self->app->transcript`.
 `getCol`/`setCol` accessors. Never access `$self->{row}` directly outside the
 model class.
 
+**All URLs through url_for**: Controllers AND templates MUST generate every
+URL via `url_for('named_route')` — never hardcode a path string like
+`'/market/send_away'`. This is what makes reverse-proxy sub-path deployment
+work: the `url_for` override in `Controller.pm` prepends the proxy prefix
+to every generated URL. Hardcoded paths bypass the override and break behind
+the proxy.
+
+**Controllers compute URLs, templates render them**: Controllers call
+`$self->url_for('route_name')` and stash the result. Services receive URLs
+as pre-computed strings passed from the controller — NEVER call url_for
+inside a service. This keeps URL construction in the controller layer where
+it belongs.
+
 **data-attribute to POST body**: camelCase dataset key → snake_case param name.
 `data-shed-item-id="abc"` → `body.shed_item_id = "abc"`.
 

@@ -7,7 +7,7 @@
     <title>Magic Mountain</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/app.css?<%= (stat app->home->child('public/css/app.css'))[9] // 0 %>">
+    <link rel="stylesheet" href="<%= url_for('/css/app.css') %>?<%= (stat app->home->child('public/css/app.css'))[9] // 0 %>">
   </head>
   <body>
     <div id="page-wrap">
@@ -17,13 +17,22 @@
       <a href="https://github.com/taskboy3000/MagicMountain" style="color:inherit;text-decoration:none;border-bottom:1px dotted rgba(255,255,255,0.15)" target="_blank" rel="noopener">Magic Mountain on GitHub</a>
     </footer>
 % unless (current_player) {
-<script src="/js/ambient.js?<%= (stat app->home->child('public/js/ambient.js'))[9] // 0 %>"></script>
+<script src="<%= url_for('/js/ambient.js') %>?<%= (stat app->home->child('public/js/ambient.js'))[9] // 0 %>"></script>
 <script>
+window.MM = window.MM || {};
+window.MM.baseUrls = {
+  game:         '<%= url_for('game') %>',
+  nav:          '<%= url_for('nav') %>',
+  seasonRecap:  '<%= url_for('season_recap')->query(_format => 'fragment') %>',
+  orientation:  '<%= url_for('orientation')->query(_format => 'fragment') %>',
+  onboarding:   '<%= url_for('onboarding_notice')->query(_format => 'fragment') %>',
+  reference:    '<%= url_for('reference') %>',
+};
 let _pendingDisplayName = '';
 const panel = document.getElementById('panel-primary');
 
 async function showTokenPrompt() {
-  const resp = await fetch(`/sessions/token-prompt?display_name=${encodeURIComponent(_pendingDisplayName)}&_format=fragment`);
+  const resp = await fetch(`<%= url_for('token_prompt') %>?display_name=${encodeURIComponent(_pendingDisplayName)}&_format=fragment`);
   panel.innerHTML = await resp.text();
   panel.querySelector('#token-form')?.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -31,7 +40,7 @@ async function showTokenPrompt() {
     const errEl = document.getElementById('token-error');
     const token = tokenInput ? tokenInput.value.trim() : '';
     if (!token) return;
-    const resp = await fetch('/sessions', {
+    const resp = await fetch('<%= url_for('login') %>', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ displayName: _pendingDisplayName, token })
@@ -43,12 +52,12 @@ async function showTokenPrompt() {
       return;
     }
     if (typeof window.stopAmbient === 'function') window.stopAmbient(500);
-    window.location.href = '/game';
+    window.location.href = '<%= url_for('game') %>';
   });
 }
 
 async function showRecoveryForm() {
-  const resp = await fetch(`/sessions/recovery-form?display_name=${encodeURIComponent(_pendingDisplayName)}&_format=fragment`);
+  const resp = await fetch(`<%= url_for('recovery_form') %>?display_name=${encodeURIComponent(_pendingDisplayName)}&_format=fragment`);
   panel.innerHTML = await resp.text();
   panel.querySelector('#recovery-form')?.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -56,7 +65,7 @@ async function showRecoveryForm() {
     const errEl = document.getElementById('recovery-error');
     const code = input ? input.value.trim() : '';
     if (!code) return;
-    const resp = await fetch('/sessions/recover', {
+    const resp = await fetch('<%= url_for('recover') %>', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ displayName: _pendingDisplayName, recoveryCode: code })
@@ -72,7 +81,7 @@ async function showRecoveryForm() {
 }
 
 async function showCredentials() {
-  const resp = await fetch('/sessions/credentials?_format=fragment');
+  const resp = await fetch('<%= url_for('new_credentials') %>?_format=fragment');
   if (resp.status === 204) { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '/game'; return; }
   panel.innerHTML = await resp.text();
 }
@@ -80,7 +89,7 @@ async function showCredentials() {
 panel.addEventListener('click', (ev) => {
   if (ev.target.id === 'forgot-token-link') showRecoveryForm();
   if (ev.target.id === 'back-to-token-link') showTokenPrompt();
-  if (ev.target.id === 'continue-btn') { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '/game'; }
+  if (ev.target.id === 'continue-btn') { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '<%= url_for('game') %>'; }
 });
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -91,7 +100,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   errEl.style.display = 'none';
   if (!name && !_pendingDisplayName) return;
   const body = { displayName: _pendingDisplayName || name };
-  const resp = await fetch('/sessions', {
+  const resp = await fetch('<%= url_for('login') %>', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
@@ -113,7 +122,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     return;
   }
   if (typeof window.stopAmbient === 'function') window.stopAmbient(500);
-  window.location.href = '/game';
+  window.location.href = '<%= url_for('game') %>';
 });
 </script>
 % }

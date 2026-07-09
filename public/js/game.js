@@ -1,5 +1,7 @@
 let CSRF_TOKEN = '';
 
+const _G = window.MM?.baseUrls || { game: '/game', nav: '/nav', seasonRecap: '/season/recap?_format=fragment', orientation: '/orientation?_format=fragment', onboarding: '/onboarding/notice?_format=fragment', reference: '/reference' };
+
 // ── Audio: procedural keyboard click ────────────────────────────
 let _audioCtx = null;
 let _muted = false;  // initialized from server toggle state
@@ -128,7 +130,7 @@ async function api(path, { body, method } = {}) {
   try {
     data = await resp.json();
   } catch (_) {
-    window.location.href = '/game';
+    window.location.href = _G.game;
     return;
   }
   if (data.csrf_token) CSRF_TOKEN = data.csrf_token;
@@ -150,13 +152,13 @@ async function handleAction(btn) {
   }
   const data = await api(actionUrl, { method, body: Object.keys(body).length ? body : undefined });
   if (!data) { btn.disabled = false; return; }
-  if (!data.ok) { btn.disabled = false; window.location.href = '/game'; return; }
+  if (!data.ok) { btn.disabled = false; window.location.href = _G.game; return; }
   if (data.result === 'sold' || data.result === 'sold_more' || data.result === 'breakthrough') playSale();
   if (data.result === 'collapse' || data.result === 'sent_away' || data.result === 'customer_left' || data.result === 'over_budget') playFail();
   if (data.result === 'stopped') playStop();
   if (data.result === 'pressure_applied') playStop();
   if (btn.dataset.redirect) { window.location.href = btn.dataset.redirect; return; }
-  const g = await api('/game');
+  const g = await api(_G.game);
   populateStatusStrip(g);
   // If toggle response includes tabs, re-render navs
   if (data.primary_tabs) { renderNav(data.primary_tabs, 'primary-nav'); renderNav(data.secondary_tabs || [], 'secondary-nav'); setMuteFromTabs(data.secondary_tabs); }
@@ -176,11 +178,11 @@ async function handleFragmentFetch(btn) {
 
 // ── Boot ────────────────────────────────────────────────────────
 async function loadGame() {
-  const g = await api('/game');
+  const g = await api(_G.game);
   if (!g || !g.ok) return;
   populateStatusStrip(g);
   if (g.season_recap) {
-    const resp = await fetch('/season/recap?_format=fragment');
+    const resp = await fetch(_G.seasonRecap);
     if (resp.status === 200) {
       document.getElementById('primary-content').innerHTML = await resp.text();
       document.getElementById('secondary-content').innerHTML = '';
@@ -189,7 +191,7 @@ async function loadGame() {
   }
   if (g.onboarding_notices && g.onboarding_notices.length) {
     const id = g.onboarding_notices[0];
-    const resp = await fetch(`/onboarding/notice?notice=${encodeURIComponent(id)}&_format=fragment`);
+    const resp = await fetch(`${_G.onboarding}?notice=${encodeURIComponent(id)}&_format=fragment`);
     if (resp.status === 200) {
       document.getElementById('primary-content').innerHTML = await resp.text();
       document.getElementById('secondary-content').innerHTML = '';
@@ -197,7 +199,7 @@ async function loadGame() {
     return;
   }
   if (g.show_orientation) {
-    const resp = await fetch('/orientation?_format=fragment');
+    const resp = await fetch(_G.orientation);
     if (resp.status === 200) {
       document.getElementById('primary-content').innerHTML = await resp.text();
       document.getElementById('secondary-content').innerHTML = '';
@@ -224,19 +226,19 @@ async function applyNav(requestedView) {
   const headers = { Accept: 'application/json' };
   if (requestedView) headers['X-Nav-View'] = requestedView;
   const [navResp, gameResp] = await Promise.all([
-    fetch('/nav', { headers }),
-    fetch('/game', { headers: { Accept: 'application/json' } }),
+    fetch(_G.nav, { headers }),
+    fetch(_G.game, { headers: { Accept: 'application/json' } }),
   ]);
   if (gameResp.status === 401 || navResp.status === 401) {
-    window.location.href = '/game';
+    window.location.href = _G.game;
     return;
   }
   const nav = await navResp.json();
   const g = await gameResp.json();
-  if (!g.ok || !nav.ok) { window.location.href = '/game'; return; }
+  if (!g.ok || !nav.ok) { window.location.href = _G.game; return; }
   populateStatusStrip(g);
   if (g.season_recap) {
-    const resp = await fetch('/season/recap?_format=fragment');
+    const resp = await fetch(_G.seasonRecap);
     if (resp.status === 200) {
       document.getElementById('primary-content').innerHTML = await resp.text();
       document.getElementById('secondary-content').innerHTML = '';
@@ -333,7 +335,7 @@ document.getElementById('secondary-content').addEventListener('click', async (e)
   const ref = e.target.closest('[data-reference-id]');
   if (ref) {
     const id = ref.dataset.referenceId;
-    const resp = await fetch(`/reference/${id}?_format=fragment`);
+    const resp = await fetch(`${_G.reference}/${id}?_format=fragment`);
     if (resp.status !== 200) return;
     document.getElementById('secondary-content').innerHTML = await resp.text();
     return;
@@ -356,7 +358,7 @@ document.getElementById('primary-content').addEventListener('click', async (e) =
   const ref = e.target.closest('[data-reference-id]');
   if (ref) {
     const id = ref.dataset.referenceId;
-    const resp = await fetch(`/reference/${id}?_format=fragment`);
+    const resp = await fetch(`${_G.reference}/${id}?_format=fragment`);
     if (resp.status !== 200) return;
     document.getElementById('secondary-content').innerHTML = await resp.text();
     return;

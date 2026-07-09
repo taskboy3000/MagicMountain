@@ -621,48 +621,48 @@ sub buildRoutes ($self) {
 
     # Resource endpoints (fragment/JSON via show action)
     $auth->get('/player')->to('player#show')->name('player');
-    $auth->get('/season/recap')->to('season#recap');
-    $auth->get('/crier')->to('crier#show');
-    $auth->get('/home')->to('home#show');
-    $auth->get('/idle')->to('idle#show');
-    $auth->get('/prospecting')->to('prospecting#show');
-    $auth->get('/market')->to('market#show');
-    $auth->get('/shed')->to('shed#index');
-    $auth->get('/skills')->to('skills#index');
-    $auth->get('/factions')->to('factions#show');
-    $auth->get('/reference/:id')->to('reference#show');
-    $auth->get('/account')->to('account#show');
-    $auth->get('/leaderboard')->to('leaderboard#index');
-    $auth->get('/leaderboard/factions')->to('leaderboard#factions');
+    $auth->get('/season/recap')->to('season#recap')->name('season_recap');
+    $auth->get('/crier')->to('crier#show')->name('crier');
+    $auth->get('/home')->to('home#show')->name('home');
+    $auth->get('/idle')->to('idle#show')->name('idle');
+    $auth->get('/prospecting')->to('prospecting#show')->name('prospecting_show');
+    $auth->get('/market')->to('market#show')->name('market_show');
+    $auth->get('/shed')->to('shed#index')->name('shed');
+    $auth->get('/skills')->to('skills#index')->name('skills');
+    $auth->get('/factions')->to('factions#show')->name('factions');
+    $auth->get('/reference/:id')->to('reference#show')->name('reference');
+    $auth->get('/account')->to('account#show')->name('account');
+    $auth->get('/leaderboard')->to('leaderboard#index')->name('leaderboard');
+    $auth->get('/leaderboard/factions')->to('leaderboard#factions')->name('leaderboard_factions');
     $auth->get('/result')->to('result#show')->name('result_show');
-    $auth->get('/nav')->to('nav#show');
+    $auth->get('/nav')->to('nav#show')->name('nav');
     $auth->post('/nav/toggle')->to('nav#toggle')->name('nav_toggle');
 
     # PvP / Rival Pressure
     $auth->get('/pvp')->to('pvp#show')->name('pvp_show');
 
     # Orientation
-    $auth->get('/orientation')->to('orientation#show');
-    $auth_write->post('/orientation/dismiss')->to('orientation#dismiss');
+    $auth->get('/orientation')->to('orientation#show')->name('orientation');
+    $auth_write->post('/orientation/dismiss')->to('orientation#dismiss')->name('orientation_dismiss');
 
     # Onboarding notices
-    $auth->get('/onboarding/notice')->to('onboarding_notice#show');
-    $auth_write->post('/onboarding/dismiss-notice')->to('onboarding_notice#dismiss');
+    $auth->get('/onboarding/notice')->to('onboarding_notice#show')->name('onboarding_notice');
+    $auth_write->post('/onboarding/dismiss-notice')->to('onboarding_notice#dismiss')->name('onboarding_dismiss');
 
     # Write routes under CSRF check
     # DEAD-SUPPRESS: endpoint kept for future re-enable; UI button removed per user request
     $auth_write->delete('/player')->to('player#destroy')->name('delete_player');
-    $auth_write->post('/skills/purchase')->to('skills#purchase');
+    $auth_write->post('/skills/purchase')->to('skills#purchase')->name('skills_purchase');
     $auth_write->post('/pvp/apply')->to('pvp#apply')->name('pvp_apply');
-    $auth_write->post('/prospecting/begin')->to('prospecting#begin');
-    $auth_write->post('/prospecting/push')->to('prospecting#push');
-    $auth_write->post('/prospecting/stop')->to('prospecting#stop');
-    $auth_write->post('/prospecting/resolve_event')->to('prospecting#resolve_event');
-    $auth_write->post('/market/begin')->to('market#begin');
-    $auth_write->post('/market/offer')->to('market#offer');
-    $auth_write->post('/market/send_away')->to('market#send_away');
-    $auth_write->post('/market/accept_counter')->to('market#accept_counter');
-    $auth_write->post('/market/stand_pat')->to('market#stand_pat');
+    $auth_write->post('/prospecting/begin')->to('prospecting#begin')->name('prospecting_begin');
+    $auth_write->post('/prospecting/push')->to('prospecting#push')->name('prospecting_push');
+    $auth_write->post('/prospecting/stop')->to('prospecting#stop')->name('prospecting_stop');
+    $auth_write->post('/prospecting/resolve_event')->to('prospecting#resolve_event')->name('prospecting_resolve_event');
+    $auth_write->post('/market/begin')->to('market#begin')->name('market_begin');
+    $auth_write->post('/market/offer')->to('market#offer')->name('market_offer');
+    $auth_write->post('/market/send_away')->to('market#send_away')->name('market_send_away');
+    $auth_write->post('/market/accept_counter')->to('market#accept_counter')->name('market_accept_counter');
+    $auth_write->post('/market/stand_pat')->to('market#stand_pat')->name('market_stand_pat');
     $auth_write->post('/result/dismiss')->to('result#dismiss')->name('result_dismiss');
     $auth_write->post('/result/continue')->to('result#do_continue')->name('result_continue');
     # DEAD-SUPPRESS: future season history UI
@@ -672,7 +672,19 @@ sub buildRoutes ($self) {
 sub active_season ($self) {
     $self->seasons->load;
     my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
-    return @$active ? $active->[0] : undef;
+    return undef unless @$active;
+    my $season = $active->[0];
+    my $day    = $season->getCol('day') // 0;
+    my $length = $season->getCol('length') // 30;
+    if ($day > $length) {
+        $self->log->info(sprintf(
+            "Auto-finalizing season '%s' at day %d (length %d)",
+            $season->getCol('label') // '?', $day, $length
+        ));
+        MagicMountain::Model::Season->finalize($self);
+        return undef;
+    }
+    return $season;
 }
 
 sub ensureActiveSeason ($self) {

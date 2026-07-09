@@ -44,8 +44,8 @@
     <p class="mm-text-dim" style="font-size:0.68rem">This orientation will not repeat. Access it again via [?] in the status header.</p>
 
     <button class="mm-btn mm-btn-primary mm-btn-block" style="margin-top:0.5rem"
-      data-action-url="/orientation/dismiss" data-method="POST"
-      data-redirect="/game">OK</button>
+      data-action-url="<%= $dismiss_url %>" data-method="POST"
+      data-redirect="<%= url_for('game') %>">OK</button>
 
   </div>
 </div>

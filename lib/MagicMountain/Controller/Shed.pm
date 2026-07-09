@@ -23,6 +23,7 @@ sub index ($self) {
         $self->stash(
             items                 => $items,
             market_active         => ($type && $type eq 'market') ? 1 : 0,
+            offer_url             => $self->url_for('market_offer'),
             climate_premium_traits => [ sort keys %$biases ],
             show_trait_tags       => $skill >= 1 ? 1 : 0,
             layout                => undef,
@@ -32,17 +33,19 @@ sub index ($self) {
 
     my $type = $self->_active_activity_type($char);
     my $market_active = ($type && $type eq 'market') ? 1 : 0;
+    my $offer_url = $self->url_for('market_offer');
+    my $icon_base = $self->url_for('/images');
 
     $self->render(json => {
         ok    => 1,
-        shed  => [ map { _item_view($_, $market_active) } @$filtered ],
+        shed  => [ map { _item_view($_, $market_active, $offer_url, $icon_base) } @$filtered ],
         total => scalar @$all,
         count => scalar @$filtered,
         _self => { actions => [] },
     });
 }
 
-sub _item_view ($item, $market_active = 0) {
+sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '') {
     my $v = {
         id                  => $item->getCol('id'),
         artifact_id         => $item->getCol('artifact_id'),
@@ -56,8 +59,9 @@ sub _item_view ($item, $market_active = 0) {
         stage               => $item->getCol('stage'),
         has_evolved         => $item->getCol('has_evolved') ? 1 : 0,
     };
+    $v->{icon} = $icon_base . '/artifact_' . $v->{artifact_id} . '.svg';
     if ($market_active) {
-        $v->{action_url} = '/market/offer';
+        $v->{action_url} = $offer_url;
         $v->{method}     = 'POST';
     }
     return $v;

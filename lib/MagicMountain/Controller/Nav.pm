@@ -15,17 +15,17 @@ my %SECONDARY = (
 );
 
 my %FRAGMENT_URL = (
-    home        => '/home?_format=fragment',
-    idle        => '/idle?_format=fragment',
-    prospecting => '/prospecting?_format=fragment',
-    market      => '/market?_format=fragment',
-    result      => '/result?_format=fragment',
-    shed        => '/shed?_format=fragment',
-    pvp         => '/pvp?_format=fragment',
-    factions    => '/factions?_format=fragment',
-    skills      => '/skills?_format=fragment',
-    leaderboard => '/leaderboard?_format=fragment',
-    account     => '/account?_format=fragment',
+    home        => sub ($c) { $c->url_for('home')->query(_format => 'fragment') },
+    idle        => sub ($c) { $c->url_for('idle')->query(_format => 'fragment') },
+    prospecting => sub ($c) { $c->url_for('prospecting_show')->query(_format => 'fragment') },
+    market      => sub ($c) { $c->url_for('market_show')->query(_format => 'fragment') },
+    result      => sub ($c) { $c->url_for('result_show')->query(_format => 'fragment') },
+    shed        => sub ($c) { $c->url_for('shed')->query(_format => 'fragment') },
+    pvp         => sub ($c) { $c->url_for('pvp_show')->query(_format => 'fragment') },
+    factions    => sub ($c) { $c->url_for('factions')->query(_format => 'fragment') },
+    skills      => sub ($c) { $c->url_for('skills')->query(_format => 'fragment') },
+    leaderboard => sub ($c) { $c->url_for('leaderboard')->query(_format => 'fragment') },
+    account     => sub ($c) { $c->url_for('account')->query(_format => 'fragment') },
 );
 
 my %TAB_LABEL = (
@@ -67,14 +67,19 @@ sub show ($self) {
     for my $tab (@$primary_tabs) {
         $tab->{label} = $TAB_LABEL{$tab->{id}};
         if ($tab->{id} eq 'bazaar' && $tab->{active} && !$type) {
-            $tab->{action_url} = '/market/begin';
+            $tab->{action_url} = $self->url_for('market_begin');
         }
         if ($tab->{id} eq 'prospect' && $tab->{active} && !$type) {
-            $tab->{action_url} = '/prospecting/begin';
+            $tab->{action_url} = $self->url_for('prospecting_begin');
         }
     }
 
-    my $secondary_tabs = $nav->secondary_tabs($char);
+    my $secondary_tabs = $nav->secondary_tabs($char, {
+        factions_url     => $self->url_for('factions')->query(_format => 'fragment'),
+        account_url      => $self->url_for('account')->query(_format => 'fragment'),
+        orientation_url  => $self->url_for('orientation')->query(_format => 'fragment'),
+        toggle_url       => $self->url_for('nav_toggle'),
+    });
     my $secondary      = $SECONDARY{$view} // 'factions';
     my $context        = $self->_context_text($char, $view);
 
@@ -87,9 +92,9 @@ sub show ($self) {
     $self->render(json => {
         ok                     => 1,
         current_view           => $view,
-        primary_fragment_url   => $FRAGMENT_URL{$view},
+        primary_fragment_url   => $FRAGMENT_URL{$view}->($self),
         secondary_view         => $secondary,
-        secondary_fragment_url => $FRAGMENT_URL{$secondary} . '&panel=secondary',
+        secondary_fragment_url => $FRAGMENT_URL{$secondary}->($self) . '&panel=secondary',
         primary_tabs           => $primary_tabs,
         secondary_tabs         => $secondary_tabs,
         context                => $context,

@@ -5,7 +5,7 @@ sub show ($self) {
     my $char = $self->_require_character;
     return unless $char;
 
-    my $result = $self->app->pvp_service->build_view($char);
+    my $result = $self->app->pvp_service->build_view($char, apply_url => $self->url_for('pvp_apply'));
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {

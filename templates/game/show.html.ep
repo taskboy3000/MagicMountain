@@ -23,5 +23,5 @@
 <div id="device-footer"></div>
 
 % if (current_player) {
-<script src="/js/game.js?<%= (stat app->home->child('public/js/game.js'))[9] // 0 %>"></script>
+<script src="<%= url_for('/js/game.js') %>?<%= (stat app->home->child('public/js/game.js'))[9] // 0 %>"></script>
 % }

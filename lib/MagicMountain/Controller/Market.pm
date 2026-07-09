@@ -49,10 +49,13 @@ sub show ($self) {
         ) : ()),
     }) : undef;
 
-    my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => '/market/send_away', 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
+    my $send_away_url     = $self->url_for('market_send_away');
+    my $accept_counter_url = $self->url_for('market_accept_counter');
+    my $stand_pat_url      = $self->url_for('market_stand_pat');
+    my @actions = ({ label => 'Send Away', attrs => { 'data-action-url' => $send_away_url, 'data-method' => 'POST', id => 'btn-send-away', class => 'mm-btn' } });
     if ($c && $c->{pending_counter}) {
-        push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => '/market/accept_counter', 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
-        push @actions, { label => 'Stand Pat', attrs => { 'data-action-url' => '/market/stand_pat', 'data-method' => 'POST', id => 'btn-stand-pat', class => 'mm-btn' } };
+        push @actions, { label => 'Accept Counter-Offer', attrs => { 'data-action-url' => $accept_counter_url, 'data-method' => 'POST', id => 'btn-accept-counter', class => 'mm-btn mm-btn-primary' } };
+        push @actions, { label => 'Stand Pat', attrs => { 'data-action-url' => $stand_pat_url, 'data-method' => 'POST', id => 'btn-stand-pat', class => 'mm-btn' } };
     }
 
     my $format = $self->param('_format');

@@ -80,7 +80,7 @@ sub build_tabs ($self, $char, $type, $ap, $shed_count) {
     return \@tabs;
 }
 
-sub secondary_tabs ($self, $char) {
+sub secondary_tabs ($self, $char, $urls = {}) {
     my $muted = $char->getCol('settings_muted') // 0;
     my $onboarding = $char->getCol('onboarding') // 0;
     my @tabs;
@@ -90,7 +90,7 @@ sub secondary_tabs ($self, $char) {
         type   => 'nav',
         active => 1,
         label  => 'FACTIONS',
-        fragment_url => '/factions?_format=fragment',
+        fragment_url => $urls->{factions_url} // '/factions?_format=fragment',
         target => 'secondary-content',
     } if $onboarding & BIT_FACTIONS;
 
@@ -99,7 +99,7 @@ sub secondary_tabs ($self, $char) {
         type   => 'nav',
         active => 1,
         label  => 'ACCOUNT',
-        fragment_url => '/account?_format=fragment',
+        fragment_url => $urls->{account_url} // '/account?_format=fragment',
         target => 'secondary-content',
     }, {
         id      => 'orientation',
@@ -107,7 +107,7 @@ sub secondary_tabs ($self, $char) {
         active  => 1,
         label_live => '?',
         label   => '?',
-        fragment_url => '/orientation?_format=fragment',
+        fragment_url => $urls->{orientation_url} // '/orientation?_format=fragment',
         target  => 'primary-content',
     }, {
         id            => 'mute',
@@ -118,7 +118,7 @@ sub secondary_tabs ($self, $char) {
         label_live    => $muted ? '[)]' : ')))]',
         label         => $muted ? '[)]' : ')))]',
         labels        => { on => '[)]', off => ')))]' },
-        action_url    => '/nav/toggle',
+        action_url    => $urls->{toggle_url} // '/nav/toggle',
         method        => 'POST',
     };
 

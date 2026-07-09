@@ -13,6 +13,10 @@ sub show ($self) {
 
     my $pending = $activity->getCol('pending_event');
     if ($pending && $pending->{choices}) {
+        my $resolve_url = $self->url_for('prospecting_resolve_event');
+        $_->{attrs}{'data-action-url'} = $resolve_url
+            for @{ $pending->{choices} };
+
         my $format = $self->param('_format');
         if ($format && $format eq 'fragment') {
             $self->stash(event_text => $pending->{text}, choices => $pending->{choices});
@@ -40,9 +44,11 @@ HTML
 
     my $artifact = MagicMountain::Artifact->new($activity->artifact);
 
+    my $push_url = $self->url_for('prospecting_push');
+    my $stop_url = $self->url_for('prospecting_stop');
     my @actions = (
-        { label => 'Push', attrs => { 'data-action-url' => '/prospecting/push', 'data-method' => 'POST', id => 'btn-push', class => 'mm-btn mm-btn-primary' } },
-        { label => 'Stop', attrs => { 'data-action-url' => '/prospecting/stop', 'data-method' => 'POST', id => 'btn-stop', class => 'mm-btn mm-btn-primary' } },
+        { label => 'Push', attrs => { 'data-action-url' => $push_url, 'data-method' => 'POST', id => 'btn-push', class => 'mm-btn mm-btn-primary' } },
+        { label => 'Stop', attrs => { 'data-action-url' => $stop_url, 'data-method' => 'POST', id => 'btn-stop', class => 'mm-btn mm-btn-primary' } },
     );
 
     my $format = $self->param('_format');

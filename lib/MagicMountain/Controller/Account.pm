@@ -53,7 +53,7 @@ sub show ($self) {
     }
 
     my @actions = (
-        { label => 'LOGOUT', attrs => { 'data-action-url' => '/sessions', 'data-method' => 'DELETE', id => 'logout-btn', class => 'mm-btn', 'data-redirect' => '/game' } },
+        { label => 'LOGOUT', attrs => { 'data-action-url' => $self->url_for('logout_api'), 'data-method' => 'DELETE', id => 'logout-btn', class => 'mm-btn', 'data-redirect' => $self->url_for('game') } },
     );
 
     my $account = $self->app->accounts->get($player_id);
@@ -62,9 +62,10 @@ sub show ($self) {
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(
-            actions     => \@actions,
-            archive     => \@archive,
-            player_name => $player_name,
+            actions        => \@actions,
+            archive        => \@archive,
+            player_name    => $player_name,
+            leaderboard_url => $self->url_for('leaderboard')->query(_format => 'fragment'),
         );
         return $self->render('account/settings', layout => undef);
     }

@@ -5,8 +5,8 @@
   <div class="mm-panel-body">
     <p><%= $flavor %></p>
     <button class="mm-btn mm-btn-primary mm-btn-block" style="margin-top:0.5rem"
-      data-action-url="/onboarding/dismiss-notice" data-method="POST"
+      data-action-url="<%= $dismiss_url %>" data-method="POST"
       data-notice-id="<%= $notice_id %>"
-      data-redirect="/game">Dismiss</button>
+      data-redirect="<%= $redirect_url %>">Dismiss</button>
   </div>
 </div>
