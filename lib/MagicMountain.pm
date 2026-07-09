@@ -517,6 +517,16 @@ sub _catch_up_maintenance ($self) {
 }
 
 sub buildRoutes ($self) {
+    $self->hook(before_dispatch => sub {
+        my $c = shift;
+        my $prefix = $c->req->headers->header('X-Forwarded-Prefix') or return;
+        my @segments = grep { length } split '/', $prefix;
+        for (1 .. @segments) {
+            push @{$c->req->url->base->path->trailing_slash(1)},
+              shift @{$c->req->url->path->leading_slash(0)};
+        }
+    });
+
     my $r = $self->routes;
 
     # Readiness probe (no auth, no maintenance block, no DB)

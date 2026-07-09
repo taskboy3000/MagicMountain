@@ -1,0 +1,390 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+use Test::Mojo;
+use Mojo::JSON qw(encode_json decode_json);
+use File::Temp qw(tempdir);
+use FindBin;
+use lib "$FindBin::RealBin/../lib";
+
+my $dataDir = tempdir(CLEANUP => 1);
+$ENV{MM_DATA_DIR} = $dataDir;
+$ENV{MM_RAND_SEED} = 42;
+$ENV{MOJO_MODE}    = 'test';
+
+# ── Data setup ──────────────────────────────────────────────────────
+print "=== Setting up game state ===\n";
+
+use MagicMountain::Model::Season;
+my $season = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
+$season->create(
+    id => 's1', label => 'Demo Szn', status => 'active', day => 5, length => 30,
+    faction_climate => {
+        day                 => 5,
+        dominant_faction    => 'syndicate',
+        dominant_faction_name => 'The Syndicate',
+        intensity           => 'leading',
+        intensity_label     => 'Leading',
+        dominance_margin    => 5,
+        prospecting => {
+            draw_biases              => { thermal => 1.3, storage => 1.2 },
+            starting_instability_mod => 1,
+        },
+        market => {
+            budget_delta         => 2,
+            mood_delta           => -1,
+            patience_delta       => -1,
+            risk_tolerance_delta => 1,
+            buyer_trait_biases   => { volatile => 1, luxury => 1 },
+            budget_label         => 'Richer buyers',
+            market_summary       => 'Richer buyers, Shorter tempers',
+        },
+        town_crier => {
+            headline => 'Syndicate mood shifting',
+            body     => q[The Syndicate's influence is growing, and their buyers are offering premiums for volatile and luxury artifacts.],
+            hint     => 'Check the Bazaar for premium opportunities.',
+        },
+        crier_text => q[The Syndicate's influence is growing, and their buyers are offering premiums for volatile and luxury artifacts. Check the Bazaar for premium opportunities.],
+    },
+)->save;
+print "  Season created with climate biases: volatile, luxury\n";
+
+use MagicMountain::Model::Account;
+my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+my $acct  = $accts->create(username => 'demo');
+$acct->save;
+print "  Account created: demo\n";
+
+use MagicMountain::Model::Character;
+my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+my $cid   = $acct->getCol('id');
+$chars->create(
+    id                => $cid,
+    name              => 'demo',
+    account_id        => $cid,
+    season_id         => 's1',
+    score             => 100,
+    scrap             => 2000,
+    action_points     => 15,
+    action_points_max => 15,
+    skill_prospecting => 1,
+    skill_selling     => 3,
+)->save;
+print "  Character created: scrap=2000, skill_prospecting=1, skill_selling=3\n";
+
+use MagicMountain::Model::ShedItem;
+my $shed = MagicMountain::Model::ShedItem->new(file => "$dataDir/shed.json");
+$shed->create(
+    id                 => 'item-v',
+    char_id            => $cid,
+    artifact_id        => 'thermal_box',
+    original_value     => 20,
+    decayed_value      => 20,
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => 0,
+    stage              => 'stable',
+    push_count         => 0,
+    has_evolved        => 0,
+    behaviors          => ['volatile', 'thermal'],
+    estimated_value_min => 16,
+    estimated_value_max => 24,
+)->save;
+$shed->create(
+    id                 => 'item-l',
+    char_id            => $cid,
+    artifact_id        => 'luxury_vase',
+    original_value     => 30,
+    decayed_value      => 30,
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => 0,
+    stage              => 'stable',
+    push_count         => 0,
+    has_evolved        => 0,
+    behaviors          => ['luxury'],
+    estimated_value_min => 24,
+    estimated_value_max => 36,
+)->save;
+$shed->create(
+    id                 => 'item-s',
+    char_id            => $cid,
+    artifact_id        => 'storage_crate',
+    original_value     => 15,
+    decayed_value      => 15,
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => 0,
+    stage              => 'stable',
+    push_count         => 0,
+    has_evolved        => 0,
+    behaviors          => ['storage'],
+    estimated_value_min => 12,
+    estimated_value_max => 18,
+)->save;
+$shed->create(
+    id                 => 'item-r',
+    char_id            => $cid,
+    artifact_id        => 'signal_lens',
+    original_value     => 25,
+    decayed_value      => 25,
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => 0,
+    stage              => 'stable',
+    push_count         => 0,
+    has_evolved        => 0,
+    behaviors          => ['revelation', 'signal'],
+    estimated_value_min => 20,
+    estimated_value_max => 30,
+)->save;
+$shed->create(
+    id                 => 'item-f',
+    char_id            => $cid,
+    artifact_id        => 'field_kit',
+    original_value     => 18,
+    decayed_value      => 18,
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => 0,
+    stage              => 'stable',
+    push_count         => 0,
+    has_evolved        => 0,
+    behaviors          => ['field', 'medical_response'],
+    estimated_value_min => 14,
+    estimated_value_max => 22,
+)->save;
+$shed->create(
+    id                 => 'item-c',
+    char_id            => $cid,
+    artifact_id        => 'volatile_core',
+    original_value     => 10,
+    decayed_value      => 10,
+    condition          => 'fresh',
+    days_in_shed       => 0,
+    instability        => 0,
+    stage              => 'stable',
+    push_count         => 0,
+    has_evolved        => 0,
+    behaviors          => ['volatile'],
+    estimated_value_min => 8,
+    estimated_value_max => 12,
+)->save;
+print "  Shed items: thermal_box (volatile,thermal), luxury_vase (luxury),\n";
+print "              storage_crate (storage), signal_lens (revelation,signal),\n";
+print "              field_kit (field,medical_response), volatile_core (volatile)\n\n";
+
+# ── Login ──────────────────────────────────────────────────────────
+print "=== Login ===\n";
+my $t = Test::Mojo->new('MagicMountain');
+$t->post_ok('/sessions', json => { displayName => 'demo' })->status_is(200);
+my $login = $t->tx->res->json;
+my $csrf  = $login->{csrf_token} // '';
+die "No CSRF token in login response" unless $csrf;
+$t->ua->on(start => sub {
+    my ($ua, $tx) = @_;
+    $tx->req->headers->header('X-CSRF-Token' => $csrf) unless $tx->req->method eq 'GET';
+});
+print "  Logged in as demo (CSRF: $csrf)\n\n";
+
+# ── Evidence 1: Salvage ledger shows trait tags ────────────────────
+print "=" x 66 . "\n";
+print "EVIDENCE 1: Salvage ledger shows trait tags\n";
+print "=" x 66 . "\n";
+
+$t->get_ok('/shed?_format=fragment')->status_is(200);
+my $shed_html = $t->tx->res->body;
+if ($shed_html =~ /<span[^>]*class="[^"]*mm-text-amber[^"]*"/) {
+    print "  ✅ Trait tag spans found (.mm-text-amber)\n";
+    my @tags;
+    my $tmp = $shed_html;
+    while ($tmp =~ /<span[^>]*class="[^"]*mm-text-amber[^"]*"[^>]*>([^<]+)<\/span>/g) {
+        push @tags, $1;
+        print "     Tag: $1\n";
+    }
+    print "  (found " . scalar(@tags) . " tags)\n" if @tags;
+} else {
+    print "  ❌ No trait tag spans found\n";
+}
+
+# ── Evidence 2: Climate card shows premium traits ─────────────────
+print "\n" . "=" x 66 . "\n";
+print "EVIDENCE 2: Climate card shows premium traits\n";
+print "=" x 66 . "\n";
+
+$t->get_ok('/home?_format=fragment')->status_is(200);
+my $home_html = $t->tx->res->body;
+if ($home_html =~ /Paying premium for:/) {
+    print "  ✅ \"Paying premium for:\" text found\n";
+    if ($home_html =~ /Paying premium for:\s*([^<]+)/) {
+        my $traits = $1;
+        $traits =~ s/^\s+|\s+$//g;
+        print "     Traits: $traits\n";
+    }
+} else {
+    print "  ❌ No \"Paying premium for:\" text\n";
+}
+
+# ── Evidence 3: Desired behaviors in negotiation ──────────────────
+print "\n" . "=" x 66 . "\n";
+print "EVIDENCE 3: Desired behaviors shown in negotiation\n";
+print "=" x 66 . "\n";
+
+# Loop until we get a customer that desires a climate-biased trait (for E4)
+my ($mkt_html, $begin_json);
+my (@seeking, $seeking_ref, $max_tries);
+$seeking_ref = [];
+$max_tries = 10;
+for (1 .. $max_tries) {
+    $t->post_ok('/market/begin')->status_is(200);
+    $begin_json = $t->tx->res->json;
+    $t->get_ok('/market?_format=fragment')->status_is(200);
+    $mkt_html = $t->tx->res->body;
+    if ($mkt_html =~ /Seeking:\s*([^<]+)/) {
+        @$seeking_ref = split /\s*,\s*/, $1;
+        print "  Attempt $_ — Seeking: " . join(', ', @$seeking_ref) . "\n";
+        last if grep { $_ eq 'volatile' || $_ eq 'luxury' } @$seeking_ref;
+    }
+    $t->post_ok('/market/send_away');
+    print "    (not climate-biased — re-rolling)\n";
+}
+
+if ($mkt_html =~ /Seeking:/) {
+    print "  ✅ \"Seeking:\" text found — desired_behaviors visible\n";
+}
+
+print "  /market/begin response:\n";
+if ($begin_json) {
+    for my $k (sort keys %$begin_json) {
+        next if $k eq 'player';
+        my $v = $begin_json->{$k};
+        $v = encode_json($v) if ref $v;
+        print "    $k => $v\n";
+    }
+}
+
+@seeking = @$seeking_ref;
+
+# ── Evidence 4: Climate premium badge on offer ────────────────────
+print "\n" . "=" x 66 . "\n";
+print "EVIDENCE 4: Climate premium on matched offer\n";
+print "=" x 66 . "\n";
+
+if ($mkt_html =~ /Seeking:\s*([^<]+)/) {
+    @seeking = split /\s*,\s*/, $1;
+    print "  Customer seeks: " . join(', ', @seeking) . "\n";
+}
+
+my $offer_item_id;
+if (@seeking) {
+    my @shed_items = (
+        { id => 'item-c', behaviors => ['volatile'] },
+        { id => 'item-v', behaviors => ['volatile', 'thermal'] },
+        { id => 'item-l', behaviors => ['luxury'] },
+        { id => 'item-s', behaviors => ['storage'] },
+        { id => 'item-r', behaviors => ['revelation', 'signal'] },
+        { id => 'item-f', behaviors => ['field', 'medical_response'] },
+    );
+    my %wanted = map { $_ => 1 } @seeking;
+    # Prefer item-c (value=10) to stay under budget with climate bonus
+    for my $item (@shed_items) {
+        for my $b (@{ $item->{behaviors} }) {
+            if ($wanted{$b}) {
+                $offer_item_id = $item->{id};
+                print "  Offering item $offer_item_id (behaviors: " . join(',', @{$item->{behaviors}}) . ")\n";
+                last;
+            }
+        }
+        last if $offer_item_id;
+    }
+}
+
+if ($offer_item_id) {
+    $t->post_ok('/market/offer', json => { shed_item_id => $offer_item_id });
+    my $offer_resp = $t->tx->res->json;
+    if ($offer_resp && $offer_resp->{ok}) {
+        print "  ✅ Offer accepted (ok=1)\n";
+        if ($offer_resp->{climate_premium_pct}) {
+            print "     climate_premium_pct: $offer_resp->{climate_premium_pct}%\n";
+        } else {
+            print "     (no climate premium this offer)\n";
+        }
+        if ($offer_resp->{sale_result}) {
+            print "     sale_result: $offer_resp->{sale_result}\n";
+        }
+        if ($offer_resp->{result}) {
+            print "     result: $offer_resp->{result}\n";
+        }
+    } else {
+        my $status = $t->tx->res->code;
+        my $body   = $t->tx->res->body;
+        print "  ❌ Offer failed (HTTP $status)\n";
+        print "     Body: " . (length($body) > 300 ? substr($body, 0, 300) . "..." : $body) . "\n";
+    }
+} else {
+    print "  ⚠️  No shed item matches customer's desired behaviors\n";
+    print "     (Skipped — cannot demonstrate premium badge)\n";
+}
+
+# ── Evidence 5: Budget range (skill 3) ────────────────────────────
+print "\n" . "=" x 66 . "\n";
+print "EVIDENCE 5: Budget range (skill_selling >= 3)\n";
+print "=" x 66 . "\n";
+
+if ($mkt_html =~ /Budget range:/) {
+    print "  ✅ \"Budget range:\" found in negotiation panel\n";
+    if ($mkt_html =~ /Budget range:\s*([^<]+)/) {
+        print "     $1\n";
+    }
+} else {
+    print "  ❌ No \"Budget range:\" — check skill_selling=3\n";
+}
+
+# ── Evidence 6: climate_match suggestion on home ─────────────────
+print "\n" . "=" x 66 . "\n";
+print "EVIDENCE 6: Home dashboard \"climate_match\" suggestion\n";
+print "=" x 66 . "\n";
+
+$t->get_ok('/home?_format=fragment')->status_is(200);
+$home_html = $t->tx->res->body;
+if ($home_html =~ /paying premium/i) {
+    print "  ✅ Home dashboard shows premium suggestion\n";
+    my @lines = split /\n/, $home_html;
+    for my $line (@lines) {
+        chomp $line;
+        if ($line =~ /paying premium/i || $line =~ /\[PREMIUM\]/) {
+            $line =~ s/^\s+//;
+            print "     → $line\n";
+        }
+    }
+} else {
+    print "  ❌ No premium suggestion in home\n";
+}
+
+# ── Evidence 7: Climate premium badge in shed ───────────────────
+print "\n" . "=" x 66 . "\n";
+print "EVIDENCE 7: Shed shows climate premium badge on matching items\n";
+print "=" x 66 . "\n";
+
+$t->get_ok('/shed?_format=fragment')->status_is(200);
+$shed_html = $t->tx->res->body;
+if ($shed_html =~ /✦ premium/) {
+    print "  ✅ Climate premium badge found in shed\n";
+    # Show which items have the badge
+    my $dom = Mojo::DOM->new($shed_html);
+    my @badge_rows = $dom->find('tr')->each;
+    for my $row (@badge_rows) {
+        next unless $row->at('.mm-badge-amber');
+        my $label = $row->at('td:first-child span[title]');
+        my $label_text = $label ? $label->text : '?';
+        print "     → $label_text has premium badge\n";
+    }
+} else {
+    print "  ❌ No premium badge found — check climate biases vs shed items\n";
+}
+
+# ── Summary ────────────────────────────────────────────────────────
+print "\n" . "=" x 66 . "\n";
+print "DEMO COMPLETE\n";
+print "=" x 66 . "\n";
