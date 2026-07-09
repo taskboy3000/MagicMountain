@@ -706,8 +706,19 @@ sub ensureActiveSeason ($self) {
 
     my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
     if (!@$active) {
-        $self->log->warn("No active season found. Run 'create-season' to start one.");
-        return;
+        my $count = scalar keys %{ $self->seasons->all };
+        my $label = $self->config->{default_season_label_prefix} . " $count";
+        $self->log->info("No active season. Creating '$label'.");
+        my $season = $self->seasons->create(
+            label           => $label,
+            length          => $self->config->{default_season_length},
+            day             => 1,
+            end_of_day_hour => $self->config->{end_of_day_hour},
+            status          => 'active',
+            last_maintenance => CORE::time,
+        );
+        $season->save;
+        return 1;
     }
     return 1;
 }
