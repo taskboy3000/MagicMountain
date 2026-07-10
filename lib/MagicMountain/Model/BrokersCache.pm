@@ -36,11 +36,11 @@ sub draw_random ($self, %filters) {
         }
         push @eligible, $row if $match;
     }
-    return undef unless @eligible;
+    return unless @eligible;
 
     my $picked = $eligible[int(rand(scalar @eligible))];
     my $obj = $self->get($picked->{id});
-    return undef unless $obj;
+    return unless $obj;
     $obj->setCol('available', 0);
     $obj->save;
     return $obj;

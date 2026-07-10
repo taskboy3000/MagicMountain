@@ -176,7 +176,7 @@ sub begin ($self, $char, %params) {
                 my $behaviors = $item->getCol('behaviors') // [];
                 my $has_non_banned = 0;
                 for my $b (@$behaviors) {
-                    unless (grep { $_ eq $b } @banned) {
+                    if (!grep { $_ eq $b } @banned) {
                         $has_non_banned = 1;
                         last;
                     }
