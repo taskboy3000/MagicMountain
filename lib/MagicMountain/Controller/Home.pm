@@ -34,7 +34,7 @@ sub show ($self) {
                 id          => $item->getCol('id'),
                 label       => $aid,
                 label_full  => $aid,
-                icon        => '/images/artifact_' . $aid . '.svg',
+                icon        => $self->url_for('/images') . '/artifact_' . $aid . '.svg',
                 condition   => $item->getCol('condition'),
                 value_label => $item->value_label,
                 days        => $item->getCol('days_in_shed'),

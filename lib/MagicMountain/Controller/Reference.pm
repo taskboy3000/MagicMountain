@@ -10,7 +10,7 @@ sub show ($self) {
 
     my $display = {
         %$entry,
-        icon => $entry->{icon} ? '/images/' . $entry->{icon} : undef,
+        icon => $entry->{icon} ? $self->url_for('/images') . '/' . $entry->{icon} : undef,
     };
 
     my $format = $self->param('_format');
