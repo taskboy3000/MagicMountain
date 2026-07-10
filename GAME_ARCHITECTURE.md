@@ -1195,10 +1195,20 @@ refuses to handle. When a faction is dominant (margin > 4), items with banned
 traits cannot be sold to that faction through the normal Bazaar — the customer
 refuses them. This opens the Black Market channel (see §6.9).
 
+**Advantage + Constraint principle**: Each dominant faction's climate creates
+both a player advantage AND a constraint, forcing strategic adaptation.
+Advantages include richer budgets, trait premiums, or patient buyers.
+Constraints include banned trade channels, reduced market capacity, tighter
+budgets, or the absence of trait premiums. No dominant faction is purely
+beneficial — the climate reshapes the game environment in a distinct way.
+
 ```yaml
 climate:
   budget_delta: 10           # Adds to soft_budget in MarketVisit
   patience_delta: 1          # Adds to irritation_threshold (dominant faction only)
+  mood_delta: -1             # Adjusts customer initial irritation (market-wide)
+  appetite_delta: -1         # Modifies daily_appetite_base (all factions)
+  risk_tolerance_delta: 1    # Reserved for future use
   draw_biases:               # Prospecting: boosts certain behavior weights
     thermal: 1.5
   starting_instability_mod: -1  # Reduces starting instability
@@ -1217,6 +1227,8 @@ All deltas are scaled by intensity factor (1× for leading, 1.5× for strong,
 | Starting instability | Modifies base instability of drawn artifacts | `climate.starting_instability_mod` |
 | Buyer budgets | Adds/subtracts from soft_budget | `climate.budget_delta` |
 | Buyer patience | Adds to irritation_threshold (dominant only) | `climate.patience_delta` |
+| Customer mood | Adjusts initial irritation (market-wide) | `climate.mood_delta` |
+| Market capacity | Modifies daily_appetite_base (all factions) | `climate.appetite_delta` |
 | Buyer trait biases | Adds multiplier to match offers for specific traits | `climate.buyer_trait_biases` |
 | Banned traits | Traits the dominant faction refuses to buy (→ Black Market channel) | `climate.banned_traits` |
 | Crier text | Generates per-faction headline/hint for Town Crier | `climate → crier_text` |

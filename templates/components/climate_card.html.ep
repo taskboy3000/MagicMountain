@@ -11,6 +11,16 @@
 % if (keys %biases) {
     <div class="mm-text-amber">Paying premium for: <%= join(', ', sort keys %biases) %></div>
 % }
+% my @banned = @{ $cc->{banned_traits} // [] };
+% if (@banned) {
+    <div class="mm-text-dim">Restricted at bazaar: <%= join(', ', @banned) %></div>
+% }
+% my $adelta = $cc->{market}{appetite_delta} // 0;
+% if ($adelta < 0) {
+    <div class="mm-text-dim">Market capacity reduced: factions buy fewer items</div>
+% } elsif ($adelta > 0) {
+    <div class="mm-text-dim">Market capacity increased: factions buy more items</div>
+% }
   </div>
 </div>
 % }

@@ -11,10 +11,11 @@ factions:
     climate:
       draw_biases: { thermal: 1.3, storage: 1.2, food_processing: 1.1, power: 1.1, force: 0.75, instability: 0.8, revelation: 0.8 }
       starting_instability_mod: 1
-      budget_delta: 2
+      budget_delta: 4
       mood_delta: -1
       patience_delta: -1
-      risk_tolerance_delta: 1
+      risk_tolerance_delta: 2
+      appetite_delta: -1
       buyer_trait_biases: { volatile: 1, luxury: 1 }
       banned_traits: [food_processing]
   - id: libremount
@@ -29,11 +30,13 @@ factions:
     climate:
       draw_biases: { thermal: 1.3, water: 1.2, sanitation: 1.2, medical_response: 1.1, power: 1.1, signal: 0.75, revelation: 0.8, force: 0.8 }
       starting_instability_mod: 0
-      budget_delta: -1
+      budget_delta: 0
       mood_delta: 1
       patience_delta: 1
       risk_tolerance_delta: 0
-      buyer_trait_biases: { thermal: 1, water: 1, medical_response: 1 }
+      appetite_delta: 0
+      buyer_trait_biases: {}
+      banned_traits: []
   - id: faculty
     name: "The Faculty"
     disposition: "academic order — catalogues the unknown"
@@ -46,10 +49,11 @@ factions:
     climate:
       draw_biases: { signal: 1.3, revelation: 1.2, field: 1.2, medical_response: 1.1, thermal: 0.8, food_processing: 0.8, water: 0.8 }
       starting_instability_mod: 0
-      budget_delta: 1
+      budget_delta: -2
       mood_delta: 0
       patience_delta: 1
       risk_tolerance_delta: -1
+      appetite_delta: 0
       buyer_trait_biases: { signal: 1, field: 1, archival: 1 }
   - id: purifiers
     name: "The Purifiers"
@@ -67,8 +71,9 @@ factions:
       mood_delta: -1
       patience_delta: -1
       risk_tolerance_delta: 0
+      appetite_delta: 0
       buyer_trait_biases: { force: 1, instability: 1 }
-      banned_traits: [force, instability]
+      banned_traits: [force, instability, medical_response]
   - id: revelationists
     name: "The Revelationists"
     disposition: "truth seekers — the mountain speaks to them"
@@ -85,4 +90,6 @@ factions:
       mood_delta: 1
       patience_delta: 0
       risk_tolerance_delta: 1
+      appetite_delta: 0
       buyer_trait_biases: { revelation: 1, signal: 1, field: 1 }
+      banned_traits: [thermal, food_processing, water]

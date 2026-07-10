@@ -114,6 +114,10 @@ sub _dynamic_multiplier ($self, $season, $faction_id, $behaviors, $saturation_fl
 
     my $daily_intake  = $fdata->{daily_intake} // 0;
     my $appetite_base = $faction->{daily_appetite_base} // 3;
+    if ($self->app->can('dominance_service') && (my $aseason = $self->app->active_season)) {
+        $appetite_base += $self->app->dominance_service->appetite_delta($aseason);
+    }
+    $appetite_base = 1 if $appetite_base < 1;
     if ($daily_intake >= $appetite_base) {
         $mult *= ($self->app->config->{market_post_appetite_penalty} // 0.50);
     }
@@ -322,6 +326,12 @@ sub begin ($self, $char, %params) {
         if ($customer->{faction_id} eq ($dom->dominant_faction($season) // '')) {
             $customer->{irritation_threshold} += $dom->patience_delta($season);
         }
+    }
+    # ── Faction climate: mood delta (market-wide) ─────────────────
+    if ($self->app->can('dominance_service') && (my $mseason = $self->app->active_season)) {
+        my $mdom = $self->app->dominance_service;
+        $customer->{irritation} -= $mdom->mood_delta($mseason);
+        $customer->{irritation} = 0 if $customer->{irritation} < 0;
     }
     # ────────────────────────────────────────────────────────────────
 

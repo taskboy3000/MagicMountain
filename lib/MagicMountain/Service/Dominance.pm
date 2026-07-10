@@ -36,6 +36,8 @@ sub _market_summary ($self, $profile, $factor) {
     push @parts, 'Shorter tempers' if ($profile->{patience_delta} // 0) * $factor < 0;
     push @parts, 'More patient'    if ($profile->{patience_delta} // 0) * $factor > 0;
     push @parts, 'Volatile moods'  if abs($profile->{mood_delta} // 0) * $factor >= 1;
+    push @parts, 'Faster sellout'  if ($profile->{appetite_delta} // 0) * $factor < 0;
+    push @parts, 'Slower sellout'  if ($profile->{appetite_delta} // 0) * $factor > 0;
     return @parts ? join(', ', @parts) : 'Neutral market';
 }
 
@@ -107,6 +109,11 @@ sub risk_tolerance_delta ($self, $season) {
     return $climate->{market}{risk_tolerance_delta} // 0;
 }
 
+sub appetite_delta ($self, $season) {
+    my $climate = $season->getCol('faction_climate') // {};
+    return $climate->{market}{appetite_delta} // 0;
+}
+
 sub buyer_trait_biases ($self, $season) {
     my $climate = $season->getCol('faction_climate') // {};
     return $climate->{market}{buyer_trait_biases} // {};
@@ -126,27 +133,27 @@ sub _crier_message ($self, $fid, $tier) {
         syndicate => {
             headline => 'The Roads Belong to Fast Money',
             body     => 'The Syndicate\'s runners were outside the east gate before sunrise, counting crates before the prospectors came down. Buyers are flush today, but nobody is waiting politely.',
-            hint     => 'Expect richer customers, sharper tempers, and less stable finds.',
+            hint     => 'Expect richer customers, sharper tempers, and shorter attention spans across the market.',
         },
         purifiers => {
             headline => 'A Wary Calm Settles Over the Yards',
             body     => 'Purifier patrols made their rounds before the first prospectors left camp. Fewer devices will reach the market unchecked, but those that do carry a heavier price.',
-            hint     => 'Expect more volatile finds and buyers who know what they came for.',
+            hint     => 'Expect more volatile finds, irritable buyers, and restricted trade channels.',
         },
         revelationists => {
             headline => 'The Faithful Gather Before Dawn',
             body     => 'Signs were read in the bones of last night\'s fire. Pilgrims claim the Mountain called out in a language no scholar has catalogued. Strange artifacts have become a matter of conviction.',
-            hint     => 'Expect unusual finds and buyers with very specific obsessions.',
+            hint     => 'Expect unusual finds, patient buyers, and mundane items refused at the bazaar.',
         },
         faculty => {
             headline => 'Lanterns Burn Late in the Archive Tents',
             body     => 'Faculty surveyors were cataloguing before the salvage crews had their breakfast. The Mountain is being read like a manuscript today, and every find is another sentence.',
-            hint     => 'Expect steadier artifacts, careful buyers, and fewer shortcuts.',
+            hint     => 'Expect scholarly premiums on rare traits, but tighter budgets across the board.',
         },
         libremount => {
             headline => 'The Gates Open Without Permission',
             body     => 'LibreMount volunteers redistributed yesterday\'s surplus before the market could set prices. Access routes are clear, tolls have been cut, and the day\'s finds belong to whoever reaches them first.',
-            hint     => 'Expect practical finds, fair moods, and lower top-end budgets.',
+            hint     => 'Expect practical finds, fair moods, and no trait premiums — pure value trading.',
         },
     );
     return $MSGS{$fid} // {};
@@ -188,6 +195,7 @@ sub calculate_climate ($self, $season) {
             mood_delta          => int(($profile->{mood_delta} // 0) * $factor),
             patience_delta      => int(($profile->{patience_delta} // 0) * $factor),
             risk_tolerance_delta => int(($profile->{risk_tolerance_delta} // 0) * $factor),
+            appetite_delta      => int(($profile->{appetite_delta} // 0) * $factor),
             buyer_trait_biases  => $self->_scale_biases($profile->{buyer_trait_biases}, $factor),
             budget_label        => ($profile->{budget_delta} // 0) >= 0 ? 'Richer buyers' : 'Tighter budgets',
             market_summary      => $self->_market_summary($profile, $factor),
