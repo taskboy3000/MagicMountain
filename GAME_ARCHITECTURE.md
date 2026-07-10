@@ -1591,7 +1591,15 @@ progressive onboarding, and recap views.
 - Do NOT construct characters (created by join-season flow or maintenance)
 - Do NOT create accounts (that's Sessions)
 - Do NOT validate activity phases (the activity base class does this)
-- Do NOT call persistence methods on models (the activity does this)
+- Do NOT call persistence for game-state mutations (AP, scrap, score, shed items,
+  activity rows). The activity handles `$char->save` for game state.
+- Do NOT create or delete activity rows. Activity lifecycle belongs to the
+  activity system.
+- Do NOT orchestrate multi-model persistence (e.g. delete all characters + account
+  in one action). Delegate to a service.
+- Controllers MAY call `$char->save` for UI-preference/display-state columns
+  only: `current_view`, `seen_orientation`, `settings_muted`, `pending_notices`.
+  These have no game-mechanical effect and no activity covers them.
 - Do NOT apply skill effects or decay (activities and maintenance handle this)
 - Do NOT generate customers or match artifacts (Market activity handles this)
 - Do NOT record transcript events (the activity and app class handle this)
