@@ -735,8 +735,17 @@ sub ensureActiveSeason ($self) {
 
     my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
     if (!@$active) {
-        my $count = scalar keys %{ $self->seasons->all };
-        my $label = $self->config->{default_season_label_prefix} . " $count";
+        my $max_num = 0;
+        my $prefix = $self->config->{default_season_label_prefix} // 'Season';
+        my $re = qr/^\Q$prefix\E\s+(\d+)$/;
+        for my $id (keys %{ $self->seasons->all }) {
+            my $row = $self->seasons->all->{$id};
+            if ($row->{label} =~ $re) {
+                my $n = $1;
+                $max_num = $n if $n > $max_num;
+            }
+        }
+        my $label = "$prefix " . ($max_num + 1);
         $self->log->info("No active season. Creating '$label'.");
         my $season = $self->seasons->create(
             label           => $label,
