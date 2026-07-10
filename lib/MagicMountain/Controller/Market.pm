@@ -19,7 +19,7 @@ sub show ($self) {
         my $factions = $self->app->factions_data // [];
         for my $f (@$factions) {
             if ($f->{id} eq $c->{faction_id}) {
-                $faction_icon_url = $f->{icon} ? '/images/' . $f->{icon} : undef;
+                $faction_icon_url = $f->{icon} ? $self->url_for('/images') . '/' . $f->{icon} : undef;
                 last;
             }
         }

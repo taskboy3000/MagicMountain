@@ -25,17 +25,25 @@ my %BASE_TAB = (
         pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
+    black_market => {
+        home     => { active => 1, reason => undef },
+        prospect => { active => 0, reason => 'Complete your current transaction first' },
+        bazaar   => { active => 1, reason => undef },
+        pvp      => { active => 1, reason => undef },
+        skills   => { active => 1, reason => undef },
+    },
 );
 
 my %TAB_ID_FOR = (
-    home        => 'home',
-    idle        => 'prospect',
-    result      => 'home',
-    prospecting => 'prospect',
-    market      => 'bazaar',
-    pvp         => 'pvp',
-    skills      => 'skills',
-    account     => 'account',
+    home         => 'home',
+    idle         => 'prospect',
+    result       => 'home',
+    prospecting  => 'prospect',
+    market       => 'bazaar',
+    black_market => 'bazaar',
+    pvp          => 'pvp',
+    skills       => 'skills',
+    account      => 'account',
 );
 
 use constant {
@@ -132,7 +140,7 @@ sub tab_id_for ($self, $view) {
 sub resolve_view ($self, $stored_view, $active_type, $tabs) {
     my $view = $stored_view || $active_type || 'home';
 
-    if (($view eq 'prospecting' || $view eq 'market') && !$active_type) {
+    if (($view eq 'prospecting' || $view eq 'market' || $view eq 'black_market') && !$active_type) {
         $view = 'home';
     }
     if ($active_type && $view ne $active_type) {

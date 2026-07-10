@@ -175,6 +175,7 @@ sub calculate_climate ($self, $season) {
         day                 => $season->getCol('day'),
         dominant_faction    => $leader_id,
         dominant_faction_name => $self->_faction_name($leader_id),
+        banned_traits       => $profile->{banned_traits} // [],
         intensity           => $tier,
         intensity_label     => ucfirst($tier),
         dominance_margin    => $margin,

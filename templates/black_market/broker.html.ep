@@ -1,0 +1,44 @@
+<div class="mm-panel">
+  <div class="mm-panel-header">UNAUTHORIZED CHANNEL</div>
+  <div class="mm-panel-body">
+    <div class="mm-card-head">
+      <div class="mm-card-info">
+        <div class="mm-flex mm-gap-sm" style="align-items:center">
+          <strong>BROKER</strong> <span class="mm-text-dim">(unregistered)</span>
+        </div>
+        <p class="mm-text-dim" style="font-size:0.72rem">signal strength: fluctuating</p>
+      </div>
+    </div>
+
+    <div class="mm-card">
+      <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
+        <tr>
+          <td class="mm-text-dim" style="padding:0.2rem 0">Artifact:</td>
+          <td style="padding:0.2rem 0;text-align:right"><%= $deal->{artifact_id} %></td>
+        </tr>
+        <tr>
+          <td class="mm-text-dim" style="padding:0.2rem 0">Premium offer:</td>
+          <td style="padding:0.2rem 0;text-align:right"><strong><%= $deal->{offer_value} %></strong> scrap</td>
+        </tr>
+        <tr>
+          <td class="mm-text-dim" style="padding:0.2rem 0">Seizure probability:</td>
+          <td style="padding:0.2rem 0;text-align:right"><strong><%= sprintf('%.0f%%', $deal->{seizure_chance} * 100) %></strong></td>
+        </tr>
+        <tr>
+          <td class="mm-text-dim" style="padding:0.2rem 0">Premium multiplier:</td>
+          <td style="padding:0.2rem 0;text-align:right"><%= sprintf('%.2fx', $deal->{premium_mult}) %></td>
+        </tr>
+      </table>
+    </div>
+
+    <p class="mm-crier" style="margin:0.5rem 0"><%= $deal->{arrival_text} %></p>
+
+    <div class="mm-flex-center" style="gap:0.5rem;margin-top:0.5rem">
+%= include 'components/action_buttons', actions => $actions
+    </div>
+
+    <p class="mm-text-dim" style="margin-top:0.5rem;font-size:0.7rem;text-align:center">
+      The PB3K cannot guarantee transaction integrity in this channel.
+    </p>
+  </div>
+</div>

@@ -284,6 +284,7 @@ Each module has strict constraints on what it may and must never hold.
 | **Activity (base)** | Persisted columns, ephemeral attributes (transitions, app, content), dispatch logic | Game math, artifact knowledge, YAML content interpretation |
 | **Activity::Prospecting** | App reference, transition table, content interpretation, live activity state (artifact) | Market logic, Shed offers, other players' data |
 | **Activity::MarketVisit** | App reference, transition table, negotiation state, customer data | Prospecting logic, artifact push math |
+| **Activity::BlackMarket** | App reference, transition table, deal state (customer column), premium/seizure math via private helpers | MarketVisit logic, faction standing, normal bazaar customer state |
 | **Shed** (inventory manager) | ShedItem rows in `shed.json`, decay logic in `ShedManager.pm`, query/filter by traits | Market, Faction objects, Account model |
 | **Model::Character** | App reference (for association accessors), file path, column definitions, JSON CRUD, invariant enforcement (AP bounds, scrap≥0, score never decreases, skill bounds per YAML max_level), association accessors: `prospecting_view()`, `market_view()`, `shed_items()`, `player_skills()` | Game math, artifact logic, state mutation outside of CRUD |
 | **Model::ShedItem** | File path, column definitions, JSON CRUD | Game logic, decay math, faction rules |
@@ -308,6 +309,9 @@ Each module has strict constraints on what it may and must never hold.
 | **Service::BotRunner** (service) | App reference (`prospecting`, `market`, `shed`), optional `transcript` for bot event logging | Direct model mutation except through Activity dispatch. Writes bot events to separate transcript file. |
 | **Service::Dominance** (service) | App reference, faction profiles from YAML, calculate_climate | Character data, market negotiation state, persistence (read-only — writes via season model API) |
 | **Service::PvP** (service) | App reference, pressure stack CRUD, effect-type registry, reaction text from YAML | Character state mutation outside of `apply_pressure`, market negotiation logic |
+| **Service::MarketGate** (service) | App reference, season/shed/character queries through app | Game rules, controller decisions, phase validation. Returns bool — never mutates. |
+| **Model::BrokersCache** (model) | File path, column definitions, JSON CRUD with `available` flag | Game logic, market rules, character data |
+| **Bot::BlackMarketPolicy** (bot policy) | Premium multiplier, policy threshold | Activity dispatch, persistence operations |
 | **Transcript** (event recorder) | File handle, app reference | Game rules, account management |
 | **Faction** (buyer definition) | ID, name, multiplier, interests, disposition | Character data, player identity |
 | **Bot** (automated player) | Policy name, parameters, activity access | Direct persistence (uses same models and activities as controllers) |
@@ -416,6 +420,9 @@ then discarded. Token reset (`/admin/account/reset-token` or CLI
 | skill_prospecting | integer | 0–max (per YAML), Prospecting skill level |
 | skill_upcycling | integer | 0–max (per YAML), Upcycling skill level |
 | skill_selling | integer | 0–max (per YAML), Selling skill level |
+| skill_smuggling | integer | 0–4, SMUGGLING (SHADOW-ROUTE) skill level |
+| black_market_opportunity_offered_today | 0/1 | Whether the Black Market broker has been offered today. Reset during daily maintenance. |
+| smuggle_reroll_used | 0/1 | Whether the SMUGGLING level 4 daily reroll has been consumed. Reset during daily maintenance. |
 | current_location | string | Current location ID in the location graph (default: `camp`) |
 | current_view | string | Last active view (idle/shed/factions/skills/account/market/prospecting). Managed by Nav controller — synced on every `/nav` response. Activity-only views invalidate when activity ends. |
 | loyalty_visits_since | integer | Consecutive market visits without seeing the player's top faction. Used by loyalty access guarantee (see §6.5 step 1). |
@@ -507,10 +514,10 @@ returns to `'idle'`, the row is deleted and the FK cleared.
 |--------|------|-------------|
 | id | UUID | Primary key |
 | char_id | UUID | FK to characters.json |
-| type | string | Discriminator: "prospecting" or "market_visit" |
+| type | string | Discriminator: "prospecting", "market_visit", or "black_market" |
 | phase | string | State-machine phase (varies by type) |
 | artifact | hashref or null | Live artifact state (prospecting only, null when idle) |
-| customer | hashref or null | Current customer state (market_visit only, null when idle) |
+| customer | hashref or null | Current customer/deal state (market_visit and black_market, null when idle) |
 | pending_event | hashref or null | Active choice event awaiting resolution (prospecting only). Set when a choice-type random event fires; cleared after `resolve_event`. |
 | createdAt | unix timestamp | Row creation time |
 | updatedAt | unix timestamp | Last save time |
@@ -705,9 +712,9 @@ skills:
 ```
 
 The internal column names remain `skill_prospecting`, `skill_upcycling`,
-`skill_selling` — only the UI labels changed. The `cost` field is in scrap.
-Exact mechanical effects per level are marked as implementation detail —
-see section 6.6.
+`skill_selling`, `skill_smuggling` — only the UI labels changed. The `cost` field
+is in scrap. Exact mechanical effects per level are marked as implementation
+detail — see section 6.6.
 
 ### 5.11 Entity Lifecycle
 
@@ -1073,6 +1080,15 @@ eliminate instability.
 | 2 | Irritation gain on mismatches eliminated (gain = 0 instead of 1) |
 | 3 | Customer budget range revealed; match multiplier increased from 1.2× to 1.4× `base_multiplier` |
 
+**SHADOW-ROUTE (smuggling, levels 1–4)** — reduces Black Market seizure risk:
+
+| Level | Effect |
+|-------|--------|
+| 1 | Seizure risk reduced by 5 percentage points |
+| 2 | Seizure risk reduced by 10 percentage points |
+| 3 | Seizure risk reduced by 15 percentage points |
+| 4 | Seizure risk reduced by 20 percentage points; first seizure each day gets one free reroll |
+
 Skill costs are defined entirely in `content/skills.yml`. Skill training
 does not cost AP.
 
@@ -1137,9 +1153,58 @@ calculations. The desperation and saturation states are maintained in
 days_since_purchase=0) and daily maintenance (daily_intake=0,
 days_since_purchase++).
 
+### 6.9 Black Market (Press-Your-Luck Selling)
+
+When a faction is dominant (climate intensity >= `leading`, margin > 4), its
+climate profile's `banned_traits` list (1-2 artifact behavior tags) becomes
+active. Items with banned traits cannot be offered to the dominant faction
+during normal Bazaar negotiation (the customer refuses them).
+
+On the player's first Bazaar visit of the day while bans are active and the
+player has at least one banned item in the shed, the broker intercepts instead
+of a normal faction customer. The Black Market is **not a separate nav item** —
+it appears inside the Bazaar panel as a modal offer.
+
+**Broker offer formula**:
+```
+premium_mult = 1.2 + (decayed_value / 100) * 0.4    // capped at 2.5x
+seizure_chance = 0.05 + (decayed_value / 200) * 0.30 // capped at 0.35
+offer_value = floor(decayed_value * premium_mult)
+```
+
+Both premium multiplier and seizure chance are **shown to the player**. Higher
+value items offer larger premiums but carry higher risk — this is the
+press-your-luck tension.
+
+**SMUGGLING skill** (`skill_smuggling`, 0–4): Each level reduces seizure chance
+by 5 percentage points (level 4: -20%). Level 4 also grants one daily reroll:
+if the first seizure roll fails, the player can reroll once.
+
+**Outcome**:
+- **Sale**: Player receives `offer_value` as scrap+score. Shed item deleted.
+  No faction standing change. Recorded as disposition with faction_id
+  `black_market`.
+- **Seizure**: Total loss. Shed item deleted. Nothing awarded. Artifact logged
+  to `Model::BrokersCache` for future recovery (random event).
+- **Withdraw**: Player walks away. Item stays in shed. AP consumed.
+
+**BrokersCache**: Seized artifacts are logged to `data/brokers_cache.json` with
+an `available` flag. A future random event type (`brokers_cache_resurface`) can
+draw from this pool and restore an artifact to a player's shed.
+
+**One visit per day**: The `black_market_opportunity_offered_today` flag on the
+character prevents multiple broker encounters in a single day. Reset during
+daily maintenance.
+
 #### Implemented
 
-- **Random events (Phase 1)**: Three event pools defined: `content/events/prospecting.yml` (fires during `Prospecting::begin`, 20% base chance), `content/events/market_visit.yml` (fires during `MarketVisit::begin`, 15% base chance), `content/events/global.yml` (fires during daily maintenance on `day_start` trigger, 60% base chance). All three are implemented. Events use YAML-driven condition/effect dispatch tables with `Service::RandomEvents`. Prospecting events include catch-up rubberbanding via `score_lte`.
+- **Black Market**: `Activity::BlackMarket`, `Controller::BlackMarket`,
+  `Service::MarketGate`, `Model::BrokersCache`, `Bot::BlackMarketPolicy`
+- **SMUGGLING skill**: YAML-driven, reduces seizure chance, level 4 reroll
+
+#### Planned (not yet implemented)
+
+- **Desperate Recruiter**: When a faction trails significantly in influence,: `content/events/prospecting.yml` (fires during `Prospecting::begin`, 20% base chance), `content/events/market_visit.yml` (fires during `MarketVisit::begin`, 15% base chance), `content/events/global.yml` (fires during daily maintenance on `day_start` trigger, 60% base chance). All three are implemented. Events use YAML-driven condition/effect dispatch tables with `Service::RandomEvents`. Prospecting events include catch-up rubberbanding via `score_lte`.
 
 #### Planned (not yet implemented)
 
@@ -1306,7 +1371,11 @@ which faction has the highest influence (`faction_state.influence`). If the
 influence margin between leader and runner-up exceeds a threshold (contested ≤4,
 leading ≤12, strong ≤24, dominant >24), the leader's climate profile applies.
 Climate profiles are defined per-faction in `content/factions.yml` under a
-`climate` key:
+`climate` key. In addition to numeric deltas, each profile may declare
+`banned_traits`: a list of artifact behavior tags that the dominant faction
+refuses to handle. When a faction is dominant (margin > 4), items with banned
+traits cannot be sold to that faction through the normal Bazaar — the customer
+refuses them. This opens the Black Market channel (see §6.9).
 
 ```yaml
 climate:
@@ -1317,6 +1386,7 @@ climate:
   starting_instability_mod: -1  # Reduces starting instability
   buyer_trait_biases:        # Market: premium for certain traits
     force: 0.10
+  banned_traits: [force, instability]  # Traits the dominant faction refuses to handle
 ```
 
 All deltas are scaled by intensity factor (1× for leading, 1.5× for strong,
@@ -1330,6 +1400,7 @@ All deltas are scaled by intensity factor (1× for leading, 1.5× for strong,
 | Buyer budgets | Adds/subtracts from soft_budget | `climate.budget_delta` |
 | Buyer patience | Adds to irritation_threshold (dominant only) | `climate.patience_delta` |
 | Buyer trait biases | Adds multiplier to match offers for specific traits | `climate.buyer_trait_biases` |
+| Banned traits | Traits the dominant faction refuses to buy (→ Black Market channel) | `climate.banned_traits` |
 | Crier text | Generates per-faction headline/hint for Town Crier | `climate → crier_text` |
 
 The climate object also generates `crier_text` for the Town Crier, providing
@@ -2113,6 +2184,9 @@ changes, no manual registration.
 | POST | `/market/stand_pat` | `Market#stand_pat` | JSON | Hold firm at original price; customer may accept (skill+standing roll) or refuse (irritation++) |
 | POST | `/skills/purchase` | `Skills#purchase` | JSON | Buy skill upgrade (costs scrap) |
 | GET | `/pvp` | `Pvp#show` | JSON + fragment | PvP panel: rivals ranked above player, active pressures, scrap, action buttons |
+| GET | `/black_market` | `BlackMarket#show` | JSON + fragment | Black Market broker panel. 204 when no active black market session. |
+| POST | `/black_market/accept` | `BlackMarket#accept` | JSON | Accept broker's offer. Roll for seizure or sale. |
+| POST | `/black_market/withdraw` | `BlackMarket#withdraw` | JSON | Decline broker's offer. Item stays in shed. AP consumed. |
 | POST | `/pvp/apply` | `Pvp#apply` | JSON | Apply Rival Pressure body: `{target_id, faction_id, effect_type}`. Returns `{ok, pressure{id, effect_type, faction_id, target_id, cost}}` on success |
 
 ### 13.2 Self-Describing Actions Convention
@@ -2359,6 +2433,16 @@ four separate decisions, each with its own policy dispatch:
 | | `default` | *(none)* | Continue offering further items |
 | **should_accept_counter** | `default` | `haggle_aggression` (default 1.0), `min_counter_pct` (default 0) | Accept if `rand() < aggression` AND `counter_value >= decayed_value × min_pct` |
 | | `highest_offer` | *(none)* | Never accept counters |
+| **should_use_black_market** | `default` | *(none)* | Never use black market |
+| | `greedy` | `threshold` (default 1.5) | Use black market if premium multiplier >= threshold |
+| | `desperate` | `threshold` (default 1.2) | Use black market if premium multiplier >= threshold |
+
+Black Market evaluation (per `Bot::BlackMarketPolicy`) gates **before** the
+normal market phase. If a bot enters the Black Market, it skips the normal
+market visit that day. Bots with a `black_market_policy` in their profile
+evaluate the premium multiplier against their threshold on each eligible
+banned-trait item. If the threshold is met, the bot dispatches through
+the same `Activity::BlackMarket::begin`/`accept` path as human players.
 
 ### 14.4 Bot Strategy Profile
 
@@ -2620,9 +2704,9 @@ YAML definitions. Adding a new activity type requires:
 2. Adding a `has` declaration to `MagicMountain.pm` with the constructor call
 3. Adding the activity's controller routes in `buildRoutes`
 
-There is no dynamic scanning or automatic registry. The two current activities
-are `$app->prospecting` and `$app->market`, directly available to controllers
-at request time.
+There is no dynamic scanning or automatic registry. The three current activities
+are `$app->prospecting`, `$app->market`, and `$app->black_market`, directly
+available to controllers at request time.
 
 ---
 
@@ -2703,6 +2787,7 @@ The new codebase (`lib/`) is a ground-up rebuild.
 | **Random events (Phases 1-4)** | `Service/RandomEvents.pm`, `content/events/prospecting.yml`, `content/events/market_visit.yml`, `content/events/global.yml`, `t/service_random_events.t`, `t/prospecting_events.t` | Full event system across three pools. Prospecting passive + choice events (20% base). Market visit passive events (15% base). Global day events (60% base) drawn during maintenance apply daily modifiers to all activities. Condition/effect dispatch tables with pool-specific registries and load-time validation. Test-mode gate (`MM_EVENTS` override). |
 | **NPC competitors (Phase 1)** | `Service/BotRunner.pm`, `Model/Character.pm` (`is_bot`, `bot_profile_id`), `SeasonManager.pm` (`seed_bots`), `MagicMountain.pm` (maintenance bot run, `bot_runner` helper), `Controller/Sessions.pm` (bot login exclusion), `Controller/Leaderboard.pm` (`bot`/`badge` fields) | Bots prospect, push, stop, and sell via the same Activity dispatch as human players. Bot profiles from `content/bots.yml`. Configurable bot count + AP via `bots` config key. Bot run during maintenance (before day advance). Bot transcript in `transcript_bots.jsonl`. Leaderboard `[NPC]` badge. |
 | **Rival Pressure (PvP)** | `Service/PvP.pm`, `Model/Pressure.pm`, `Controller/Pvp.pm`, `Bot/PressurePolicy.pm`, `content/flavor/pressure_reactions.yml` | Scrap-based asynchronous economic interference between players. Three one-shot effects (Corner the Market, Spoil the Lead, Outbid) on a rival's faction lead. Self-splashback on attacker. Bots participate as both targets and attackers via faction-aware `Bot::PressurePolicy`. Pressures expire lazily after `pvp_pressure_max_age_days`. |
+| **Black Market + SMUGGLING** | `Activity/BlackMarket.pm`, `Controller/BlackMarket.pm`, `Service/MarketGate.pm`, `Model/BrokersCache.pm`, `Bot/BlackMarketPolicy.pm`, `Service/Dominance.pm` (`banned_traits`), `content/flavor/black_market.yml`, `content/skills.yml` (smuggling) | Dominant faction bans artifact traits. Player's first Bazaar visit intercepted by broker offering premium prices with seizure risk. SMUGGLING skill (SHADOW-ROUTE) 1-4 reduces seizure chance. Level 4 grants daily reroll. Seized items logged to BrokersCache for future recovery. Bot policy evaluates premium threshold. |
 | **Collapse curve adjustment** | `Activity/Prospecting.pm` line 240 | Collapse multiplier reduced from 0.95 to 0.80 (~16% reduction across all instability levels). |
 | **Event logging** | `Activity/Prospecting.pm` | Personal events logged to server log (INFO) and transcript (`random_event` type with `event_id`, `char_id`, `day`). |
 | **JS session recovery** | `public/js/game.js` | Any `!ok` response redirects to `/game` (removed `!data.csrf_token` guard that prevented redirects on CSRF-present error responses). |

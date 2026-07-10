@@ -4,6 +4,7 @@ use Mojo::Base -base, -signatures;
 use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
 use MagicMountain::Bot::PressurePolicy;
+use MagicMountain::Bot::BlackMarketPolicy;
 use YAML::XS qw(LoadFile);
 
 my %PRESSURE_RANK = (
@@ -125,7 +126,59 @@ sub run_day ($self, $char, $profile = undef) {
         last if $phase_done;
     }
 
-    # Market phase
+    # Black Market phase (gates BEFORE normal market -- BM replaces the day's visit)
+    my $did_black_market = 0;
+    if (($char->getCol('action_points') // 0) >= 1) {
+        my $bm_pol = $profile->{black_market_policy};
+        if ($bm_pol && $app->can('market_gate')
+            && $app->market_gate->should_route_to_black_market($char)) {
+            my $season = $app->active_season;
+            my $climate = $season->getCol('faction_climate') // {};
+            my @banned = @{ $climate->{banned_traits} // [] };
+            my $bm = $app->black_market;
+            my $shed_items_bm = $shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') });
+            BM_ITEM: for my $item (@$shed_items_bm) {
+                my $behaviors = $item->getCol('behaviors') // [];
+                my $has_banned = grep { my $b = $_; grep { $_ eq $b } @banned } @$behaviors;
+                next BM_ITEM unless $has_banned;
+                my $decayed = $item->getCol('decayed_value') // $item->getCol('original_value') // 0;
+                my $premium = 1.2 + ($decayed / 100) * 0.4;
+                if (MagicMountain::Bot::BlackMarketPolicy::should_use($char, $item, $premium, $bm_pol)) {
+                    my $activity = $bm->create(char_id => $char->getCol('id'));
+                    my $r = eval { $activity->dispatch($char, 'begin', shed_item_id => $item->getCol('id')) };
+                    if ($@ || !$r->{view}{ok}) { $actions++; last; }
+                    $actions++;
+                    # Bot always accepts (no haggling in BM)
+                    $activity = $bm->get($char->getCol('pending_activity_id'));
+                    if ($activity) {
+                        my $r2 = eval { $activity->dispatch($char, 'accept') };
+                        if ($@) {
+                            # Accept failed — withdraw to clean up activity row
+                            eval { $activity->dispatch($char, 'withdraw') };
+                            $actions++;
+                            last;
+                        }
+                        $actions++;
+                    }
+                    if ($transcript) {
+                        $transcript->log_event({
+                            type       => 'black_market_bot',
+                            player     => $char_name,
+                            profile_id => $profile_id,
+                            policy     => $bm_pol->{name},
+                            narrative  => sprintf("%s used black market (policy=%s).",
+                                $char_name, $bm_pol->{name}),
+                        });
+                    }
+                    $did_black_market = 1;
+                    last BM_ITEM;
+                }
+            }
+        }
+    }
+
+    # Market phase (skip if bot already did black market)
+    if (!$did_black_market) {
     while (($char->getCol('action_points') // 0) >= 1) {
         my $phase_done = 0;
         eval {
@@ -295,6 +348,7 @@ sub run_day ($self, $char, $profile = undef) {
         }
         last if $phase_done;
     }
+    } # end if (!$did_black_market)
 
     # Pressure phase (after market so scrap is final available)
     if ($self->app->config->{pvp_enabled}) {

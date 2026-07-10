@@ -29,10 +29,18 @@ sub _require_character ($self) {
 
 sub _active_activity_type ($self, $char) {
     my $id = $char->getCol('pending_activity_id') or return;
+    # All activity types share activities.json, so loading any one model
+    # populates the table for all. Load a known-good model to read the row.
     $self->app->prospecting->load;
-    my $row = $self->app->prospecting->table->{$id} or return;
-    return 'prospecting' if $row->{type} eq 'prospecting';
-    return 'market'      if $row->{type} eq 'market_visit';
+    my $row = $self->app->prospecting->table->{$id};
+    if (!$row && $self->app->can('black_market')) {
+        $self->app->black_market->load;
+        $row = $self->app->black_market->table->{$id};
+    }
+    return unless $row;
+    return 'prospecting'  if $row->{type} eq 'prospecting';
+    return 'market'       if $row->{type} eq 'market_visit';
+    return 'black_market' if $row->{type} eq 'black_market';
     return;
 }
 

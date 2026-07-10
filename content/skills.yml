@@ -69,3 +69,33 @@ skills:
       - level: 3
         cost: 500
         description: "persuasion algorithm — reveals buyer budget range"
+
+  - id: smuggling
+    name: SHADOW-ROUTE
+    description: "Covert logistics module. Reduces interception probability in unauthorized market channels."
+    max_level: 4
+    levels:
+      - level: 1
+        cost: 100
+        description: "dead-drop protocol — reduces seizure risk by 5%"
+        effects:
+          seizure_reduction: 0.05
+          seizure_reroll: 0
+      - level: 2
+        cost: 250
+        description: "route encryption v2 — reduces seizure risk by 10%"
+        effects:
+          seizure_reduction: 0.10
+          seizure_reroll: 0
+      - level: 3
+        cost: 500
+        description: "ghost relay network — reduces seizure risk by 15%"
+        effects:
+          seizure_reduction: 0.15
+          seizure_reroll: 0
+      - level: 4
+        cost: 1000
+        description: "probability cascade modulator — reduces seizure risk by 20%; first seizure each day is rerolled"
+        effects:
+          seizure_reduction: 0.20
+          seizure_reroll: 1

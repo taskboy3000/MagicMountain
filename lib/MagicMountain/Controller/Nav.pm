@@ -4,14 +4,15 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 use MagicMountain::Service::Navigation;
 
 my %SECONDARY = (
-    home        => 'factions',
-    idle        => 'factions',
-    prospecting => 'factions',
-    result      => 'factions',
-    market      => 'shed',
-    factions    => 'leaderboard',
-    skills      => 'leaderboard',
-    account     => 'leaderboard',
+    home          => 'factions',
+    idle          => 'factions',
+    prospecting   => 'factions',
+    result        => 'factions',
+    market        => 'shed',
+    black_market  => 'shed',
+    factions      => 'leaderboard',
+    skills        => 'leaderboard',
+    account       => 'leaderboard',
 );
 
 my %FRAGMENT_URL = (
@@ -19,6 +20,7 @@ my %FRAGMENT_URL = (
     idle        => sub ($c) { $c->url_for('idle')->query(_format => 'fragment') },
     prospecting => sub ($c) { $c->url_for('prospecting_show')->query(_format => 'fragment') },
     market      => sub ($c) { $c->url_for('market_show')->query(_format => 'fragment') },
+    black_market => sub ($c) { $c->url_for('black_market_show')->query(_format => 'fragment') },
     result      => sub ($c) { $c->url_for('result_show')->query(_format => 'fragment') },
     shed        => sub ($c) { $c->url_for('shed')->query(_format => 'fragment') },
     pvp         => sub ($c) { $c->url_for('pvp_show')->query(_format => 'fragment') },
@@ -171,6 +173,14 @@ sub _context_text ($self, $char, $view) {
         my $short = $self->_faction_short_name($c->{faction_id});
         return sprintf "BUYER: %s  \x{7c}  IRRITATION %d  \x{7c}  MOOD: %s",
             $short, $c->{irritation} // 0, $state;
+    }
+    if ($view eq 'black_market') {
+        my $id = $char->getCol('pending_activity_id') or return '';
+        $self->app->black_market->load;
+        my $act = $self->app->black_market->get($id) or return '';
+        my $c = $act->customer or return '';
+        return sprintf "BROKER  \x{7c}  OFFER %d  \x{7c}  SEIZURE RISK %.0f%%",
+            $c->{offer_value} // 0, ($c->{seizure_chance} // 0) * 100;
     }
     return '';
 }
