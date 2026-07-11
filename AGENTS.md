@@ -1,4 +1,4 @@
-# Magic Mountain — AGENTS.md
+# ProspectBoy 3000 — AGENTS.md
 
 Multiplayer push-your-luck web game. Prospect artifacts → push for value →
 sell to factions. Seasonal (~30 day) tournaments. See `GAME_ARCHITECTURE.md`.

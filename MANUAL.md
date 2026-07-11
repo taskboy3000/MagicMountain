@@ -1,4 +1,4 @@
-# Magic Mountain — Player Manual
+# ProspectBoy 3000 — Player Manual
 
 ## Quick-Start Player Guide
 

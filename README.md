@@ -1,4 +1,4 @@
-# Magic Mountain
+# ProspectBoy 3000
 
 A multiplayer, seasonal push-your-luck web game. Players extract strange
 artifacts from a mysterious mountain, destabilize them for greater value

@@ -1,4 +1,4 @@
-# Magic Mountain — Game Architecture
+# ProspectBoy 3000 — Game Architecture
 
 *Intended as a specification for rebuilding this game on a new foundation.
 No source code. All mechanics, boundaries, and invariants preserved.*
