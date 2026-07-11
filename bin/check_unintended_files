@@ -1,0 +1,93 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+
+my @TEMP_PATTERNS = (
+    qr/\.bak\z/,
+    qr/\.tdy\z/,
+    qr{notes\.txt\z},
+    qr{notes\.txt~\z},
+    qr/\.swp\z/,
+    qr/\.swo\z/,
+    qr/~\z/,
+    qr{/fb\.md\z},
+    qr{/help\.md\z},
+);
+
+my $ROOT_WHITELIST = {
+    map { $_ => 1 } qw(README.md LICENSE Makefile cpanfile .gitignore),
+};
+
+sub list_changed_files {
+    my @files;
+    my @status = `git status --porcelain --untracked-files=normal 2>/dev/null`;
+    for (@status) {
+        # Status codes: M modified, A added, ?? untracked
+        next unless /^([MA\?])\s+(.+)/;
+        my $file = $2;
+        chomp $file;
+        push @files, $file if length $file;
+    }
+    return @files;
+}
+
+sub list_tracked_root_files {
+    my @files = `git ls-tree HEAD --name-only 2>/dev/null`;
+    chomp @files;
+    return @files;
+}
+
+sub is_temp_file {
+    my $file = shift;
+    for my $pat (@TEMP_PATTERNS) {
+        return 1 if $file =~ $pat;
+    }
+    return 0;
+}
+
+sub is_plan_file {
+    my $file = shift;
+    return 1 if $file =~ m{^docs/plan_\w+\.md\z} || $file =~ m{^docs/proposal_\w+\.md\z};
+    return 0;
+}
+
+sub is_untracked_root_file {
+    my $file = shift;
+    return 0 if $file =~ m{/};          # not in root directory
+    return 0 if $ROOT_WHITELIST->{$file};
+    return 0 if _is_tracked_in_head($file);
+    return 1;
+}
+
+my %tracked_root;
+sub _is_tracked_in_head {
+    my $file = shift;
+    unless (%tracked_root) {
+        my @tracked = list_tracked_root_files();
+        %tracked_root = map { $_ => 1 } @tracked;
+    }
+    return $tracked_root{$file};
+}
+
+my @files = list_changed_files();
+my $found = 0;
+
+for my $file (@files) {
+    if (is_temp_file($file)) {
+        say "TEMP FILE: $file";
+        $found++;
+    }
+
+    if (is_plan_file($file)) {
+        say "PLAN FILE (must not commit): $file";
+        $found++;
+    }
+
+    if (is_untracked_root_file($file)) {
+        say "UNTRACKED ROOT FILE: $file";
+        $found++;
+    }
+}
+
+exit($found ? 1 : 0);

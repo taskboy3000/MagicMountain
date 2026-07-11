@@ -7,6 +7,7 @@ requires 'UUID::Tiny';
 requires 'Perl::Tidy';
 requires 'Cpanel::JSON::XS';
 requires 'Crypt::Bcrypt';
+requires 'PPI';
 
 on 'develop' => sub {
     requires 'Perl::Tidy';
@@ -18,4 +19,5 @@ on 'test' => sub {
     requires 'Test::Mojo';
     requires 'Test::Exception';
     requires 'File::Temp';
+    requires 'IPC::Run3';
 };

@@ -1,0 +1,77 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+
+use FindBin '$RealBin';
+use File::Spec;
+use YAML::XS qw(LoadFile);
+
+my $ROOT = File::Spec->catdir($FindBin::RealBin, File::Spec->updir);
+my $TUNING_FILE = "$ROOT/docs/TUNING.md";
+my $CONTENT_DIR = "$ROOT/content";
+
+sub extract_tuning_keys {
+    open my $fh, '<', $TUNING_FILE or die "Cannot open $TUNING_FILE: $!";
+    my @keys;
+    while (<$fh>) {
+        # Match table rows: | `key_name` | ... |
+        next unless /^\|\s*`(\w+)`\s*\|/;
+        push @keys, $1;
+    }
+    close $fh;
+    return \@keys;
+}
+
+sub key_exists_in_code {
+    my $key = shift;
+    # Search in lib/ and content/ directories
+    my $output = `grep -r '$key' $ROOT/lib $ROOT/content 2>/dev/null | head -5`;
+    return length $output > 0;
+}
+
+sub extract_yaml_keys {
+    my @keys;
+    opendir my $dh, $CONTENT_DIR or return \@keys;
+    while (my $entry = readdir $dh) {
+        next unless $entry =~ /\.ya?ml\z/;
+        my $file = "$CONTENT_DIR/$entry";
+        next unless -f $file;
+
+        open my $fh, '<', $file or next;
+        while (<$fh>) {
+            # Match YAML config keys: key_name: value
+            next unless /^(\w[\w_]*):\s/;
+            push @keys, $1;
+        }
+        close $fh;
+    }
+    closedir $dh;
+    return \@keys;
+}
+
+my $stale_keys   = 0;
+my $undoc_keys   = 0;
+
+my $tuning_keys = extract_tuning_keys();
+say "Checking " . scalar(@$tuning_keys) . " keys from TUNING.md...";
+
+for my $key (@$tuning_keys) {
+    unless (key_exists_in_code($key)) {
+        say "STALE KEY: '$key' in TUNING.md but not found in lib/ or content/";
+        $stale_keys++;
+    }
+}
+
+my $content_keys = extract_yaml_keys();
+for my $key (@$content_keys) {
+    next if $key =~ /^(secrets|config|includes|entries|skills|factions)\z/;
+    next if grep { $_ eq $key } @$tuning_keys;
+    say "UNDOCUMENTED KEY: '$key' in content YAML but not in TUNING.md";
+    $undoc_keys++;
+}
+
+my $exit_code = ($stale_keys || $undoc_keys) ? 1 : 0;
+say "\n$stale_keys stale key(s) found, $undoc_keys undocumented key(s) found."
+    if $exit_code;
+exit($exit_code);

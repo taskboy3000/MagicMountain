@@ -61,6 +61,7 @@ it belongs.
 
 - **CI check**: `make ci-check` before every `git push` — catches test failures,
   walkthrough regressions, and perlcritic violations before they reach CI.
+  `make verify` is the faster post-implementation gate (structural checks only).
 - **Formatting**: `make indent && make clean` before commit.
 - **Coverage**: `make cover && make report` before commit (85%+).
 - **Tests**: `Test::Mojo` integration. Use Model objects (`->create`, `->save`)
@@ -69,6 +70,9 @@ it belongs.
 - **TUNING.md**: Update `docs/TUNING.md` when changing defaults or content YAML.
 - **State files before writing**: For non-trivial changes, name the affected files
   and call path before code. Human reviews for layer violations.
+- **Post-verify**: Run `make verify` after every implementation session.
+  For full proof, trigger the `@post-verify` agent which reads the diff,
+  runs simulations, and produces a pass/fail report.
 - **Commit discipline**: Never commit without review. Group related changes.
   Message: reason first, then summary of changes.
 - **Plan files**: `docs/plan_$NAME.md`. Delete after implementation. Never commit.

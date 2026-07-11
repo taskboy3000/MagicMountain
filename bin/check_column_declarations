@@ -1,0 +1,179 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+use PPI;
+
+use FindBin '$RealBin';
+use File::Spec;
+my $ROOT = File::Spec->catdir($FindBin::RealBin, File::Spec->updir);
+my $MODEL_DIR  = "$ROOT/lib/MagicMountain/Model";
+my @CHECK_DIRS = (
+    "$ROOT/lib/MagicMountain/Activity",
+    "$ROOT/lib/MagicMountain/Service",
+    "$ROOT/lib/MagicMountain/Controller",
+);
+
+my $DEFAULT_COLUMNS = [qw(id updatedAt createdAt)];
+
+my $VAR_MODEL_MAP = {
+    char          => 'Character',
+    character     => 'Character',
+    char_model    => 'Character',
+    season        => 'Season',
+    item          => 'ShedItem',
+    shed_item     => 'ShedItem',
+    account       => 'Account',
+    sess          => 'Session',
+    session       => 'Session',
+    season_record => 'SeasonRecord',
+    r             => 'SeasonRecord',
+};
+
+my %model_columns;
+
+sub load_model_columns {
+    opendir my $dh, $MODEL_DIR or die "Cannot open $MODEL_DIR: $!";
+    while (my $entry = readdir $dh) {
+        next unless $entry =~ /\.pm$/;
+        my $file = "$MODEL_DIR/$entry";
+        (my $model_name = $entry) =~ s/\.pm$//;
+        my $columns = parse_columns_from_file($file);
+        $model_columns{$model_name} = $columns if $columns;
+    }
+    closedir $dh;
+}
+
+sub parse_columns_from_file {
+    my $file = shift;
+    my $doc = PPI::Document->new($file) or return undef;
+    my $code = $doc->serialize;
+
+    my ($in_columns) = $code =~ /has\s+columns\s*=>\s*sub\s*\(?\$self\)?\s*\{([^}]+)\}/s;
+    return $DEFAULT_COLUMNS unless $in_columns;
+
+    my @columns = @$DEFAULT_COLUMNS;
+
+    # Match quoted strings: 'col_name' or "col_name"
+    while ($in_columns =~ m{['"](\w+)['"]}g) {
+        push @columns, $1;
+    }
+
+    # Match qw(...) content — bare words inside parentheses
+    if ($in_columns =~ m{\bqw\s*\(([^)]+)\)}) {
+        my $qw_content = $1;
+        while ($qw_content =~ m{(\w+)}g) {
+            push @columns, $1;
+        }
+    }
+
+    return \@columns;
+}
+
+sub get_package_name {
+    my $file = shift;
+    open my $fh, '<', $file or return undef;
+    while (<$fh>) {
+        return $1 if /^package\s+(\S+)/;
+    }
+    return undef;
+}
+
+sub is_model_package {
+    my $package = shift;
+    return defined $package && $package =~ /::Model::/;
+}
+
+sub model_name_from_package {
+    my $package = shift;
+    return undef unless $package;
+    (my $name = $package) =~ s/.*::Model:://;
+    return $name;
+}
+
+sub find_column_calls {
+    my $file = shift;
+    my $doc = PPI::Document->new($file) or return [];
+    my @calls;
+    my $package = get_package_name($file);
+
+    my $tokens = [$doc->tokens];
+    for (my $i = 0; $i < @$tokens; $i++) {
+        next unless $tokens->[$i]->isa('PPI::Token::Word');
+        next unless $tokens->[$i]->content eq 'setCol' || $tokens->[$i]->content eq 'getCol';
+
+        my $method = $tokens->[$i];
+
+        my $prev_op = $i > 0 ? $tokens->[$i - 1] : undef;
+        next unless $prev_op && $prev_op->isa('PPI::Token::Operator') && $prev_op->content eq '->';
+
+        my $var = $i > 1 ? $tokens->[$i - 2] : undef;
+        next unless $var;
+
+        my $var_name;
+        if ($var->isa('PPI::Token::Symbol')) {
+            $var_name = $var->symbol;
+            $var_name =~ s/^\$//;
+        } elsif ($var->isa('PPI::Token::Word') && $var->content eq 'self') {
+            next unless $package && is_model_package($package);
+            my $mname = model_name_from_package($package);
+            next unless $mname && $model_columns{$mname};
+
+            my $col = _extract_method_arg($tokens, $i);
+            push @calls, { var => "\$self", model => $mname, col => $col, file => $file, line => ($method->line_number // 0) } if $col;
+            next;
+        } else {
+            next;
+        }
+
+        my $model = $VAR_MODEL_MAP->{$var_name};
+        next unless $model && $model_columns{$model};
+
+        my $col = _extract_method_arg($tokens, $i);
+        push @calls, { var => "\$$var_name", model => $model, col => $col, file => $file, line => ($method->line_number // 0) } if $col;
+    }
+
+    return \@calls;
+}
+
+sub _extract_method_arg {
+    my ($tokens, $idx) = @_;
+    for (my $j = $idx + 1; $j < @$tokens && $j <= $idx + 5; $j++) {
+        next unless $tokens->[$j]->isa('PPI::Token::Quote');
+        my $arg = $tokens->[$j]->string;
+        $arg =~ s/^['"]|['"]$//g;
+        # Skip dynamic column names (concat patterns like 'skill_' . $id)
+        next if $arg =~ /_\z/;
+        return $arg;
+    }
+    return undef;
+}
+
+load_model_columns();
+
+my $total_undeclared = 0;
+
+for my $dir (@CHECK_DIRS) {
+    opendir my $dh, $dir or next;
+    while (my $entry = readdir $dh) {
+        next unless $entry =~ /\.pm$/;
+        my $file = "$dir/$entry";
+
+        my $calls = find_column_calls($file);
+        for my $call (@$calls) {
+            my $model   = $call->{model};
+            my $col     = $call->{col};
+            my $columns = $model_columns{$model} // [];
+
+            my %col_set = map { $_ => 1 } @$columns;
+            next if $col_set{$col};
+
+            $total_undeclared++;
+            say sprintf("UNDECLARED: %s in %s (line %d): %s->setCol/getCol('%s')",
+                $model, $call->{file}, $call->{line}, $call->{var}, $col);
+        }
+    }
+    closedir $dh;
+}
+
+exit($total_undeclared ? 1 : 0);
