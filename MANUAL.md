@@ -1,343 +1,77 @@
 # Magic Mountain — Player Manual
 
-## Introduction
+## Quick-Start Player Guide
 
-Magic Mountain is a multiplayer seasonal game of extraction, risk, and negotiation.
-You are a salvager operating in the shadow of a mountain that produces strange
-artifacts — remnants of an old world that no one fully remembers. Your tools are
-a rugged field PDA called the **ProspectBoy 3000 (PB3K)**, a shed, and your wits.
+### What You Are Doing
 
-Each season runs for a fixed number of days. Your goal: accumulate the highest
-total sale value by the time the season ends. Every day brings a fresh allocation
-of action points. What you do with them is up to you.
+- Prospect artifacts from the mountain.
+- Push them to increase value (but risk collapse).
+- Stop before they break.
+- Sell to faction buyers at the Bazaar.
+- Highest seasonal score wins.
+
+### Your Daily Budget
+
+- Action points (AP) refresh fully each day.
+- Unused AP is lost — no banking.
+- Prospecting finds inventory.
+- Bazaar visits convert inventory into score and scrap.
+- CERTS (skills) improve future actions.
+
+### How to Read an Artifact
+
+- Value estimate or tier.
+- Instability and stage (stable → strained → unstable).
+- Behavior traits determine which factions want it.
+- Signal text is the PB3K's sensor observations, not prophecy.
+
+### How to Read a Buyer
+
+- Faction identity tells you their general interests.
+- Desired traits are partially hidden — you learn by offering.
+- Matching traits matter more than artifact value.
+- Irritation and patience matter — push too hard and they leave.
+- Sending a buyer away is a valid strategy. Try again later.
+
+### Why Factions Matter
+
+- Sales increase a faction's influence.
+- Dominant factions change tomorrow's market conditions.
+- Watch the Crier for dominance announcements.
+- Adjust your selling strategy based on the current climate.
+
+### Three Practical First-Day Tips
+
+1. Prospect until you have a few items in your shed.
+2. Do not push every artifact to unstable — secure some early value.
+3. Sell items to buyers whose faction wants those traits.
 
 ---
 
-## The ProspectBoy 3000 (PB3K)
+## PB3K Reference
+
+### The ProspectBoy 3000
 
 The PB3K is your primary interface. It is not a game menu — it is an in-universe
-device recovered from the old world. Every screen, panel, and button is framed as
-a function of this instrument.
-
-The device screen is divided into:
-
-- **Status strip** (top): Your callsign, current scrap, score, action points, and
-  the current season day.
-- **Primary content area**: The main panel for whatever you are doing —
-  prospecting, negotiating, reviewing your shed.
-- **Secondary content area**: A side panel for reference information, faction
-  registry, or account settings.
-- **Navigation bar**: Tabs for the main activities — PROSPECT, BAZAAR, INTEL,
-  CERTS.
-- **Context bar** (bottom): Situational messages from the PB3K's analysis
-  routines.
+device recovered from the old world. Every screen, panel, and button is framed
+as a function of this instrument.
 
 The PB3K communicates in the dry, operational tone of a field instrument. It
 reports measurements and observations. It does not speculate, comfort, or warn
 you in emotional terms. When it says "Instability rising," it means the
 instrument has measured an increase — not that you are in danger.
 
----
-
-## Getting Started
-
-### Joining a Season
-
-When you first connect, the PB3K will check for an active season. If one is
-running, you will be assigned a character and placed at the mountain. If no
-season is active, you will see a waiting screen until the next season begins.
-
-### The Daily Cycle
-
-Each game day, your action points are fully refreshed. Unused points are lost —
-there is no banking. The day advances on a schedule determined by the server
-administrator. At day rollover:
-
-- Action points reset to maximum
-- Artifacts in your shed age and may decay in value
-- Faction demand and market conditions update
-- The Crier (the PB3K's news feed) may report on faction activity
-
-### Action Points
-
-Every activity costs action points. Prospecting, visiting the Bazaar, and other
-operations consume from your daily pool. Managing this budget is the core
-strategic decision you make each day.
-
----
-
-## The Core Loop
-
-### 1. Prospecting
-
-Prospecting is how you acquire artifacts. You dispatch the PB3K's survey
-sensors into the mountain's resonance field and recover a signal — an object
-pulled from the debris of the old world.
-
-When you begin a prospecting operation, the PB3K will present you with an
-artifact. Each artifact has:
-
-- **A type and behavior traits** — these determine which factions are interested
-- **A current value** — what it might be worth at the Bazaar
-- **An instability level** — a measure of how stressed the object is
-- **A stage** — stable, strained, or unstable — indicating how close it is to
-  collapse
-
-The artifact's intro text and signal descriptions are the PB3K's sensor
-readings. They tell you what the instrument observes, not what it means.
-
-### 2. Pushing (Destabilization)
-
-Once you have an artifact, you may choose to **push** it — applying energy to
-destabilize the object in hopes of increasing its value. Each push:
-
-- Increases the artifact's value
-- Increases its instability
-- May cause it to advance to a more dangerous stage
-
-The risk is **collapse**: if instability exceeds the artifact's tolerance, the
-object is destroyed and you recover nothing. You must decide when to stop
-pushing and secure what you have.
-
-Occasionally, a push may result in a **breakthrough** — a sudden, dramatic
-increase in value. This is rare and cannot be reliably predicted.
-
-### 3. Securing and Storing
-
-When you stop prospecting (either because you chose to secure the artifact or
-because the operation ended), the artifact is placed in your **shed**. From
-there, you can take it to the Bazaar to sell.
-
----
-
-## The Shed
-
-Your shed is where artifacts wait between prospecting and sale. Artifacts in
-the shed are not static — they **decay** over time. Each day, their condition
-deteriorates and their estimated value may decrease.
-
-The shed display shows each artifact's:
-
-- Identifier and type
-- Current condition (fresh, settling, fading)
-- Estimated value range
-- Days in storage
-
-Decay is a fact of life. The longer you hold an artifact, the less it may be
-worth. There is no penalty for selling quickly — only opportunity cost.
-
----
-
-## The Bazaar
-
-The Bazaar is where you sell artifacts to faction buyers. When you visit the
-Bazaar with items in your shed, the PB3K connects you to a buyer from one of
-the active factions.
-
-### The Buyer
-
-Each buyer represents a faction and arrives with:
-
-- **A set of desired traits** — the faction's current interests
-- **A budget** — how much they are willing to spend
-- **An irritation level** — their patience with negotiation
-- **A disposition** — their opening stance
-
-### Negotiation
-
-You offer an artifact from your shed. The buyer responds:
-
-- **If the artifact matches their interests**: They will make an offer. You can
-  accept, counter-offer, or send them away.
-- **If the artifact does not match**: They may make a low offer or refuse.
-- **Counter-offers**: You can propose a higher price. The buyer may accept,
-  counter again, or walk away.
-- **Standing pat**: If you have made a counter-offer, you can hold firm at your
-  price. The buyer may accept or leave.
-
-Each interaction affects the buyer's irritation. Push too hard and they may
-storm off, ending the visit.
-
-### Selling
-
-When a sale completes:
-
-- The artifact is removed from your shed
-- You receive scrap (the currency) and score (the season-ranking metric)
-- Your standing with that faction may change
-
-You can send a buyer away at any time to end the visit and try again later with
-a different buyer.
-
----
-
-## The Factions
-
-Five factions operate at the Bazaar. Each has its own interests, budget
-patterns, and temperament. When a faction accumulates enough influence, it may
-enter a period of **dominance**, which shifts market conditions.
-
-### The Syndicate (SYND.8TE)
-
-Commercial resellers. Volume buyers. The Syndicate moves product — they do not
-care what it is as long as the margin works. They have broad interests and
-consistent budgets.
-
-*Known interests: thermal regulation, storage, food processing, power systems.*
-
-**When dominant**: The Syndicate's commercial efficiency creates a market that
-favors volatile and luxury goods. Some categories become restricted.
-
-### LibreMount (LBR_MT.01)
-
-A decentralized survivalist collective. LibreMount buys practical
-infrastructure — the basics that keep a settlement running. Their budgets are
-tight but their demand is steady.
-
-*Known interests: thermal regulation, water, sanitation, medical response, power
-systems.*
-
-**When dominant**: LibreMount's practical focus creates stable, predictable
-market conditions. No significant disruptions.
-
-### The Faculty (FAC.LTY1)
-
-An academic order. The Faculty's procurement is driven by archive gaps, not
-resale value. Their interest patterns can be unpredictable, but their pricing
-is consistent.
-
-*Known interests: signal-type artifacts, revelation-class objects, field
-manipulation, medical response.*
-
-**When dominant**: The Faculty's academic priorities shift the market toward
-signal and field artifacts. Some practical categories see reduced demand.
-
-### The Purifiers (PURIF.RS)
-
-A hazard-control collective. The Purifiers buy volatile materiel — the
-dangerous, the unstable, the things no one else will touch. They pay for the
-privilege.
-
-*Known interests: force-type artifacts, instability-class objects, medical
-response.*
-
-**When dominant**: The Purifiers' aggressive containment protocols create demand
-for volatile artifacts while restricting certain categories they deem hazardous.
-
-### The Revelationists (RVL_IST.1)
-
-Esoteric truth-seekers. The Revelationists believe the mountain speaks, and
-they collect artifacts that might carry its message. Their budgets are modest
-but their buyers are passionate.
-
-*Known interests: revelation-class objects, signal-type artifacts, field
-manipulation, transformation.*
-
-**When dominant**: The Revelationists' influence shifts the market toward
-esoteric and signal artifacts. Practical goods see reduced interest.
-
-### Climate Effects
-
-When a faction achieves dominance, the market enters a **climate** shaped by
-that faction's priorities. Climate effects include:
-
-- **Buyer trait biases**: Certain artifact traits become more valuable
-- **Banned traits**: Some artifact categories may be restricted — the dominant
-  faction will not buy them, and may block other buyers from doing so
-- **Market mood shifts**: Buyer budgets, patience, and risk tolerance adjust
-  according to the dominant faction's character
-
-The Crier will announce when a faction achieves dominance. Pay attention.
-
----
-
-## Skills
-
-The PB3K can be upgraded with skill modules purchased from the CERT STORE.
-Skills improve your capabilities in specific areas. Each skill has multiple
-levels; higher levels cost more but provide greater benefits.
-
-### GEO-SENSE (Prospecting)
-
-Enhances artifact detection sensitivity. Higher levels reveal more information
-about an artifact's traits and help you identify high-value targets.
-
-### DEFRAG (Upcycling)
-
-Optimizes the push protocol. Higher levels reduce instability growth during
-pushing, improve value yield, and may increase the chance of breakthroughs.
-
-### UP-CEL (Selling)
-
-Augments the negotiation interface. Higher levels narrow appraisal variance,
-reveal buyer irritation thresholds, and show the buyer's budget range.
-
-### SHADOW-ROUTE (Smuggling)
-
-Covert logistics module for the black market. Reduces the risk of seizure when
-selling through unauthorized channels.
-
----
-
-## The Black Market
-
-Occasionally, the PB3K will receive an unsolicited transmission — a broker
-offering to buy restricted goods at premium rates, no questions asked. This is
-the **black market**.
-
-Black market sales:
-
-- Offer higher prices than the Bazaar
-- Accept artifacts that may be banned by the dominant faction
-- Carry a risk of **seizure** — the transaction can be intercepted, and you
-  lose the artifact with no compensation
-
-The SHADOW-ROUTE skill reduces seizure risk. You can also withdraw from a black
-market offer at any time before committing.
-
----
-
-## Rival Pressure (PvP)
-
-Other salvagers operate on the mountain. You can spend resources to apply
-**pressure** to a rival — disrupting their operations in a specific faction's
-market. Pressure effects include:
-
-- **Corner the market**: Reduce the price a rival receives from a faction
-- **Spoil the lead**: Increase the cost of a rival's next prospecting operation
-- **Outbid**: Intercept a rival's sale and claim a portion of the value
-
-Pressure actions cost scrap and require you to have standing with the relevant
-faction. Rivals can pressure you in return.
-
----
-
-## Seasons and Tournament Structure
-
-Each season is a tournament. All players start fresh with a new character.
-At the end of the season:
-
-- All characters are archived
-- Season records are created showing final scores, rankings, and highlights
-- Unsold artifacts in sheds are liquidated at a clearance rate
-- A new season may begin
-
-Your final score is determined by the total value of artifacts you sold during
-the season. The player with the highest score wins.
-
----
-
-## PB3K Interface Guide
-
-### Reading the Status Strip
-
-```
-OPERATOR: <your callsign>    SCRAP: <currency>    SCORE: <rank value>    AP: <remaining>/<max>    DAY: <current>/<total>
-```
+### Device Layout
+
+- **Status strip** (top): Your callsign, scrap, score, AP, current day.
+- **Primary content area**: Main panel for prospecting, negotiating, shed.
+- **Secondary content area**: Side panel for faction registry, account settings.
+- **Navigation bar**: Tabs — HOME, PROSPECT, BAZAAR, INTEL, CERTS.
+- **Context bar** (bottom): Situational messages from the PB3K's analysis.
 
 ### Navigation Tabs
 
-- **HOME**: The default view. Shows the Crier feed and any active advisories.
+- **HOME**: Crier feed and active advisories.
 - **PROSPECT**: Begin or continue a prospecting operation.
 - **BAZAAR**: Visit the Bazaar to sell artifacts from your shed.
 - **INTEL**: View rival players and apply pressure.
@@ -345,19 +79,188 @@ OPERATOR: <your callsign>    SCRAP: <currency>    SCORE: <rank value>    AP: <re
 
 ### Secondary Tabs
 
-- **FACTIONS**: Registry of active factions, their interests, and current
-  standing.
+- **FACTIONS**: Registry of active factions, interests, and standing.
 - **ACCOUNT**: Account settings and character information.
-- **?**: Orientation / help overlay.
+- **?**: Orientation screens.
 
 ### Common Actions
 
-- **PROSPECT**: Begin a new prospecting operation (requires AP).
-- **PUSH**: Destabilize the current artifact to increase its value.
-- **STOP**: Secure the artifact and place it in your shed.
+- **PROSPECT**: Begin prospecting (costs AP).
+- **PUSH**: Destabilize artifact to increase value (risks collapse).
+- **STOP**: Secure artifact and place it in your shed.
 - **OFFER**: Present an artifact to a Bazaar buyer.
-- **SEND AWAY**: Dismiss the current buyer and end the visit.
+- **SEND AWAY**: Dismiss the current buyer.
 - **STAND PAT**: Hold firm at your counter-offer price.
+
+---
+
+## Full Reference
+
+### The Core Loop
+
+#### Prospecting
+
+Prospecting is how you acquire artifacts. The PB3K's survey sensors recover
+objects from the mountain's debris field. Each artifact has behavior traits,
+a current value, an instability level, and a stage (stable, strained, or
+unstable). The intro text and signal descriptions are sensor readings — they
+tell you what the instrument observes, not what it means.
+
+#### Pushing
+
+Once you have an artifact, you may push it — applying energy to increase its
+value. Each push raises both value and instability. If instability exceeds the
+artifact's tolerance, it collapses and you recover nothing. Occasionally a push
+may result in a breakthrough — a sudden, dramatic value increase.
+
+#### Securing and Storing
+
+When you stop prospecting, the artifact goes to your shed. From there you can
+sell it at the Bazaar or leave it for later.
+
+### The Shed
+
+Artifacts in the shed decay over time. Each day their condition deteriorates
+(fresh → settling → fading) and their estimated value may decrease. The shed
+display shows each artifact's identifier, condition, estimated value range, and
+days in storage. There is no penalty for selling quickly — only opportunity
+cost for waiting.
+
+### The Bazaar
+
+When you visit the Bazaar with items in your shed, the PB3K connects you to a
+buyer from one of the active factions. Each buyer has desired traits, a budget,
+an irritation level, and a disposition.
+
+You offer an artifact. If it matches their interests, they make an offer. You
+can accept, counter-offer, or send them away. Counter-offers may be accepted,
+re-countered, or refused. Standing pat at your price may work or may drive the
+buyer away. Each interaction affects irritation — push too hard and they leave.
+
+When a sale completes, the artifact leaves your shed, you receive scrap and
+score, and your standing with that faction may change.
+
+### The Factions
+
+Five factions operate at the Bazaar. When a faction accumulates enough
+influence, it may achieve dominance, shifting market conditions.
+
+#### The Syndicate (SYND.8TE)
+
+Commercial resellers. Volume buyers. They move product — broad interests,
+consistent budgets.
+
+*Known interests: thermal regulation, storage, food processing, power systems.*
+
+**When dominant**: Market favors volatile and luxury goods. Some categories
+become restricted.
+
+#### LibreMount (LBR_MT.01)
+
+Decentralized survivalist collective. Buys practical infrastructure. Tight
+budgets, steady demand.
+
+*Known interests: thermal regulation, water, sanitation, medical response, power
+systems.*
+
+**When dominant**: Stable, predictable market conditions. No significant
+disruptions.
+
+#### The Faculty (FAC.LTY1)
+
+Academic order. Procurement driven by archive gaps, not resale value.
+Unpredictable interest patterns, consistent pricing.
+
+*Known interests: signal-type artifacts, revelation-class objects, field
+manipulation, medical response.*
+
+**When dominant**: Market shifts toward signal and field artifacts. Some
+practical categories see reduced demand.
+
+#### The Purifiers (PURIF.RS)
+
+Hazard-control collective. Buys volatile materiel — the dangerous, the
+unstable. Pays for the privilege.
+
+*Known interests: force-type artifacts, instability-class objects, medical
+response.*
+
+**When dominant**: Demand for volatile artifacts increases. Certain categories
+become restricted as hazardous.
+
+#### The Revelationists (RVL_IST.1)
+
+Esoteric truth-seekers. They believe the mountain speaks. Modest budgets,
+passionate buyers.
+
+*Known interests: revelation-class objects, signal-type artifacts, field
+manipulation, transformation.*
+
+**When dominant**: Market shifts toward esoteric and signal artifacts.
+Practical goods see reduced interest.
+
+#### Climate Effects
+
+When a faction achieves dominance, the market enters a climate shaped by that
+faction's priorities:
+
+- **Buyer trait biases**: Certain artifact traits become more valuable.
+- **Banned traits**: Some categories may be restricted.
+- **Market mood shifts**: Budgets, patience, and risk tolerance adjust.
+
+The Crier announces dominance shifts. Pay attention.
+
+### Skills
+
+Skill modules are purchased from the CERT STORE. Each has multiple levels;
+higher levels cost more.
+
+- **GEO-SENSE (Prospecting)**: Enhances artifact detection. Higher levels
+  reveal more trait information and help identify high-value targets.
+- **DEFRAG (Upcycling)**: Optimizes push protocol. Reduces instability growth,
+  improves value yield, may increase breakthrough chance.
+- **UP-CEL (Selling)**: Augments negotiation. Narrows appraisal variance,
+  reveals buyer irritation, shows budget range.
+
+### Seasons
+
+Each season is a tournament. All players start fresh. At season end:
+
+- Characters are archived.
+- Season records show final scores, rankings, and highlights.
+- Unsold artifacts are liquidated at a clearance rate.
+- A new season may begin.
+
+Final score is total value of artifacts sold. Highest score wins.
+
+---
+
+## Stale Content — Needs Mechanical Review
+
+The following sections describe features that exist in the codebase but the
+descriptions below may contain inaccuracies. They are quarantined here until
+verified against the current implementation.
+
+### [STALE] The Black Market
+
+> Occasionally, the PB3K will receive an unsolicited transmission — a broker
+> offering to buy restricted goods at premium rates, no questions asked. This is
+> the **black market**.
+>
+> Black market sales offer higher prices than the Bazaar, accept artifacts that
+> may be banned by the dominant faction, and carry a risk of seizure — the
+> transaction can be intercepted and you lose the artifact with no compensation.
+> The SHADOW-ROUTE skill reduces seizure risk. You can withdraw from a black
+> market offer at any time before committing.
+
+### [STALE] Rival Pressure (PvP)
+
+> Other salvagers operate on the mountain. You can spend resources to apply
+> **pressure** to a rival — disrupting their operations in a specific faction's
+> market. Pressure effects include cornering the market (reducing a rival's
+> sale price), spoiling the lead (increasing prospecting cost), and outbidding
+> (claiming a portion of a rival's sale value). Pressure actions cost scrap and
+> require standing with the relevant faction. Rivals can pressure you in return.
 
 ---
 
