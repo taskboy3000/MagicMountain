@@ -30,6 +30,7 @@ use MagicMountain::Activity::MarketVisit;
         return $data->{negotiation_reactions};
     }
     sub log { bless {}, 'FakeLogger' }
+    sub config { shift->{config} || {} }
     sub shed {
         my $self = shift;
         $self->{_shed_items} //= [];

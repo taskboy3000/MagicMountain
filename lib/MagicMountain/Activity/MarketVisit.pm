@@ -25,6 +25,9 @@ sub _factions ($self) {
 
 sub _weighted_faction ($self, $char) {
     my $factions = $self->_factions;
+    if (!$self->app->config->{market_faction_loyalty}) {
+        return $factions->[int(rand(scalar @$factions))];
+    }
     my $standing = $char->getCol('standing') // {};
     my $snubs    = $char->getCol('faction_snubs') // {};
 
@@ -261,22 +264,24 @@ sub begin ($self, $char, %params) {
 
     # ── Loyalty access guarantee ───────────────────────────────────
     my $faction_sales = $char->getCol('faction_sales') // {};
-    my ($top_faction, $top_count) = (undef, 0);
-    while (my ($fid, $cnt) = each %$faction_sales) {
-        ($top_faction, $top_count) = ($fid, $cnt) if $cnt > $top_count;
-    }
-    if ($top_faction && $top_count >= 2) {
-        my $visits_since = $char->getCol('loyalty_visits_since') // 0;
-        if ($faction->{id} ne $top_faction && $visits_since >= 3) {
-            $faction = $self->_faction_by_id($top_faction) // $faction;
-            $visits_since = 0;
-        } elsif ($faction->{id} eq $top_faction) {
-            $visits_since = 0;
-        } else {
-            $visits_since++;
+    if ($self->app->config->{market_faction_loyalty}) {
+        my ($top_faction, $top_count) = (undef, 0);
+        while (my ($fid, $cnt) = each %$faction_sales) {
+            ($top_faction, $top_count) = ($fid, $cnt) if $cnt > $top_count;
         }
-        $char->setCol('loyalty_visits_since', $visits_since);
-        $char->save;
+        if ($top_faction && $top_count >= 2) {
+            my $visits_since = $char->getCol('loyalty_visits_since') // 0;
+            if ($faction->{id} ne $top_faction && $visits_since >= 3) {
+                $faction = $self->_faction_by_id($top_faction) // $faction;
+                $visits_since = 0;
+            } elsif ($faction->{id} eq $top_faction) {
+                $visits_since = 0;
+            } else {
+                $visits_since++;
+            }
+            $char->setCol('loyalty_visits_since', $visits_since);
+            $char->save;
+        }
     }
     # ────────────────────────────────────────────────────────────────
 

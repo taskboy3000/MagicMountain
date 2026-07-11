@@ -459,6 +459,7 @@ subtest '_apply_loyalty_bonus applies 1.10x at 3+ sales' => sub {
 subtest 'visits_since tracking on begin' => sub {
     my $content_file = _make_content_file();
     my $m            = _make_singleton($content_file);
+    $m->app->{config}{market_faction_loyalty} = 1;
     my $char         = TestCharacter->new(
         id => 'char-1', action_points => 15, scrap => 0, score => 0,
         faction_sales => { syndicate => 5 },
@@ -487,6 +488,7 @@ subtest 'visits_since tracking on begin' => sub {
 subtest 'loyalty guarantee triggers after 3 non-loyalty visits' => sub {
     my $content_file = _make_content_file();
     my $m            = _make_singleton($content_file);
+    $m->app->{config}{market_faction_loyalty} = 1;
     my $char         = TestCharacter->new(
         id => 'char-1', action_points => 15, scrap => 0, score => 0,
         faction_sales => { syndicate => 5 },

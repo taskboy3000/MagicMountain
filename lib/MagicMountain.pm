@@ -60,6 +60,7 @@ has defaultConfig => sub ($self) {
         market_desperation_bonus        => 1.30,
         market_counter_offers           => 1,
         market_multi_item               => 1,
+        market_faction_loyalty          => 0,
         faction_max_stars               => 5,
         bots                            => { count => 0 },
         admin_email                     => 'root@localhost',
