@@ -2,11 +2,9 @@ use v5.28;
 use strict;
 use warnings;
 use Test2::V0;
-use File::Temp qw(tempdir);
 use File::Spec;
 use Cwd 'abs_path';
 use FindBin '$RealBin';
-use IPC::Run3 qw(run3);
 
 my $ROOT = abs_path(File::Spec->catdir($FindBin::RealBin, File::Spec->updir));
 my $CHECK_COLUMNS = "$ROOT/bin/check_column_declarations";
@@ -14,11 +12,9 @@ my $CHECK_FILES   = "$ROOT/bin/check_unintended_files";
 my $CHECK_TUNING  = "$ROOT/bin/check_doc_consistency";
 
 sub run_script {
-    my ($script, $stdin) = @_;
-    my $stdout;
-    my $stderr;
-    run3 [$^X, '-Ilib', $script], \$stdin, \$stdout, \$stderr;
-    return { exit => $? >> 8, stdout => $stdout // '', stderr => $stderr // '' };
+    my ($script) = @_;
+    my $stdout = `$^X -Ilib $script 2>&1`;
+    return { exit => $? >> 8, stdout => $stdout // '', stderr => '' };
 }
 
 subtest 'check_column_declarations on current codebase' => sub {
