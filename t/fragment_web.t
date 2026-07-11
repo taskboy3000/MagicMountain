@@ -177,7 +177,7 @@ subtest 'factions fragment shows mountain dominance chart' => sub {
       ->content_like(qr{data-reference-id="faction_syndicate"}, 'syndicate reference link')
       ->content_like(qr{data-reference-id="faction_purifiers"}, 'purifiers reference link')
       ->content_like(qr{\x{2588}}, 'raster solid block present')
-      ->content_like(qr{SYND.8TE}, 'short name present');
+      ->content_like(qr{title="SYND\.8TE}, 'syndicate icon title');
 };
 
 subtest 'leaderboard fragment returns rankings' => sub {

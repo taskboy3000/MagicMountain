@@ -13,8 +13,25 @@ sub show ($self) {
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        my $ranked = $self->app->dominance_service->ranked_factions($season);
-        my $fc     = $season->faction_climate // {};
+        my $dom   = $self->app->dominance_service;
+        my $fc    = $season->faction_climate // {};
+        my $tier  = $fc->{intensity} // 'contested';
+
+        my $ranked = $dom->faction_positions($season);
+        my $lowest = 1;
+        for my $r (@$ranked) {
+            $lowest = $r->{row_offset} if $r->{row_offset} > $lowest;
+        }
+        my $mountain_height = $lowest < 10 ? 10 : $lowest;
+        if ($mountain_height != 22) {
+            $ranked = $dom->faction_positions($season, $mountain_height);
+            $lowest = 1;
+            for my $r (@$ranked) {
+                $lowest = $r->{row_offset} if $r->{row_offset} > $lowest;
+            }
+            $mountain_height = $lowest < 10 ? 10 : $lowest;
+        }
+
         my %faction_lookup = map { $_->{id} => $_ } @$factions;
         my @display;
         for my $r (@$ranked) {
@@ -27,9 +44,10 @@ sub show ($self) {
                 disposition => $f->{disposition} // '',
             };
         }
-        my $tier   = $fc->{intensity} // 'contested';
-        my $raster = $self->app->dominance_service->_build_raster($tier);
-        $self->stash(factions => \@display, faction_climate => $fc, mountain_raster => $raster);
+
+        my $shape = $dom->_build_shape($mountain_height, 19);
+        my $raster = $dom->_build_raster($tier, $shape);
+        $self->stash(factions => \@display, faction_climate => $fc, mountain_raster => $raster, mountain_height => $mountain_height);
         return $self->render('factions/mountain_chart', layout => undef);
     }
 

@@ -1,3 +1,4 @@
+% my $mh = stash('mountain_height') // 22;
 <div class="mm-mountain">
   <div class="mm-mountain-header">
     TERRAIN SCAN
@@ -6,16 +7,18 @@
     <span class="mm-mountain-intensity">: <%= $cc->{intensity_label} %></span>
 % }
   </div>
-  <div class="mm-mountain-body">
-    <pre class="mm-mountain-raster"><% my $raster = stash('mountain_raster') // []; %><%= join "\n", @$raster %></pre>
-    <div class="mm-mountain-list">
+  <div class="mm-mountain-body" style="grid-template-rows: repeat(<%= $mh %>, 1fr); --mh: <%= $mh %>">
+% my $raster = stash('mountain_raster') // [];
+% for my $i (0 .. $#$raster) {
+    <div class="mm-mountain-raster-row" style="grid-row: <%= $i + 1 %>"><%= $raster->[$i] %></div>
+% }
+    <div class="mm-mountain-factions">
 % my $factions = stash('factions') // [];
 % for my $f (@$factions) {
-      <div class="mm-mountain-faction<% if ($f->{rank} == 1) { %> mm-mountain-summit<% } %>" data-reference-id="faction_<%= $f->{faction_id} %>">
+      <div class="mm-mountain-faction" style="grid-row: <%= $f->{row_offset} %>">
 % if ($f->{icon}) {
-        <img src="<%= $f->{icon} %>" alt="" class="mm-mountain-glyph">
+        <img src="<%= $f->{icon} %>" alt="<%= $f->{short_name} %>" title="<%= $f->{short_name} %> — <%= $f->{name} %>" class="mm-mountain-glyph" data-reference-id="faction_<%= $f->{faction_id} %>">
 % }
-        <span class="mm-mountain-name"><%= $f->{short_name} %></span>
 % if ($f->{rank} == 1 && $cc->{intensity_label}) {
         <span class="mm-mountain-badge"><%= $cc->{intensity_label} %></span>
 % }

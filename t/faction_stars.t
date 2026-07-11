@@ -45,13 +45,14 @@ subtest 'mountain chart shows factions in rank order' => sub {
     $t->get_ok('/factions?_format=fragment')->status_is(200);
 
     $t->content_like(qr{TERRAIN SCAN}, 'mountain chart header present');
-    $t->content_like(qr{SYND\.8TE}ms,   'syndicate short name present');
-    $t->content_like(qr{PURIF\.RS}ms,   'purifiers short name present');
-    $t->content_like(qr{FAC\.LTY1}ms,   'faculty short name present');
-    $t->content_like(qr{LBR_MT\.01}ms,  'libremount short name present');
-    $t->content_like(qr{RVL_IST\.1}ms,  'revelationists short name present');
-    $t->content_like(qr{mm-mountain-raster}ms, 'raster container present');
+    $t->content_like(qr{title="SYND\.8TE}s,   'syndicate icon title');
+    $t->content_like(qr{title="PURIF\.RS}s,   'purifiers icon title');
+    $t->content_like(qr{title="FAC\.LTY1}s,   'faculty icon title');
+    $t->content_like(qr{title="LBR_MT\.01}s,  'libremount icon title');
+    $t->content_like(qr{title="RVL_IST\.1}s,  'revelationists icon title');
+    $t->content_like(qr{mm-mountain-raster-row}ms, 'raster row present');
     $t->content_like(qr{data-reference-id="faction_syndicate"}ms, 'reference link present');
+    $t->content_like(qr{grid-row:\s*1}ms, 'leader at summit row');
 };
 
 subtest 'dominant faction gets proper ordering' => sub {

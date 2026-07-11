@@ -121,7 +121,7 @@ sub buyer_trait_biases ($self, $season) {
 
 sub ranked_factions ($self, $season) {
     my $fs = $season->getCol('faction_state') // return [];
-    my @rank = sort { $fs->{$b}{influence} // 0 <=> $fs->{$a}{influence} // 0 } keys %$fs;
+    my @rank = sort { ($fs->{$b}{influence} || 0) <=> ($fs->{$a}{influence} || 0) } keys %$fs;
     my $leader = @rank ? ($fs->{$rank[0]}{influence} // 1) : 1;
     my @result;
     for my $i (0 .. $#rank) {
@@ -135,22 +135,60 @@ sub ranked_factions ($self, $season) {
     return \@result;
 }
 
-sub _mountain_shape ($self) {
-    return [
-        [0,0,0,0,1,0,0,0,0],
-        [0,0,0,1,1,1,0,0,0],
-        [0,0,1,1,1,1,0,0,0],
-        [0,0,1,1,1,1,1,0,0],
-        [0,1,1,1,1,1,1,0,0],
-        [0,1,1,1,1,1,1,1,0],
-        [1,1,1,1,1,1,1,1,0],
-        [1,1,1,1,1,1,1,1,0],
-        [1,1,1,1,1,1,1,1,1],
-        [1,1,1,1,1,1,1,1,1],
-    ];
+sub _build_shape ($self, $rows, $width) {
+    my @shape;
+    for my $r (0 .. $rows - 1) {
+        my $progress = $rows == 1 ? 1 : $r / ($rows - 1);
+        my $filled = 1 + int($progress * ($width - 1));
+        my $padding = $width - $filled;
+        my $left_pad = int($padding / 2);
+        my $right_pad = $padding - $left_pad;
+        my @row = (0) x $left_pad;
+        push @row, (1) x $filled;
+        push @row, (0) x $right_pad;
+        push @shape, \@row;
+    }
+    return \@shape;
 }
 
-sub _build_raster ($self, $tier) {
+sub faction_positions ($self, $season, $total_rows = 22) {
+    my $ranked = $self->ranked_factions($season);
+    my $num = scalar @$ranked;
+    return [] unless $num;
+
+    my @positions;
+    for my $i (0 .. $#$ranked) {
+        my $f = $ranked->[$i];
+        my $row;
+        if ($i == 0) {
+            $row = 1;
+        } else {
+            $row = 1 + int((1 - ($f->{ratio} // 0)) * ($total_rows - 1) + 0.5);
+            $row = $total_rows if $row > $total_rows;
+            $row = 2 if $row < 2;
+        }
+        push @positions, { %$f, row_offset => $row };
+    }
+
+    my $use_proportional = 1;
+    for my $i (1 .. $#positions) {
+        if ($positions[$i]{row_offset} - $positions[$i-1]{row_offset} < 2) {
+            $use_proportional = 0;
+            last;
+        }
+    }
+
+    if (!$use_proportional) {
+        my $step = ($total_rows - 1) / ($num - 1);
+        for my $i (0 .. $#positions) {
+            $positions[$i]{row_offset} = 1 + int($i * $step + 0.5);
+        }
+    }
+
+    return \@positions;
+}
+
+sub _build_raster ($self, $tier, $shape) {
     my %dist = (
         contested => [0.25, 0.35, 0.40],
         leading   => [0.45, 0.35, 0.20],
@@ -158,7 +196,6 @@ sub _build_raster ($self, $tier) {
         dominant  => [0.90, 0.10, 0.00],
     );
     my $d = $dist{$tier} || $dist{contested};
-    my $shape = $self->_mountain_shape;
     my @rows;
     for my $row (@$shape) {
         my @chars;

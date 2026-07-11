@@ -451,6 +451,10 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 
 /* ── Mountain dominance chart ────────────────────────────────── */
 .mm-mountain {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--mm-border);
   background: var(--mm-bg-panel);
   padding: 0.5rem;
@@ -461,57 +465,42 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   letter-spacing: 0.1em;
   margin-bottom: 0.5rem;
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 .mm-mountain-intensity {
   color: var(--mm-amber-bright);
 }
 .mm-mountain-body {
-  display: flex;
-  gap: 0.75rem;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  flex: 1;
+  min-height: 0;
+  gap: 0 0.4rem;
 }
-.mm-mountain-raster {
-  font-size: 0.45rem;
-  line-height: 1.15;
+.mm-mountain-raster-row {
+  font-size: 1.3rem;
+  line-height: 1;
   color: var(--mm-amber);
   white-space: pre;
-  margin: 0;
-  flex-shrink: 0;
-  align-self: center;
-}
-.mm-mountain-list {
   display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  flex: 1;
-  min-width: 0;
+  align-items: center;
+}
+.mm-mountain-factions {
+  display: contents;
 }
 .mm-mountain-faction {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  cursor: pointer;
-  padding: 0.15rem 0;
-}
-.mm-mountain-faction:hover {
-  background: var(--mm-bg-hi);
-}
-.mm-mountain-summit {
-  color: var(--mm-amber-bright);
 }
 .mm-mountain-glyph {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-}
-.mm-mountain-name {
   cursor: pointer;
-  font-size: 0.78rem;
-  border-bottom: 1px dashed var(--mm-amber);
-  touch-action: manipulation;
 }
-.mm-mountain-name:hover {
-  color: var(--mm-amber-bright);
+.mm-mountain-glyph:hover {
+  opacity: 0.8;
 }
 .mm-mountain-badge {
   font-size: 0.65rem;
@@ -544,10 +533,10 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   #device-frame { max-height: 100vh; }
   #nav-bar .nav-btn { font-size: 0.6rem; padding: 0.08rem 0.25rem; letter-spacing: 0.03em; }
   #terminal-frame { padding: 24px 8px 10px; }
-  .mm-mountain-raster { font-size: 0.35rem; }
-  .mm-mountain-glyph { width: 20px; height: 20px; }
+  #secondary-content { min-height: 30vh; }
+  .mm-mountain-raster-row { font-size: 0.65rem; }
+  .mm-mountain-glyph { width: 16px; height: 16px; }
   .mm-mountain-badge { display: none; }
-  .mm-mountain-faction { gap: 0.25rem; }
 }
 
 /* ── Color utilities (Tier A — composable) ─────────────────── */
