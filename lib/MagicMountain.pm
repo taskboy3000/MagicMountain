@@ -179,7 +179,12 @@ has maintenance => sub ($self) {
                     });
 
                     if (@$bot_chars) {
-                        srand(join('', unpack('C*', $season->getCol('id') // '')) + $season->getCol('day'));
+                        my $seed = $season->getCol('day') // 0;
+                        my $id_str = $season->getCol('id') // '';
+                        for my $c (unpack('C*', $id_str)) {
+                            $seed = (($seed << 5) ^ $seed ^ $c) & 0x7FFFFFFF;
+                        }
+                        srand($seed);
                         my @shuffled = List::Util::shuffle(@$bot_chars);
                         my $saved_transcript = $maint->app->{transcript};
                         $maint->app->{transcript} = $bot_transcript;

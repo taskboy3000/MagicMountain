@@ -63,12 +63,13 @@ sub apply_decay ($self) {
         my ($condition, $mult) = __PACKAGE__->compute_decay($days, $mods);
         my $decayed = int($orig_val * $mult);
 
-        $item->setCol('days_in_shed',      $days);
-        $item->setCol('condition',         $condition);
-        $item->setCol('decayed_value',     $decayed);
+        $item->setCol('days_in_shed',       $days);
+        $item->setCol('condition',          $condition);
+        $item->setCol('decayed_value',      $decayed);
         $item->setCol('estimated_value_min', int($decayed * 0.8));
         $item->setCol('estimated_value_max', int($decayed * 1.2));
-        $item->save;
+
+        $item->sync_row;
 
         if ($self->log_transcript) {
             $self->app->transcript->log_event({
@@ -89,6 +90,7 @@ sub apply_decay ($self) {
         $count++;
     }
 
+    $shed->save_table if $count;
 
     return $count;
 }

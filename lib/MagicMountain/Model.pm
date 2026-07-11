@@ -284,6 +284,15 @@ sub delete ($self, $id = undef) {
     return;
 }
 
+sub save_table ($self) {
+    return $self->_saveTable;
+}
+
+sub sync_row ($self) {
+    $self->table->{$self->row->{id}} = $self->row;
+    return 1;
+}
+
 1;
 
 __END__
@@ -527,6 +536,34 @@ Keys are column names, values are C<qr//> regex objects. A record matches if
 B<all> column values match their corresponding regex.
 
 =back
+
+=head2 save_table
+
+  $model->save_table;
+
+Persists the entire in-memory table to disk in a single write. Use this
+instead of per-record C<save> when updating many rows in a batch:
+
+  $shed->load;
+  for my $id (keys %{ $shed->table }) {
+      my $item = $shed->get($id) or next;
+      $item->setCol('days_in_shed', $item->getCol('days_in_shed') + 1);
+      $item->sync_row;
+  }
+  $shed->save_table;  # one write instead of N
+
+B<Must> be paired with C<sync_row> to propagate per-object changes back to
+the shared table before persisting.
+
+=head2 sync_row
+
+  $item->sync_row;
+
+Copies the current object's C<row> hashref back into the model's shared
+C<table>. B<Does not persist> — call C<save_table> afterwards to write.
+
+Required because C<get> returns a B<copy> of the row; C<setCol> modifies the
+copy, not the table. Without C<sync_row>, batch updates are lost.
 
 =head2 delete
 

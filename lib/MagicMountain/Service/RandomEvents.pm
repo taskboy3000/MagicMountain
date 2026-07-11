@@ -86,7 +86,7 @@ has conditions_by_pool => sub { +{
             value_type => 'integer',
             accepts    => ['scalar'],
             bounds     => [0, 20],
-            handler    => sub ($ctx, $n) { ($ctx->{standing}{$ctx->{customer}{faction_id}} // 0) >= $n },
+            handler    => sub ($ctx, $n) { ($ctx->{customer} ? ($ctx->{standing}{$ctx->{customer}{faction_id}} // 0) : 0) >= $n },
         },
     },
     global => {

@@ -82,6 +82,47 @@ it belongs.
 
 ---
 
+## Model Usage (MagicMountain::Model)
+
+### Key Patterns
+
+| Operation | Code |
+|-----------|------|
+| Create | `my $r = $model->create(col => $val); $r->save;` |
+| Read one | `my $r = $model->get($uuid)` — returns new object sharing C<table> |
+| Read many | `my @rows = @{ $model->find(sub { $_[0]->{col} eq $val }) }` |
+| Update | `$r->setCol('col', $newval); $r->save;` |
+| Delete | `$model->delete($uuid)` |
+
+### Critical: `get()` Returns a Row Copy
+
+`$model->get($id)` returns a new object whose C<row> is a **shallow copy**.
+C<setCol> writes to the copy, not to the shared table. C<save> copies the row
+back to the table AND writes the full file. This means:
+
+  - **Single-record update**: use `setCol` + `save` as normal.
+  - **Batch update**: use `setCol` + `sync_row` per item, then one `save_table`.
+
+### Batch Update Pattern (avoids N full-table writes)
+
+```perl
+my $model = $self->app->some_model;
+$model->load;
+for my $id (keys %{ $model->table }) {
+    my $item = $model->get($id) or next;
+    $item->setCol('field', $new_value);
+    $item->sync_row;        # copy row back to table (no write)
+}
+$model->save_table;          # one write for all changes
+```
+
+### Banned
+
+  - `$model->table->{$id}` — bypasses column validation. Use `get` + `setCol`.
+  - `$model->_saveTable` — private. Use `$model->save_table`.
+
+---
+
 ## Source of Truth
 
 | Concern | Authority |

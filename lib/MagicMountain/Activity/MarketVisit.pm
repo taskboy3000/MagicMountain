@@ -199,6 +199,9 @@ sub begin ($self, $char, %params) {
         }
     }
 
+    # Pick faction before event check so customer context is available
+    my $faction = $self->_weighted_faction($char);
+
     # Check for random event FIRST — replaces the market visit
     if ($self->app->can('random_events')) {
         my $season = $self->app->can('active_season') ? $self->app->active_season : undef;
@@ -210,6 +213,7 @@ sub begin ($self, $char, %params) {
             context => {
                 char          => $char,
                 standing      => $standing,
+                customer      => { faction_id => $faction->{id} },
                 faction_state => $fs,
                 season        => $season,
             },
@@ -254,8 +258,6 @@ sub begin ($self, $char, %params) {
             };
         }
     }
-
-    my $faction = $self->_weighted_faction($char);
 
     # ── Loyalty access guarantee ───────────────────────────────────
     my $faction_sales = $char->getCol('faction_sales') // {};
