@@ -30,3 +30,7 @@
 </div>
 
 %= include 'components/salvage_ledger', items => $shed_items, market_active => $market_active, show_trait_tags => stash('show_trait_tags') // 0, offer_url => ''
+% my $tsl = stash('top_sales_line');
+% if ($tsl) {
+<div class="mm-top-sales">TOP SALES: <%== $tsl %></div>
+% }

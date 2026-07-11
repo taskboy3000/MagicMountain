@@ -1,0 +1,26 @@
+<div class="mm-mountain">
+  <div class="mm-mountain-header">
+    TERRAIN SCAN
+% my $cc = stash('faction_climate') // {};
+% if ($cc->{intensity_label}) {
+    <span class="mm-mountain-intensity">: <%= $cc->{intensity_label} %></span>
+% }
+  </div>
+  <div class="mm-mountain-body">
+    <pre class="mm-mountain-raster"><% my $raster = stash('mountain_raster') // []; %><%= join "\n", @$raster %></pre>
+    <div class="mm-mountain-list">
+% my $factions = stash('factions') // [];
+% for my $f (@$factions) {
+      <div class="mm-mountain-faction<% if ($f->{rank} == 1) { %> mm-mountain-summit<% } %>" data-reference-id="faction_<%= $f->{faction_id} %>">
+% if ($f->{icon}) {
+        <img src="<%= $f->{icon} %>" alt="" class="mm-mountain-glyph">
+% }
+        <span class="mm-mountain-name"><%= $f->{short_name} %></span>
+% if ($f->{rank} == 1 && $cc->{intensity_label}) {
+        <span class="mm-mountain-badge"><%= $cc->{intensity_label} %></span>
+% }
+      </div>
+% }
+    </div>
+  </div>
+</div>

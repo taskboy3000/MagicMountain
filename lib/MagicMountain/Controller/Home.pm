@@ -45,6 +45,14 @@ sub show ($self) {
         my $fresh_player = !$type && !$shed_count && !$char->getCol('scrap');
         my $fc = $season ? $season->faction_climate : {};
         my $biases = $fc->{market}{buyer_trait_biases} // {};
+        my $sales = $char->getCol('faction_sales') // {};
+        my $top_sales_line = '';
+        if (my $top_id = (sort { ($sales->{$b} // 0) <=> ($sales->{$a} // 0) } keys %$sales)[0]) {
+            my $factions = $self->app->factions_data // [];
+            my ($top_f) = grep { $_->{id} eq $top_id } @$factions;
+            my $label = $top_f ? ($top_f->{short_name} // $top_f->{name}) : $top_id;
+            $top_sales_line = sprintf('%s ★★★★★', $label);
+        }
         $self->stash(
             suggestions              => $suggestions,
             season_day               => $season_day,
@@ -59,6 +67,7 @@ sub show ($self) {
             faction_climate          => $fc,
             climate_premium_traits   => [ sort keys %$biases ],
             show_trait_tags          => $skill >= 1 ? 1 : 0,
+            top_sales_line           => $top_sales_line,
         );
         return $self->render('home/dashboard', layout => undef);
     }

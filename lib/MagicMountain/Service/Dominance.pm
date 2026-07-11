@@ -119,6 +119,62 @@ sub buyer_trait_biases ($self, $season) {
     return $climate->{market}{buyer_trait_biases} // {};
 }
 
+sub ranked_factions ($self, $season) {
+    my $fs = $season->getCol('faction_state') // return [];
+    my @rank = sort { $fs->{$b}{influence} // 0 <=> $fs->{$a}{influence} // 0 } keys %$fs;
+    my $leader = @rank ? ($fs->{$rank[0]}{influence} // 1) : 1;
+    my @result;
+    for my $i (0 .. $#rank) {
+        push @result, {
+            faction_id => $rank[$i],
+            rank       => $i + 1,
+            influence  => $fs->{$rank[$i]}{influence} // 0,
+            ratio      => ($fs->{$rank[$i]}{influence} // 0) / $leader,
+        };
+    }
+    return \@result;
+}
+
+sub _mountain_shape ($self) {
+    return [
+        [0,0,0,0,1,0,0,0,0],
+        [0,0,0,1,1,1,0,0,0],
+        [0,0,1,1,1,1,0,0,0],
+        [0,0,1,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1,1,1],
+    ];
+}
+
+sub _build_raster ($self, $tier) {
+    my %dist = (
+        contested => [0.25, 0.35, 0.40],
+        leading   => [0.45, 0.35, 0.20],
+        strong    => [0.70, 0.25, 0.05],
+        dominant  => [0.90, 0.10, 0.00],
+    );
+    my $d = $dist{$tier} || $dist{contested};
+    my $shape = $self->_mountain_shape;
+    my @rows;
+    for my $row (@$shape) {
+        my @chars;
+        for my $cell (@$row) {
+            if (!$cell) { push @chars, ' '; next; }
+            my $r = rand;
+            push @chars,
+                $r < $d->[0] ? "\x{2588}"
+              : $r < $d->[0] + $d->[1] ? "\x{2593}"
+              : "\x{2591}";
+        }
+        push @rows, join('', @chars);
+    }
+    return \@rows;
+}
+
 sub saturation_floor_active ($self, $season, $fid, $trait) {
     my $climate = $season->getCol('faction_climate') // {};
     return 0 unless $climate->{dominant_faction};

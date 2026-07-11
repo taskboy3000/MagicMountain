@@ -11,30 +11,26 @@ sub show ($self) {
     my $sales    = $char->getCol('faction_sales') // {};
     my $fs       = $season->getCol('faction_state') // {};
 
-    my $max_stars = $self->app->config->{faction_max_stars} // 5;
-    my $top_sales = 0;
-    $top_sales = $_ > $top_sales ? $_ : $top_sales for values %$sales;
-
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        my $is_secondary = ($self->param('panel') || '') eq 'secondary';
+        my $ranked = $self->app->dominance_service->ranked_factions($season);
+        my $fc     = $season->faction_climate // {};
+        my %faction_lookup = map { $_->{id} => $_ } @$factions;
         my @display;
-        for my $f (@$factions) {
-            my $fid  = $f->{id};
-            my $sale = $sales->{$fid} // 0;
-            my $star_count = $top_sales > 0 ? int(($sale / $top_sales) * $max_stars) : 0;
+        for my $r (@$ranked) {
+            my $f = $faction_lookup{$r->{faction_id}} or next;
             push @display, {
-                %$f,
-                icon              => $f->{icon} ? $self->url_for('/images') . '/' . $f->{icon} : undef,
-                display_name      => $is_secondary ? ($f->{short_name} // $f->{name}) : $f->{name},
-                display_name_full => $f->{name},
-                stars_display     => ('★' x $star_count) . ('☆' x ($max_stars - $star_count)),
-                sales             => $sale,
+                %$r,
+                name        => $f->{name},
+                short_name  => $f->{short_name} // $f->{name},
+                icon        => $f->{icon} ? $self->url_for('/images') . '/' . $f->{icon} : undef,
+                disposition => $f->{disposition} // '',
             };
         }
-        @display = sort { $b->{sales} <=> $a->{sales} } @display;
-        $self->stash(factions => \@display);
-        return $self->render('factions/registry', layout => undef);
+        my $tier   = $fc->{intensity} // 'contested';
+        my $raster = $self->app->dominance_service->_build_raster($tier);
+        $self->stash(factions => \@display, faction_climate => $fc, mountain_raster => $raster);
+        return $self->render('factions/mountain_chart', layout => undef);
     }
 
     $self->render(json => {
