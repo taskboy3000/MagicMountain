@@ -2,7 +2,12 @@
 use v5.28;
 use strict;
 use warnings;
-use PPI;
+BEGIN {
+    eval { require PPI; PPI->VERSION(1); 1 } or do {
+        say "SKIP: PPI not available";
+        exit 0;
+    };
+}
 
 use FindBin '$RealBin';
 use File::Spec;
