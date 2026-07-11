@@ -52,9 +52,16 @@ sub create ($self) {
         if ($remember_data && $remember_data->{account_id}) {
             my $remember_acct = $self->app->accounts->get($remember_data->{account_id});
             if ($remember_acct && $remember_acct->getCol('username') eq $name) {
-                if (!$remember_acct->getCol('banned') && $auth->verify_remember_token($remember_acct, $remember_data->{token})) {
+                if ($remember_acct->getCol('banned')) {
+                    $self->app->log->debug(sprintf("Remember-me: %s is banned", $name));
+                } elsif (!$auth->verify_remember_token($remember_acct, $remember_data->{token})) {
+                    $self->app->log->debug(sprintf("Remember-me: token mismatch for %s (stale cookie)", $name));
+                } else {
                     return $self->render(json => $self->_build_session($remember_acct, $ip));
                 }
+            } else {
+                $self->app->log->debug(sprintf("Remember-me: account %s not found for cookie %s",
+                    $remember_data->{account_id}, $name));
             }
         }
     }
@@ -222,6 +229,14 @@ sub _build_session ($self, $account, $ip, @rest) {
         player_id   => $player_id,
         player_name => $account->getCol('username'),
     );
+
+    # Refresh remember-me cookie on every session creation
+    my $auth = $self->app->auth_service;
+    my $new_token = $auth->generate_remember_token;
+    my $new_hash = $auth->hash_token($new_token);
+    $account->setCol('remember_token_hash', $new_hash);
+    $account->save;
+    $self->_set_remember_cookie($new_token, $account);
 
     return {
         ok         => 1,
