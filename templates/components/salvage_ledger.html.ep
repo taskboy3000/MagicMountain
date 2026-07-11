@@ -37,8 +37,15 @@
           <td><%= $item->{value_label} // '?' %></td>
 % if ($market_active) {
           <td>
-% my $offer = { label => 'Offer', attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item->{id} } };
-%=           include 'components/action_buttons', actions => [$offer]
+%   my $item_id = $item->{id};
+%   my $pc_id = stash('pending_counter_item_id');
+%   if (defined $pc_id && $pc_id eq $item_id) {
+%     my $pc_val = stash('pending_counter_value') // '?';
+            <button class="mm-btn mm-btn-disabled" title="In negotiation — accept the <%= $pc_val %>-scrap counter or pick a different item"><%= $pc_val %> SCR</button>
+%   } else {
+%     my $offer = { label => 'Offer', attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } };
+%=     include 'components/action_buttons', actions => [$offer]
+%   }
           </td>
 % }
         </tr>

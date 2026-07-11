@@ -1,6 +1,13 @@
 package MagicMountain::Controller::Shed;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
+sub _pending_counter ($self, $char) {
+    my $activity_id = $char->getCol('pending_activity_id') or return;
+    my $activity = $self->app->market->get($activity_id) or return;
+    my $customer = $activity->customer or return;
+    return $customer->{pending_counter};
+}
+
 sub index ($self) {
     my $char = $self->_require_character;
     return unless $char;
@@ -10,6 +17,8 @@ sub index ($self) {
     );
 
     my $filtered = _apply_filters($all, $self);
+
+    my $pc = $self->_pending_counter($char);
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
@@ -26,6 +35,8 @@ sub index ($self) {
             offer_url             => $self->url_for('market_offer'),
             climate_premium_traits => [ sort keys %$biases ],
             show_trait_tags       => $skill >= 1 ? 1 : 0,
+            pending_counter_item_id => $pc ? $pc->{item_id} : undef,
+            pending_counter_value   => $pc ? $pc->{value} : undef,
             layout                => undef,
         );
         return $self->render('shed/ledger', layout => undef);
@@ -38,14 +49,14 @@ sub index ($self) {
 
     $self->render(json => {
         ok    => 1,
-        shed  => [ map { _item_view($_, $market_active, $offer_url, $icon_base) } @$filtered ],
+        shed  => [ map { _item_view($_, $market_active, $offer_url, $icon_base, $pc) } @$filtered ],
         total => scalar @$all,
         count => scalar @$filtered,
         _self => { actions => [] },
     });
 }
 
-sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '') {
+sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '', $pending_counter = undef) {
     my $v = {
         id                  => $item->getCol('id'),
         artifact_id         => $item->getCol('artifact_id'),
@@ -63,6 +74,10 @@ sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '') 
     if ($market_active) {
         $v->{action_url} = $offer_url;
         $v->{method}     = 'POST';
+        if ($pending_counter && $pending_counter->{item_id} eq $v->{id}) {
+            $v->{disabled}         = 1;
+            $v->{disabled_reason}  = sprintf('In negotiation — accept the %d-scrap counter or pick a different item', $pending_counter->{value});
+        }
     }
     return $v;
 }
