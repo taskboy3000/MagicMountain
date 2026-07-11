@@ -91,11 +91,17 @@ sub _activity_action ($self, $action, %params) {
         }
     }
 
-    my $activity = $id
-        ? $m->get($id)
-        : $m->create(char_id => $char_model->getCol('id'));
+    if (!$id && $action ne 'begin') {
+        return $self->render(json => { ok => 0, error => 'No active market visit' }, status => 400);
+    }
 
-    my $result = eval { $activity->dispatch($char_model, $action, %params) };
+    my $result = eval {
+        if ($action eq 'begin') {
+            $m->begin_activity($char_model, %params);
+        } else {
+            $m->get($id)->dispatch($char_model, $action, %params);
+        }
+    };
     if (my $err = $@) {
         return $self->render(json => { ok => 0, error => $err }, status => 409);
     }

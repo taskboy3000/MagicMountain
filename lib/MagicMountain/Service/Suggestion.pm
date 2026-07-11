@@ -1,14 +1,21 @@
 package MagicMountain::Service::Suggestion;
 use Mojo::Base '-base', '-signatures';
 
+use constant FACTION_DESPERATION_DAYS => 3;
+
 has app => sub { die "app is required" };
 
+sub _prospect_ap_cost ($self, $season) {
+    return $season ? $season->daily_modifier('prospect_ap_cost', 2) : 2;
+}
+
 sub build ($self, $char, $season, $advisories, $all_shed) {
-    my $ap        = $char->getCol('action_points') // 0;
-    my $scrap     = $char->getCol('scrap') // 0;
-    my $day       = $season ? $season->getCol('day') // 1     : 1;
-    my $len       = $season ? $season->getCol('length') // 30  : 30;
+    my $ap         = $char->getCol('action_points') // 0;
+    my $scrap      = $char->getCol('scrap') // 0;
+    my $day        = $season ? $season->getCol('day') // 1     : 1;
+    my $len        = $season ? $season->getCol('length') // 30  : 30;
     my $shed_count = scalar @$all_shed;
+    my $prospect_cost = $self->_prospect_ap_cost($season);
 
     my @suggestions;
 
@@ -20,7 +27,7 @@ sub build ($self, $char, $season, $advisories, $all_shed) {
         };
     }
 
-    if ($ap >= 2) {
+    if ($ap >= $prospect_cost) {
         push @suggestions, {
             icon => 'DRILL',
             text => _interpolate($advisories->{ap_available} // '', { ap => $ap }),
@@ -28,7 +35,7 @@ sub build ($self, $char, $season, $advisories, $all_shed) {
         };
     }
 
-    if ($shed_count == 0 && $ap < 2) {
+    if ($shed_count == 0 && $ap < $prospect_cost) {
         push @suggestions, {
             icon => 'WAIT',
             text => _interpolate($advisories->{idle} // '', { ap => $ap, shed_count => $shed_count }),
@@ -55,7 +62,7 @@ sub build ($self, $char, $season, $advisories, $all_shed) {
         my $standing      = $char->getCol('standing') // {};
         for my $fid (keys %$faction_state) {
             my $fs = $faction_state->{$fid};
-            next unless $fs->{days_since_purchase} && $fs->{days_since_purchase} >= 3;
+            next unless $fs->{days_since_purchase} && $fs->{days_since_purchase} >= FACTION_DESPERATION_DAYS;
             push @suggestions, {
                 icon => 'PREMIUM',
                 text => _interpolate($advisories->{faction_hunger} // '', {

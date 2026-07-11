@@ -1,6 +1,8 @@
 package MagicMountain::Controller::Player;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
+use MagicMountain::Service::AccountDeletion;
+
 sub show ($self) {
     my $format = $self->param('_format');
 
@@ -45,15 +47,7 @@ sub destroy ($self) {
     $self->app->session_store->delete_by_player_id($player_id);
     $self->session(expires => 1);
 
-    my $chars = $self->app->characters;
-    my $existing = $chars->find({ account_id => qr/^\Q$player_id\E$/ });
-    for my $char (@$existing) {
-        $chars->delete($char->getCol('id'));
-    }
-
-    $self->app->accounts->delete($player_id);
-
-    $self->app->audit_log->log('account_deleted', player_id => $player_id);
+    MagicMountain::Service::AccountDeletion->new(app => $self->app)->delete_account($player_id);
 
     $self->render(json => { ok => 1 });
 }

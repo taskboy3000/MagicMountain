@@ -36,33 +36,10 @@ sub skill_list ($self, $char) {
     }
 
     my $scrap = $char->getCol('scrap') // 0;
-    my @actions;
-
-    for my $s (@$skills) {
-        my $cur = $s->{current_level} // 0;
-        my $max = $s->{max_level} // 3;
-        my $at_max = $cur >= $max;
-        my $next_cost = $at_max ? undef : ($s->{levels}[$cur]{cost} // undef);
-
-        if (!$at_max && defined $next_cost) {
-            my $disabled = $scrap < $next_cost;
-            push @actions, {
-                label => "Upgrade ($next_cost)",
-                attrs => {
-                    'data-action-url' => '/skills/purchase',
-                    'data-method'     => 'POST',
-                    class             => 'mm-btn mm-btn-primary buy-skill-btn',
-                    'data-skill-id'   => $s->{id},
-                    ($disabled ? (disabled => undef) : ()),
-                },
-            };
-        }
-    }
 
     return {
         skills  => $skills,
         scrap   => $scrap,
-        actions => \@actions,
     };
 }
 

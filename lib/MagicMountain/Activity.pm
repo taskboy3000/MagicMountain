@@ -67,20 +67,16 @@ sub customer {
 
 # ── State-machine dispatch ─────────────────────────────────────────
 
-sub _current_day ($self) {
-    my $seasons = eval { $self->app->seasons };
-    return unless $seasons;
-    $seasons->load;
-    my $active = $seasons->find(sub { $_[0]->{status} && $_[0]->{status} eq 'active' });
-    return $active->[0]->getCol('day') if @$active;
-    return;
-}
-
 sub _log_event ($self, $char, $event) {
     $event->{char_id} = $char->getCol('id');
     $event->{action_points} = $char->getCol('action_points');
-    $event->{day} = $self->_current_day;
     $self->app->transcript->log_event($event);
+}
+
+sub begin_activity ($self, $char, %params) {
+    my $id = $char->getCol('pending_activity_id');
+    my $activity = $id ? $self->get($id) : $self->create(char_id => $char->getCol('id'));
+    return $activity->dispatch($char, 'begin', %params);
 }
 
 sub dispatch ($self, $char, $action, %params) {

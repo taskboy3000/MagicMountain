@@ -1,6 +1,8 @@
 package MagicMountain::Controller::Result;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
+use MagicMountain::Service::CharacterView;
+
 my %OUTCOME_ACTIVITY = (
     breakthrough => 'prospecting',
     collapse     => 'prospecting',
@@ -20,7 +22,8 @@ sub show ($self) {
     }
 
     my $activity_type = $OUTCOME_ACTIVITY{ $result->{outcome} // '' } // $result->{activity_type};
-    my $can_continue = $char->can_continue($activity_type);
+    my $cv = MagicMountain::Service::CharacterView->new(app => $self->app);
+    my $can_continue = $cv->can_continue($char, $activity_type);
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
@@ -51,17 +54,16 @@ sub do_continue ($self) {
 
     my $activity_type = $OUTCOME_ACTIVITY{ $result->{outcome} // '' } // $result->{activity_type};
     return $self->render(json => { ok => 0, error => 'cannot continue from this outcome' }, status => 400) unless $activity_type;
-    return $self->render(json => { ok => 0, error => 'insufficient resources' }, status => 400) unless $char->can_continue($activity_type);
+    my $cv = MagicMountain::Service::CharacterView->new(app => $self->app);
+    return $self->render(json => { ok => 0, error => 'insufficient resources' }, status => 400) unless $cv->can_continue($char, $activity_type);
 
     $char->nullCol('result');
 
     if ($activity_type eq 'prospecting') {
-        my $activity = $self->app->prospecting->create(char_id => $char->getCol('id'));
-        $activity->dispatch($char, 'begin');
+        $self->app->prospecting->begin_activity($char);
         $char->setCol('current_view', 'prospecting');
     } else {
-        my $activity = $self->app->market->create(char_id => $char->getCol('id'));
-        $activity->dispatch($char, 'begin');
+        $self->app->market->begin_activity($char);
         $char->setCol('current_view', 'market');
     }
 

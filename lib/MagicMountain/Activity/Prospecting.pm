@@ -195,7 +195,7 @@ sub _artifact_view ($self, $artifact) {
 
 sub begin ($self, $char, %params) {
     my $season = $self->app->can('active_season') ? $self->app->active_season : undef;
-    my $ap_cost = $season ? $season->prospect_ap_cost : 2;
+    my $ap_cost = $season ? $season->daily_modifier('prospect_ap_cost', 2) : 2;
     die "AP exhausted" unless ($char->getCol('action_points') // 0) >= $ap_cost;
 
     # Check for random event FIRST — if one fires, it replaces the artifact draw
@@ -219,7 +219,7 @@ sub begin ($self, $char, %params) {
                     pool     => 'prospecting',
                     event_id => $event->{id},
                     text     => $event->{text},
-                    day      => $self->_current_day,
+                    day      => $season ? $season->getCol('day') : undef,
                     choices  => $event->{choices},
                 });
                 $self->phase('processing');
@@ -342,7 +342,8 @@ sub resolve_event ($self, $char, %params) {
     my $pending = $self->getCol('pending_event')
         or die "no pending event";
 
-    my $current_day = $self->_current_day;
+    my $season   = $self->app->can('active_season') ? $self->app->active_season : undef;
+    my $current_day = $season ? $season->getCol('day') : undef;
     if (defined $current_day && defined $pending->{day}) {
         die "pending event expired" if $pending->{day} != $current_day;
     }
@@ -353,7 +354,7 @@ sub resolve_event ($self, $char, %params) {
     my $ctx = {
         char    => $char,
         artifact => $self->artifact // {},
-        season  => $self->app->can('active_season') ? $self->app->active_season : undef,
+        season  => $season,
     };
 
     my $resolved = $self->app->random_events->apply_choice(

@@ -31,6 +31,7 @@ use MagicMountain::Service::BotRunner;
 use MagicMountain::Service::PvP;
 use MagicMountain::Service::Dominance;
 use MagicMountain::Service::MarketGate;
+use MagicMountain::Service::SeasonFinalizer;
 use MagicMountain::Model::Pressure;
 
 has configFile => sub ($self) {
@@ -289,7 +290,7 @@ has maintenance => sub ($self) {
                     "Season '%s' day %d exceeds configured length %d — finalizing",
                     $season->getCol('label'), $day, $length
                 ));
-                MagicMountain::Model::Season->finalize($maint->app);
+                MagicMountain::Service::SeasonFinalizer->new(app => $maint->app)->finalize;
             }
         },
     );
@@ -537,7 +538,7 @@ sub _catch_up_maintenance ($self) {
             "Auto-finalizing season '%s' at day %d (length %d)",
             $season->getCol('label') // '?', $day, $length
         ));
-        MagicMountain::Model::Season->finalize($self);
+        MagicMountain::Service::SeasonFinalizer->new(app => $self)->finalize;
         return;
     }
 

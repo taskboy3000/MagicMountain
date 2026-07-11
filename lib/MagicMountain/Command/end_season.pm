@@ -1,13 +1,13 @@
 package MagicMountain::Command::end_season;
 use Mojo::Base 'Mojolicious::Command', '-signatures';
 
-use MagicMountain::Model::Season;
+use MagicMountain::Service::SeasonFinalizer;
 
 has description => 'Finalize the active season, archive records, and clean up';
 has usage       => "Usage: $0 end-season\n";
 
 sub run ($self, @args) {
-    my $result = eval { MagicMountain::Model::Season->finalize($self->app) };
+    my $result = eval { MagicMountain::Service::SeasonFinalizer->new(app => $self->app)->finalize };
     if ($@) {
         chomp $@;
         say "Error: $@";

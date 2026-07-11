@@ -207,7 +207,7 @@ sub run ($self, @args) {
     }
 
     # Finalize the season (triggers clearance sale, creates SeasonRecords)
-    my $finalize_result = eval { MagicMountain::Model::Season->finalize($app) };
+    my $finalize_result = eval { MagicMountain::Service::SeasonFinalizer->new(app => $app)->finalize };
     if ($@) {
         $app->log->warn("Season finalization failed: $@");
     } else {

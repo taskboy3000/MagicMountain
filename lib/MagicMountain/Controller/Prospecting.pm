@@ -79,17 +79,17 @@ sub _activity_action ($self, $action, %params) {
     my $p   = $self->app->prospecting;
     my $id  = $char_model->getCol('pending_activity_id');
 
-    if (!$id) {
-        if ($action ne 'begin') {
-            return $self->render(json => { ok => 0, error => 'No active expedition' }, status => 400);
-        }
+    if (!$id && $action ne 'begin') {
+        return $self->render(json => { ok => 0, error => 'No active expedition' }, status => 400);
     }
 
-    my $activity = $id
-        ? $p->get($id)
-        : $p->create(char_id => $char_model->getCol('id'));
-
-    my $result = eval { $activity->dispatch($char_model, $action, %params) };
+    my $result = eval {
+        if ($action eq 'begin') {
+            $p->begin_activity($char_model, %params);
+        } else {
+            $p->get($id)->dispatch($char_model, $action, %params);
+        }
+    };
     if (my $err = $@) {
         return $self->render(json => { ok => 0, error => $err }, status => 409);
     }

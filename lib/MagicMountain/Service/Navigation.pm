@@ -53,7 +53,11 @@ use constant {
     BIT_INTEL    => 8,
 };
 
-sub build_tabs ($self, $char, $type, $ap, $shed_count) {
+sub base_tab_state ($self, $type) {
+    return $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
+}
+
+sub build_tabs ($self, $char, $type, $overrides = {}) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
     my @tab_ids  = qw(home prospect bazaar pvp skills);
     my $onboarding = $char ? ($char->getCol('onboarding') // 0) : 15;
@@ -67,17 +71,9 @@ sub build_tabs ($self, $char, $type, $ap, $shed_count) {
     for my $id (@tab_ids) {
         next if $REQUIRES{$id} && !($onboarding & $REQUIRES{$id});
         my $entry = { %{ $base->{$id} } };
-        if ($id eq 'bazaar' && $entry->{active}) {
-            if ($ap < 1) {
-                $entry->{active} = 0; $entry->{reason} = 'No AP remaining';
-            } elsif ($shed_count < 1) {
-                $entry->{active} = 0; $entry->{reason} = 'No artifacts in shed';
-            }
-        }
-        if ($id eq 'prospect' && $entry->{active}) {
-            if ($ap < 2) {
-                $entry->{active} = 0; $entry->{reason} = 'Not enough AP (2 required)';
-            }
+        if (my $override = $overrides->{$id}) {
+            $entry->{active} = $override->{active} if exists $override->{active};
+            $entry->{reason} = $override->{reason} if exists $override->{reason};
         }
         push @tabs, {
             id     => $id,

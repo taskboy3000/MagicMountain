@@ -117,42 +117,4 @@ subtest 'skill_list — returns skills with current levels' => sub {
     is $selling->{current_level}, 1, 'selling level correct';
 };
 
-subtest 'skill_list — max-level skill has no upgrade action' => sub {
-    my $app = _build_app();
-    my $svc = MagicMountain::Service::SkillTraining->new(app => $app);
-    my $char = TestCharacter->new(
-        skill_prospecting => 4,
-        skill_upcycling   => 0,
-        skill_selling     => 0,
-        scrap => 9999,
-    );
-
-    my $result = $svc->skill_list($char);
-    my @prospecting_actions = grep {
-        $_->{attrs}{'data-skill-id'} && $_->{attrs}{'data-skill-id'} eq 'prospecting'
-    } @{ $result->{actions} };
-    is scalar @prospecting_actions, 0, 'no upgrade action for maxed skill';
-
-    my @other_actions = grep {
-        $_->{attrs}{'data-skill-id'} && $_->{attrs}{'data-skill-id'} ne 'prospecting'
-    } @{ $result->{actions} };
-    ok scalar @other_actions > 0, 'other skills still show upgrade actions';
-};
-
-subtest 'skill_list — disabled action when scrap insufficient' => sub {
-    my $app = _build_app();
-    my $svc = MagicMountain::Service::SkillTraining->new(app => $app);
-    my $char = TestCharacter->new(
-        skill_prospecting => 0,
-        scrap => 0,
-    );
-
-    my $result = $svc->skill_list($char);
-    my ($prospecting_action) = grep {
-        $_->{attrs}{'data-skill-id'} && $_->{attrs}{'data-skill-id'} eq 'prospecting'
-    } @{ $result->{actions} };
-    ok $prospecting_action, 'prospecting upgrade action present';
-    ok exists $prospecting_action->{attrs}{disabled}, 'action is disabled';
-};
-
 done_testing;

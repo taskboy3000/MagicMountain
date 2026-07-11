@@ -4,6 +4,7 @@ use Mojo::JSON qw(encode_json);
 use YAML::XS qw(LoadFile);
 
 use MagicMountain::Service::SeasonManager;
+use MagicMountain::Service::CharacterView;
 
 sub show ($self) {
     my $player_id = $self->current_player;
@@ -30,10 +31,11 @@ sub show ($self) {
     my ($char_model, $onboarding_notices) = $season_mgr->ensure_character($account, $season);
 
     my $row = $char_model->row;
-    my $prospecting_view = $char_model->prospecting_view;
-    my $market_view      = $char_model->market_view;
-    my $skills           = $char_model->player_skills;
-    my $shed_items       = $char_model->shed_items;
+    my $cv  = MagicMountain::Service::CharacterView->new(app => $self->app);
+    my $prospecting_view = $cv->prospecting_view($char_model);
+    my $market_view      = $cv->market_view($char_model);
+    my $skills           = $cv->player_skills($char_model);
+    my $shed_items       = $cv->shed_items($char_model);
 
     my $activity;
     my $id = $row->{pending_activity_id};

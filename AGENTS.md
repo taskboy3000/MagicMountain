@@ -84,4 +84,5 @@ it belongs.
 |---------|-----------|
 | Game design | `docs/` + `GAME_ARCHITECTURE.md` |
 | Codebase structure | `GAME_ARCHITECTURE.md` (directory layout) |
+| Module boundary rules | `.opencode/rules/` — loaded automatically per-file |
 | Conventions & standards | This file |

@@ -54,7 +54,21 @@ sub show ($self) {
     ) };
 
     my $nav = MagicMountain::Service::Navigation->new(app => $self->app);
-    my $primary_tabs = $nav->build_tabs($char, $type, $ap, $shed_count);
+    my $base     = $nav->base_tab_state($type);
+    my $overrides = {};
+    if ($base->{bazaar}{active}) {
+        if ($ap < 1) {
+            $overrides->{bazaar} = { active => 0, reason => 'No AP remaining' };
+        } elsif ($shed_count < 1) {
+            $overrides->{bazaar} = { active => 0, reason => 'No artifacts in shed' };
+        }
+    }
+    if ($base->{prospect}{active}) {
+        if ($ap < 2) {
+            $overrides->{prospect} = { active => 0, reason => 'Not enough AP (2 required)' };
+        }
+    }
+    my $primary_tabs = $nav->build_tabs($char, $type, $overrides);
 
     my $view = _resolve_requested_view($self, $primary_tabs);
     if (!$view) {
