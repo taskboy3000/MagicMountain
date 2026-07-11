@@ -30,6 +30,9 @@ sub setup_with_faction_state {
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
+    my $active_season = $t->app->active_season;
+    $t->app->dominance_service->ensure_mountain_data($active_season);
+
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }

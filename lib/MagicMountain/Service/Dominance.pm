@@ -258,6 +258,45 @@ sub _crier_text ($self, $fid, $tier) {
     return sprintf("%s — %s", $msg->{headline}, $msg->{hint});
 }
 
+sub _build_mountain_data ($self, $season, $tier) {
+    my $ranked = $self->faction_positions($season);
+    my $lowest = 1;
+    for my $r (@$ranked) {
+        $lowest = $r->{row_offset} if $r->{row_offset} > $lowest;
+    }
+    my $mountain_height = $lowest < 10 ? 10 : $lowest;
+    if ($mountain_height != 22) {
+        $ranked = $self->faction_positions($season, $mountain_height);
+        $lowest = 1;
+        for my $r (@$ranked) {
+            $lowest = $r->{row_offset} if $r->{row_offset} > $lowest;
+        }
+        $mountain_height = $lowest < 10 ? 10 : $lowest;
+    }
+    my $shape = $self->_build_shape($mountain_height, 19);
+    my $raster = $self->_build_raster($tier, $shape);
+    return {
+        mountain_positions => $ranked,
+        mountain_height    => $mountain_height,
+        mountain_raster    => $raster,
+    };
+}
+
+sub ensure_mountain_data ($self, $season) {
+    my $fc = $season->getCol('faction_climate') // {};
+    return if $fc->{mountain_positions};
+    my $tier    = $fc->{intensity} // 'contested';
+    my $mountain = $self->_build_mountain_data($season, $tier);
+    $fc->{day}                = $season->getCol('day');
+    $fc->{intensity}          = $tier;
+    $fc->{intensity_label}    = ucfirst($tier);
+    $fc->{mountain_positions} = $mountain->{mountain_positions};
+    $fc->{mountain_height}    = $mountain->{mountain_height};
+    $fc->{mountain_raster}    = $mountain->{mountain_raster};
+    $season->setCol('faction_climate', $fc);
+    $season->save;
+}
+
 sub calculate_climate ($self, $season) {
     my $fs = $season->getCol('faction_state') // return {};
     my @rank = sort { $fs->{$b}{influence} // 0 <=> $fs->{$a}{influence} // 0 } keys %$fs;
@@ -268,22 +307,26 @@ sub calculate_climate ($self, $season) {
     my $margin    = ($fs->{$leader_id}{influence} // 0) - ($fs->{$runner_id}{influence} // 0);
     my $tier      = $self->intensity_tier($margin);
     my $factor    = $self->climate_intensity_factor($tier);
-    return {} if $factor == 0;
 
-    my $profile = $self->_profile_for($leader_id);
     my $climate = {
         day                 => $season->getCol('day'),
         dominant_faction    => $leader_id,
         dominant_faction_name => $self->_faction_name($leader_id),
-        banned_traits       => $profile->{banned_traits} // [],
+        banned_traits       => $factor > 0 ? ($self->_profile_for($leader_id)->{banned_traits} // []) : [],
         intensity           => $tier,
         intensity_label     => ucfirst($tier),
         dominance_margin    => $margin,
-        prospecting         => {
+        prospecting         => {},
+        market              => {},
+    };
+
+    if ($factor > 0) {
+        my $profile = $self->_profile_for($leader_id);
+        $climate->{prospecting} = {
             draw_biases              => $self->_scale_biases($profile->{draw_biases}, $factor),
             starting_instability_mod => int(($profile->{starting_instability_mod} // 0) * $factor),
-        },
-        market => {
+        };
+        $climate->{market} = {
             budget_delta        => int(($profile->{budget_delta} // 0) * $factor),
             mood_delta          => int(($profile->{mood_delta} // 0) * $factor),
             patience_delta      => int(($profile->{patience_delta} // 0) * $factor),
@@ -292,10 +335,16 @@ sub calculate_climate ($self, $season) {
             buyer_trait_biases  => $self->_scale_biases($profile->{buyer_trait_biases}, $factor),
             budget_label        => ($profile->{budget_delta} // 0) >= 0 ? 'Richer buyers' : 'Tighter budgets',
             market_summary      => $self->_market_summary($profile, $factor),
-        },
-        town_crier => $self->_crier_message($leader_id, $tier),
-        crier_text => $self->_crier_text($leader_id, $tier),
-    };
+        };
+        $climate->{town_crier} = $self->_crier_message($leader_id, $tier);
+        $climate->{crier_text} = $self->_crier_text($leader_id, $tier);
+    }
+
+    my $mountain = $self->_build_mountain_data($season, $tier);
+    $climate->{mountain_positions} = $mountain->{mountain_positions};
+    $climate->{mountain_height}    = $mountain->{mountain_height};
+    $climate->{mountain_raster}    = $mountain->{mountain_raster};
+
     $season->setCol('faction_climate', $climate);
     $season->save;
     return $climate;
