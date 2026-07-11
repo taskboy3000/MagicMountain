@@ -759,6 +759,13 @@ When a player starts a Market Visit (costs 1 AP):
     any loyalty-faction visit). This ensures loyalists aren't starved of their
     preferred faction's customers.
 
+    > **Toggle**: Both standing-weighted selection and the loyalty access
+    > guarantee are gated behind `market_faction_loyalty` (default: `0`,
+    > meaning uniform random selection / no redirect). Setting it to `1`
+    > restores the legacy behavior. Standing pricing bonuses, loyalty
+    > free mismatches, and the 1.05× loyalty price multiplier are NOT
+    > affected by this toggle — they remain active regardless.
+
     **Loyalty free mismatch**: If the player has 1+ prior sales to the visiting
     faction, the first mismatch each visit is free — no irritation is added.
     The `loyalty_free_mismatches` counter (initialized to 1 when

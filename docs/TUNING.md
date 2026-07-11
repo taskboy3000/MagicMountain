@@ -42,6 +42,7 @@ what it affects. Refer to this when adjusting game balance.
 | `market_desperation_bonus` | `1.30` | Price bonus multiplier for artifacts that have sat unsold (idle). |
 | `market_counter_offers` | `1` | Enable (`1`) / disable (`0`) counter-offers from buyers. |
 | `market_multi_item` | `1` | Enable (`1`) / disable (`0`) multi-item sales per visit. |
+| `market_faction_loyalty` | `0` | Enable (`1`) / disable (`0`) standing-weighted faction selection and loyalty access guarantee. When off, customer faction is uniformly random and no force-redirect occurs. Standing pricing/loyalty bonuses are not affected. |
 | `faction_max_stars` | `5` | Maximum standing stars with any faction. |
 
 ### Bots / NPCs
