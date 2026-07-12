@@ -5,7 +5,7 @@
   <div class="mm-panel-body">
 % if ($crier_msg) {
     <p class="mm-text-dim" style="font-size:0.78rem;margin-bottom:0.75rem">
-      <strong class="mm-text-amber">NEWS:</strong> <%= $crier_msg %></p>
+      <strong class="mm-text-amber">BAZAAR REPORT:</strong> <%= $crier_msg %></p>
 % }
 % if (@$suggestions) {
     <p class="mm-display-label">Advisories</p>

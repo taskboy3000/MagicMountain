@@ -112,4 +112,39 @@ subtest 'contested tier — neutral fallback' => sub {
         'empty biases and zero instability returns neutral fallback');
 };
 
+subtest '_sell_side_hint — both premium and banned' => sub {
+    my $dom = _dom;
+    my $profile = { buyer_trait_biases => { revelation => 1, signal => 1 }, banned_traits => ['thermal'] };
+    my $text = $dom->_sell_side_hint($profile);
+    like($text, qr/Paying premium for: revelation, signal/, 'premium traits listed');
+    like($text, qr/Restricted: thermal/, 'banned traits listed');
+};
+
+subtest '_sell_side_hint — premium only' => sub {
+    my $dom = _dom;
+    my $profile = { buyer_trait_biases => { field => 1 } };
+    my $text = $dom->_sell_side_hint($profile);
+    like($text, qr/Paying premium for: field/, 'premium only');
+    unlike($text, qr/Restricted:/, 'no banned section');
+};
+
+subtest '_sell_side_hint — banned only' => sub {
+    my $dom = _dom;
+    my $profile = { banned_traits => ['force', 'instability'] };
+    my $text = $dom->_sell_side_hint($profile);
+    like($text, qr/Restricted: force, instability/, 'banned only');
+    unlike($text, qr/premium/i, 'no premium section');
+};
+
+subtest '_sell_side_hint — neither (fallback)' => sub {
+    my $dom = _dom;
+    my $text = $dom->_sell_side_hint({});
+    is($text, '', 'empty string when no premium or banned');
+};
+
+subtest '_sell_side_hint — empty profile' => sub {
+    my $dom = _dom;
+    is($dom->_sell_side_hint({}), '', 'empty profile returns empty');
+};
+
 done_testing;

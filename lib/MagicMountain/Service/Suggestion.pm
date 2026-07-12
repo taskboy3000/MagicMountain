@@ -35,6 +35,19 @@ sub build ($self, $char, $season, $advisories, $all_shed) {
         };
     }
 
+    if ($season && $ap >= $prospect_cost) {
+        my $climate = $season->getCol('faction_climate') // {};
+        if ($climate->{has_meaningful_finds}) {
+            push @suggestions, {
+                icon => 'DRILL',
+                text => _interpolate($advisories->{climate_finds} // '', {
+                    finds_summary => $climate->{finds_summary},
+                }),
+                view => 'prospect',
+            };
+        }
+    }
+
     if ($shed_count == 0 && $ap < $prospect_cost) {
         push @suggestions, {
             icon => 'WAIT',
@@ -98,6 +111,37 @@ sub build ($self, $char, $season, $advisories, $all_shed) {
                 };
             }
         }
+    }
+
+    if ($season && $shed_count > 0) {
+        my $climate = $season->getCol('faction_climate') // {};
+        my $banned  = $climate->{banned_traits} // [];
+        if (@$banned) {
+            my %banned = map { $_ => 1 } @$banned;
+            my @matched;
+            for my $shed (@$all_shed) {
+                for my $b (@{ $shed->getCol('behaviors') // [] }) {
+                    push @matched, $b if $banned{$b};
+                }
+            }
+            if (@matched) {
+                push @suggestions, {
+                    icon => 'LOCK',
+                    text => _interpolate($advisories->{banned_trait} // '', {
+                        traits => join(', ', sort { $a cmp $b } @matched),
+                    }),
+                    view => 'bazaar',
+                };
+            }
+        }
+    }
+
+    if ($scrap < 5) {
+        push @suggestions, {
+            icon => 'COIN',
+            text => _interpolate($advisories->{scrap_low} // '', { scrap => $scrap }),
+            view => 'prospect',
+        };
     }
 
     return \@suggestions;

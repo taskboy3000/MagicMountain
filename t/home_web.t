@@ -302,7 +302,7 @@ subtest 'fragment — tags gated when skill_prospecting=0' => sub {
     unlike($html, qr/thermal/, 'trait names not visible when gated');
 };
 
-subtest 'fragment — climate card visible when skill_prospecting=0' => sub {
+subtest 'fragment — climate card PROSPECT REPORT visible when skill_prospecting=0' => sub {
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
 
@@ -335,7 +335,7 @@ subtest 'fragment — climate card visible when skill_prospecting=0' => sub {
     $t->post_ok('/sessions', json => { displayName => 'rookie2' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
-    like($html, qr/Paying premium for:/, 'climate card shows premium text even without prospecting skill');
+    like($html, qr/PROSPECT REPORT:/, 'climate card shows PROSPECT REPORT heading');
     like($html, qr/Finds:.*Strong boost: thermal/,
         'climate card shows finds summary');
 };
@@ -377,7 +377,7 @@ subtest 'fragment — finds fallback when finds_summary missing' => sub {
         'fallback text shown when finds_summary is absent');
 };
 
-subtest 'fragment — NEWS still renders narrative crier text' => sub {
+subtest 'fragment — BAZAAR REPORT still renders narrative crier text' => sub {
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
 
@@ -411,8 +411,8 @@ subtest 'fragment — NEWS still renders narrative crier text' => sub {
     $t->post_ok('/sessions', json => { displayName => 'rookie4' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
-    like($html, qr/NEWS:.*Roads Belong to Fast Money/,
-        'NEWS section still renders narrative crier text');
+    like($html, qr/BAZAAR REPORT:.*Roads Belong to Fast Money/,
+        'BAZAAR REPORT section renders crier text');
     like($html, qr/Finds:.*Strong boost: thermal/,
         'Finds line shows distinct data-driven text');
 };

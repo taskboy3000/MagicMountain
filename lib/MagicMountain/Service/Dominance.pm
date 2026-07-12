@@ -317,10 +317,35 @@ sub _crier_message ($self, $fid, $tier) {
     return $MSGS{$fid} // {};
 }
 
-sub _crier_text ($self, $fid, $tier) {
+sub _crier_text ($self, $fid, $tier, $profile) {
     my $msg = $self->_crier_message($fid, $tier);
     return unless $msg->{headline};
-    return sprintf("%s — %s", $msg->{headline}, $msg->{hint});
+    my $sell = $self->_sell_side_hint($profile);
+    if ($sell) {
+        return sprintf("%s — %s", $msg->{headline}, $sell);
+    }
+    my @FLAVOR = (
+        'Artifact values drift with the mountain\'s cycles. No pattern holds for long.',
+        'Faction buyers survey the Bazaar in silence. Their intentions are their own.',
+        'The mountain\'s voice is indistinct today. Listen to the scrap.',
+        'Competing interests blur the market\'s shape. Trade with care.',
+        'The Bazaar breathes. Currents shift beneath the surface.',
+        'A quiet day on the mountain. Salvage speaks for itself.',
+    );
+    return sprintf("%s — %s", $msg->{headline}, $FLAVOR[ int(rand(scalar @FLAVOR)) ]);
+}
+
+sub _sell_side_hint ($self, $profile) {
+    my @parts;
+    my $biases = $profile->{buyer_trait_biases} // {};
+    if (keys %$biases) {
+        push @parts, 'Paying premium for: ' . join(', ', sort keys %$biases);
+    }
+    my $banned = $profile->{banned_traits} // [];
+    if (@$banned) {
+        push @parts, 'Restricted: ' . join(', ', @$banned);
+    }
+    return join('; ', @parts);
 }
 
 sub _build_mountain_data ($self, $season, $tier) {
@@ -382,9 +407,10 @@ sub calculate_climate ($self, $season) {
     my $tier      = $self->intensity_tier($margin);
     my $factor    = $self->climate_intensity_factor($tier);
 
-    my $profile = $self->_profile_for($leader_id);
+    my $profile  = $self->_profile_for($leader_id);
     my $scaled_biases   = $self->_scale_biases($profile->{draw_biases}, $factor);
     my $scaled_inst_mod = int(($profile->{starting_instability_mod} // 0) * $factor);
+    my $finds_summary   = $self->_finds_summary($scaled_biases, $scaled_inst_mod);
 
     my $climate = {
         day                 => $season->getCol('day'),
@@ -408,9 +434,10 @@ sub calculate_climate ($self, $season) {
             budget_label        => ($profile->{budget_delta} // 0) >= 0 ? 'Richer buyers' : 'Tighter budgets',
             market_summary      => $self->_market_summary($profile, $factor),
         },
-        town_crier   => $self->_crier_message($leader_id, $tier),
-        crier_text   => $self->_crier_text($leader_id, $tier),
-        finds_summary => $self->_finds_summary($scaled_biases, $scaled_inst_mod),
+        town_crier          => $self->_crier_message($leader_id, $tier),
+        crier_text          => $self->_crier_text($leader_id, $tier, $profile),
+        finds_summary       => $finds_summary,
+        has_meaningful_finds => $finds_summary ne 'No meaningful climate effect on prospecting today.',
     };
 
     my $mountain = $self->_build_mountain_data($season, $tier);

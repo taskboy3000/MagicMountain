@@ -7,3 +7,6 @@ advisories:
   season_end: "Season terminal approaching. Liquidate all holdings."
   faction_hunger: "{fs_name} detected without recent intake. Premium prices anticipated."
   climate_match: "{faction} paying premium for {traits} in your shed — visit Bazaar."
+  climate_finds: "Mountain favoring {finds_summary} — prospect now."
+  banned_trait:  "Restricted items in shed: {traits}. Bazaar will refuse them."
+  scrap_low:     "Scrap reserves low ({scrap}). Prospect to restock."

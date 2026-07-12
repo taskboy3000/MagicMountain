@@ -2,19 +2,11 @@
 % if ($cc && $cc->{intensity}) {
 <div class="mm-card" style="font-size:0.78rem;margin-bottom:0.5rem">
   <div class="mm-text-amber" style="font-weight:600;margin-bottom:0.25rem">
-    Today's Climate: <%= $cc->{dominant_faction_name} %> — <%= $cc->{intensity_label} %>
+    PROSPECT REPORT: <%= $cc->{dominant_faction_name} %> — <%= $cc->{intensity_label} %>
   </div>
     <div class="mm-text-dim">
       <div>Finds: <%= $cc->{finds_summary} // 'Climate recalibrating.' %></div>
     <div>Market: <%= $cc->{market}{market_summary} %></div>
-% my %biases = %{ $cc->{market}{buyer_trait_biases} // {} };
-% if (keys %biases) {
-    <div class="mm-text-amber">Paying premium for: <%= join(', ', sort keys %biases) %></div>
-% }
-% my @banned = @{ $cc->{banned_traits} // [] };
-% if (@banned) {
-    <div class="mm-text-dim">Restricted at bazaar: <%= join(', ', @banned) %></div>
-% }
 % my $adelta = $cc->{market}{appetite_delta} // 0;
 % if ($adelta < 0) {
     <div class="mm-text-dim">Market capacity reduced: factions buy fewer items</div>
