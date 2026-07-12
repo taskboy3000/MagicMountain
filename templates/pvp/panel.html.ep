@@ -1,7 +1,7 @@
 % my $v = $view;
 % if ($v->{disabled}) {
 <div class="mm-panel">
-  <div class="mm-panel-header">RIVAL INTEL</div>
+  <h2 class="mm-panel-header">RIVAL INTEL</h2>
   <div class="mm-panel-body mm-empty-state mm-empty-state-padded">
 %   if ($v->{reason} && $v->{reason} eq 'no_season') {
     NO ACTIVE SEASON
@@ -12,7 +12,7 @@
 </div>
 % } else {
 <div class="mm-panel">
-  <div class="mm-panel-header">RIVAL INTEL</div>
+  <h2 class="mm-panel-header">RIVAL INTEL</h2>
   <div class="mm-panel-body">
     <div class="mm-text-dim" style="font-size:0.7rem;margin-bottom:0.5rem">
       Scrap available: <strong><%= $v->{scrap} %></strong>

@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">SALVAGE LEDGER</div>
+  <h2 class="mm-panel-header">SALVAGE LEDGER</h2>
   <div class="mm-panel-body">
 % if (@$items) {
     <div class="mm-ledger-wrap"><table class="mm-ledger">
@@ -14,7 +14,7 @@
 % my %dot = (fresh => 'var(--mm-green)', settling => 'var(--mm-amber)', fading => 'var(--mm-red)');
 % my $dot = $dot{$item->{condition}} // 'var(--mm-green)';
         <tr>
-          <td class="mm-flex mm-gap-sm" style="align-items:center" title="Condition: <%= $item->{condition} %> — <%= $item->{days} // 0 %> days in storage">
+          <td class="mm-flex mm-gap-sm mm-items-center" title="Condition: <%= $item->{condition} %> — <%= $item->{days} // 0 %> days in storage">
 % my %bar = (fresh => 'var(--mm-green)', settling => 'var(--mm-amber)', fading => 'var(--mm-red)');
             <span style="display:inline-flex;flex-direction:column;align-items:center;gap:1px">
               <img src="<%= $item->{icon} %>" alt="" class="mm-icon">
@@ -26,12 +26,12 @@
 % if ($show_tags) {
 %   my $cpt = stash('climate_premium_traits') // [];
 %   my $has_match = $item->{behaviors} && grep { my $t = $_; grep { $t eq $_ } @$cpt } @{$item->{behaviors}};
-            <span class="mm-text-amber" style="font-size:0.7rem"><%= $item->{tags} // '' %></span>
+            <span class="mm-text-amber mm-text-2xs"><%= $item->{tags} // '' %></span>
 %   if ($has_match) {
             <span class="mm-badge mm-badge-amber" style="font-size:0.6rem;margin-left:4px">✦ premium</span>
 %   }
 % } else {
-            <span class="mm-text-dim" style="font-size:0.7rem">-</span>
+            <span class="mm-text-dim mm-text-2xs">-</span>
 % }
           </td>
           <td><%= $item->{value_label} // '?' %></td>
@@ -41,7 +41,7 @@
 %   my $pc_id = stash('pending_counter_item_id');
 %   if (defined $pc_id && $pc_id eq $item_id) {
 %     my $pc_val = stash('pending_counter_value') // '?';
-            <button class="mm-btn mm-btn-disabled" title="In negotiation — accept the <%= $pc_val %>-scrap counter or pick a different item"><%= $pc_val %> SCR</button>
+            <button class="mm-btn" disabled title="In negotiation — accept the <%= $pc_val %>-scrap counter or pick a different item"><%= $pc_val %> SCR</button>
 %   } else {
 %     my $offer = { label => 'Offer', attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } };
 %=     include 'components/action_buttons', actions => [$offer]

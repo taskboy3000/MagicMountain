@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">NEGOTIATION</div>
+  <h2 class="mm-panel-header">NEGOTIATION</h2>
   <div class="mm-panel-body">
     <div class="mm-card-head">
 % if ($customer->portrait_url) {
@@ -8,18 +8,18 @@
       </div>
 % }
       <div class="mm-card-info">
-        <div class="mm-flex mm-gap-sm" style="align-items:center">
+        <div class="mm-flex mm-gap-sm mm-items-center">
 % my $ficon = $customer->faction_icon_url;
 % my $icon_html = $ficon ? qq{<img src="$ficon" alt="" class="mm-icon">} : '';
 <%== $icon_html %><strong class="ref-link" data-reference-id="faction_<%= $customer->faction_id %>"><%= $customer->faction_name %></strong>
         </div>
-        <div class="mm-text-dim" style="font-size:0.72rem"><%= $customer->disposition %></div>
+        <div class="mm-text-dim mm-text-xs"><%= $customer->disposition %></div>
 % my @seeking = @{ $customer->desired_behaviors // [] };
 % if (@seeking) {
-        <p class="mm-text-dim" style="font-size:0.78rem;margin-top:0.25rem">Seeking: <%= join(', ', @seeking) %></p>
+        <p class="mm-text-dim mm-text-sm" style="margin-top:0.25rem">Seeking: <%= join(', ', @seeking) %></p>
 % }
 % if (defined $customer->budget_min && defined $customer->budget_max) {
-        <p class="mm-text-dim" style="font-size:0.78rem">Budget range: <%= $customer->budget_min %>–<%= $customer->budget_max %> scrap</p>
+        <p class="mm-text-dim mm-text-sm">Budget range: <%= $customer->budget_min %>–<%= $customer->budget_max %> scrap</p>
 % }
       </div>
     </div>
@@ -28,7 +28,7 @@
       <p style="margin:0 0 0.2rem 0">Sold for <strong><%= $customer->last_sale->{value} %></strong> scrap
         <span class="mm-badge mm-badge-green"><%= $customer->last_sale->{sale_type} %></span>
 % if ($customer->last_sale->{precision_bonus}) {
-        <span class="mm-text-green" style="font-size:0.78rem">+<%= $customer->last_sale->{precision_bonus} %> precision bonus!</span>
+        <span class="mm-text-green mm-text-sm">+<%= $customer->last_sale->{precision_bonus} %> precision bonus!</span>
 % }
 % if ($customer->last_sale->{climate_premium_pct}) {
         <span class="mm-badge mm-badge-green">+<%= $customer->last_sale->{climate_premium_pct} %>% climate premium</span>
@@ -37,17 +37,17 @@
     </div>
 % }
 % if ($customer->last_message) {
-    <p class="mm-crier" style="margin:0.5rem 0"><%= $customer->last_message %></p>
+    <p class="mm-crier mm-mt-sm mm-mb-sm"><%= $customer->last_message %></p>
 % }
 % if ($customer->has_pending_counter) {
 %   my @top = grep { $_->{attrs}{id} eq 'btn-accept-counter' || $_->{attrs}{id} eq 'btn-stand-pat' } @$actions;
     <div class="mm-card mm-card-amber">
       <p style="margin:0 0 0.3rem 0"><strong>Counter-offer:</strong> <%= $customer->pending_counter_value %> scrap</p>
 %= include 'components/action_buttons', actions => \@top
-      <p class="mm-text-dim" style="margin:0.3rem 0 0 0;font-size:0.7rem">(or offer a different artifact to reject)</p>
+      <p class="mm-text-dim mm-text-2xs" style="margin:0.3rem 0 0 0">(or offer a different artifact to reject)</p>
     </div>
 % }
-    <p style="margin-top:0.5rem">Select an artifact from the ledger to offer:</p>
+    <p class="mm-mt-sm">Select an artifact from the ledger to offer:</p>
 % my @bottom = grep { $_->{attrs}{id} eq 'btn-send-away' } @$actions;
 %= include 'components/action_buttons', actions => \@bottom
   </div>

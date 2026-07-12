@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">RANKINGS</div>
+  <h2 class="mm-panel-header">RANKINGS</h2>
   <div class="mm-panel-body">
 % if (@$entries) {
     <table class="mm-ledger">

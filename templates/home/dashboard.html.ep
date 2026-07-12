@@ -15,18 +15,18 @@
 %   for my $s (@$suggestions) {
     <div class="mm-card" style="<%= $s->{view} ? 'cursor:pointer' : '' %>"
       <%= $s->{view} ? qq{data-view="$s->{view}"} : '' %>>
-      <span class="mm-text-amber" style="font-weight:600">[<%= $s->{icon} %>]</span>
+      <span class="mm-text-amber mm-text-bold">[<%= $s->{icon} %>]</span>
       <%= $s->{text} %>
     </div>
 %   }
 % } elsif ($fresh_player) {
-    <div class="mm-card mm-card-amber mm-center" style="font-size:0.78rem;cursor:pointer"
+    <div class="mm-card mm-card-amber mm-center mm-text-sm mm-clickable"
       data-view="prospect">
-      <span class="mm-text-amber" style="font-weight:600">[&gt;]</span>
+      <span class="mm-text-amber mm-text-bold">[&gt;]</span>
       Begin with <strong>PROSPECT</strong> (costs 2 AP)
     </div>
 % } else {
-    <p class="mm-empty-state" style="font-size:0.78rem">No advisories. Select a tab above to begin.</p>
+    <p class="mm-empty-state mm-text-sm">No advisories. Select a tab above to begin.</p>
 % }
 
   </div>

@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">RESULT</div>
+  <h2 class="mm-panel-header">RESULT</h2>
   <div class="mm-panel-body">
     <p><strong><%= $result->{icon} %></strong> <%= $result->{outcome_text} %></p>
     <p><%= $result->{item_name} %></p>
@@ -8,9 +8,9 @@
 % }
     <p><%= $result->{message} %></p>
 % if (my $d = $result->{detail}) {
-    <p class="mm-text-amber" style="font-size:0.72rem"><%= $d %></p>
+    <p class="mm-text-amber mm-text-xs"><%= $d %></p>
 % }
-    <div class="mm-flex" style="gap:0.5rem;margin-top:0.5rem">
+    <div class="mm-flex mm-gap mm-mt-sm">
 % if ($can_continue) {
       <button class="mm-btn mm-btn-primary" data-action-url="<%= $continue_url %>"
               data-method="POST" style="flex:1">Continue <%= $activity_type eq 'prospecting' ? 'Prospecting' : 'Market' %></button>

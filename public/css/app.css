@@ -557,6 +557,24 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 .mm-gap-sm       { gap: 4px; }
 .mm-w-full       { width: 100%; box-sizing: border-box; }
 .mm-text-bold    { font-weight: 600 }
+.mm-text-sm      { font-size: 0.78rem; }
+.mm-text-xs      { font-size: 0.72rem; }
+.mm-text-2xs     { font-size: 0.7rem; }
+.mm-text-3xs     { font-size: 0.65rem; }
+.mm-clickable    { cursor: pointer; }
+.mm-py-xs        { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+.mm-mt-sm        { margin-top: 0.5rem; }
+.mm-mb-sm        { margin-bottom: 0.5rem; }
+.mm-gap          { gap: 0.5rem; }
+.mm-pre          { white-space: pre-wrap; word-wrap: break-word; }
+.mm-flex-1       { flex: 1; }
+.mm-items-center { align-items: center; }
+.mm-inline-flex  { display: inline-flex; }
+.mm-npc-badge    { font-size: 0.65rem; border: 1px solid var(--mm-cyan); color: var(--mm-cyan); padding: 0.05rem 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.offer-btn       { border-color: var(--mm-amber); color: var(--mm-amber); }
+.offer-btn:hover { background: var(--mm-amber); color: #000; }
+.buy-skill-btn   { min-width: 8rem; text-align: center; line-height: 1.2; }
+.season-recap-link { cursor: pointer; text-decoration: underline; }
 /* ── Structural components (Tier C) ────────────────────────── */
 
 .mm-system-dashboard {
@@ -696,6 +714,7 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   text-align: center;
 }
 
-.text-rigth {
+.text-rigth,
+.text-right {
   text-align: right;
 }

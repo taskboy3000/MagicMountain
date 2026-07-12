@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">TOWN CRIER</div>
+  <h2 class="mm-panel-header">TOWN CRIER</h2>
   <div class="mm-panel-body">
     <div class="mm-crier"><%= $message %></div>
   </div>

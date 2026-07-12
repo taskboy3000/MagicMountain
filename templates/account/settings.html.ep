@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">OPERATOR: <%= $player_name %></div>
+  <h2 class="mm-panel-header">OPERATOR: <%= $player_name %></h2>
   <div class="mm-panel-body mm-center">
     <p><%= include 'components/action_buttons', actions => $actions %></p>
   </div>
@@ -7,7 +7,7 @@
 
 % if (@$archive) {
 <div class="mm-panel" style="margin-top:0.5rem">
-  <div class="mm-panel-header">SEASON ARCHIVE</div>
+  <h2 class="mm-panel-header">SEASON ARCHIVE</h2>
   <div class="mm-panel-body">
     <table class="mm-ledger">
       <thead><tr><th>Season</th><th>Status</th><th>Score</th></tr></thead>

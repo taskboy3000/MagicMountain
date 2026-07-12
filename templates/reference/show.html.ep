@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <div class="mm-panel-header">
+  <h2 class="mm-panel-header">
 % if (my $url = $entry->{icon}) {
     <img src="<%= $url %>" alt="" class="mm-icon" style="margin-right:4px">
 % }
@@ -8,7 +8,7 @@
   </div>
   <div class="mm-panel-body">
 % for my $line (@{ $entry->{body} }) {
-    <p style="margin:0 0 0.5rem 0;font-size:0.78rem;line-height:1.6"><%= $line %></p>
+    <p class="mm-text-sm mm-mb-sm" style="line-height:1.6"><%= $line %></p>
 % }
   </div>
 </div>

@@ -25,7 +25,7 @@
       <div id="primary-content"></div>
 % } else {
       <div class="mm-panel mm-panel-centered">
-        <div class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</div>
+        <h2 class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</h2>
         <div class="mm-panel-body">
           <form id="login-form">
             <div style="margin-bottom:0.5rem">
