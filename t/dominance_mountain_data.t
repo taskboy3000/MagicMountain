@@ -8,6 +8,18 @@ use TestEnv;
 use MagicMountain::Service::Dominance;
 use MagicMountain::Model::Season;
 
+{
+    package FakeApp;
+    sub new { bless {}, shift }
+    sub factions_data {
+        return [
+            { id => 'syndicate',      name => 'The Syndicate',      climate => {} },
+            { id => 'purifiers',      name => 'The Purifiers',      climate => {} },
+            { id => 'faculty',        name => 'The Faculty',        climate => {} },
+        ];
+    }
+}
+
 sub _make_season {
     my ($faction_state) = @_;
     my $dataDir = tempdir(CLEANUP => 1);
@@ -18,7 +30,7 @@ sub _make_season {
     return $season;
 }
 
-my $dom = MagicMountain::Service::Dominance->new(app => bless({}, 'UNIVERSAL'));
+my $dom = MagicMountain::Service::Dominance->new(app => FakeApp->new);
 
 subtest 'fresh season with no faction_climate computes and persists' => sub {
     my $season = _make_season({
@@ -37,7 +49,9 @@ subtest 'fresh season with no faction_climate computes and persists' => sub {
     is(scalar @{$fc->{mountain_positions}}, 3, 'three factions positioned');
     is($fc->{mountain_positions}[0]{row_offset}, 1, 'leader at summit');
     is($fc->{day}, 7, 'day matches season day');
-    is($fc->{intensity}, 'contested', 'defaults to contested when no climate');
+    is($fc->{intensity}, 'strong', 'intensity computed from faction_state');
+    is($fc->{dominant_faction}, 'syndicate', 'dominant_faction synced from faction_state');
+    is($fc->{dominant_faction_name}, 'The Syndicate', 'dominant_faction_name synced');
 
     my $expected_rows = $fc->{mountain_height};
     is(scalar @{$fc->{mountain_raster}}, $expected_rows, 'raster has one row per mountain height');
@@ -61,26 +75,30 @@ subtest 'existing faction_climate without mountain keys backfills' => sub {
 
     ok($fc->{mountain_positions}, 'mountain_positions added to existing climate');
     ok($fc->{mountain_raster},    'mountain_raster added');
-    is($fc->{intensity}, 'leading', 'preserved existing intensity');
-    is($fc->{day}, 7, 'preserved existing day');
+    is($fc->{intensity}, 'dominant', 'intensity recomputed from faction_state');
+    is($fc->{day}, 7, 'day synced from season');
+    is($fc->{dominant_faction}, 'syndicate', 'dominant_faction synced from faction_state');
+    is($fc->{dominant_faction_name}, 'The Syndicate', 'dominant_faction_name synced');
 
     my $expected_rows = $fc->{mountain_height};
     is(scalar @{$fc->{mountain_raster}}, $expected_rows, 'raster row count matches height');
 };
 
-subtest 'already has mountain_positions is a no-op' => sub {
+subtest 'already consistent — no-op fast path' => sub {
     my $season = _make_season({
         syndicate => { influence => 60 },
         purifiers => { influence => 10 },
     });
     $season->setCol('faction_climate', {
-        day                => 7,
-        intensity          => 'leading',
-        intensity_label    => 'Leading',
-        dominance_margin   => 50,
-        mountain_positions => [{ faction_id => 'syndicate', row_offset => 1 }],
-        mountain_height    => 10,
-        mountain_raster    => ["\x{2588}" x 19],
+        day                  => 7,
+        dominant_faction     => 'syndicate',
+        dominant_faction_name => 'The Syndicate',
+        intensity            => 'leading',
+        intensity_label      => 'Leading',
+        dominance_margin     => 50,
+        mountain_positions   => [{ faction_id => 'syndicate', row_offset => 1 }],
+        mountain_height      => 10,
+        mountain_raster      => ["\x{2588}" x 19],
     });
     $season->save;
     my $original_raster = $season->faction_climate->{mountain_raster};
@@ -88,7 +106,36 @@ subtest 'already has mountain_positions is a no-op' => sub {
     $dom->ensure_mountain_data($season);
 
     is_deeply($season->faction_climate->{mountain_raster}, $original_raster,
-        'raster unchanged when already present');
+        'raster unchanged when already consistent');
+};
+
+subtest 'stale dominant_faction corrected when faction_state leader changes' => sub {
+    my $season = _make_season({
+        syndicate => { influence => 60 },
+        purifiers => { influence => 10 },
+    });
+    $season->setCol('faction_climate', {
+        day                  => 7,
+        dominant_faction     => 'purifiers',
+        dominant_faction_name => 'The Purifiers',
+        dominance_margin     => 50,
+        intensity            => 'dominant',
+        intensity_label      => 'Dominant',
+        mountain_positions   => [{ faction_id => 'purifiers', row_offset => 1 }],
+        mountain_height      => 10,
+        mountain_raster      => ["\x{2588}" x 19],
+    });
+    $season->save;
+
+    $dom->ensure_mountain_data($season);
+
+    my $fc = $season->faction_climate;
+    is($fc->{dominant_faction}, 'syndicate',
+        'dominant_faction corrected to real leader');
+    is($fc->{dominant_faction_name}, 'The Syndicate',
+        'dominant_faction_name corrected');
+    is($fc->{mountain_positions}[0]{faction_id}, 'syndicate',
+        'mountain_positions leader corrected to real leader');
 };
 
 subtest 'contested tier still produces a mountain' => sub {

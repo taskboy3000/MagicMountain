@@ -348,16 +348,25 @@ sub _build_mountain_data ($self, $season, $tier) {
 }
 
 sub ensure_mountain_data ($self, $season) {
-    my $fc = $season->getCol('faction_climate') // {};
-    return if $fc->{mountain_positions};
-    my $tier    = $fc->{intensity} // 'contested';
-    my $mountain = $self->_build_mountain_data($season, $tier);
-    $fc->{day}                = $season->getCol('day');
-    $fc->{intensity}          = $tier;
-    $fc->{intensity_label}    = ucfirst($tier);
-    $fc->{mountain_positions} = $mountain->{mountain_positions};
-    $fc->{mountain_height}    = $mountain->{mountain_height};
-    $fc->{mountain_raster}    = $mountain->{mountain_raster};
+    my $fc   = $season->getCol('faction_climate') // {};
+    my $fs   = $season->getCol('faction_state') // return;
+    my @rank = map { $_->[0] } sort { $b->[1] <=> $a->[1] } map { [ $_, $fs->{$_}{influence} // 0 ] } keys %$fs;
+    return if @rank < 2;
+    my $leader_id = $rank[0];
+    return if $fc->{dominant_faction} && $fc->{dominant_faction} eq $leader_id && $fc->{mountain_positions};
+    my $runner_id = $rank[1];
+    my $margin    = ($fs->{$leader_id}{influence} // 0) - ($fs->{$runner_id}{influence} // 0);
+    my $tier      = $self->intensity_tier($margin);
+    my $mountain  = $self->_build_mountain_data($season, $tier);
+    $fc->{day}                  = $season->getCol('day');
+    $fc->{dominant_faction}     = $leader_id;
+    $fc->{dominant_faction_name} = $self->_faction_name($leader_id);
+    $fc->{dominance_margin}     = $margin;
+    $fc->{intensity}            = $tier;
+    $fc->{intensity_label}      = ucfirst($tier);
+    $fc->{mountain_positions}   = $mountain->{mountain_positions};
+    $fc->{mountain_height}      = $mountain->{mountain_height};
+    $fc->{mountain_raster}      = $mountain->{mountain_raster};
     $season->setCol('faction_climate', $fc);
     $season->save;
 }

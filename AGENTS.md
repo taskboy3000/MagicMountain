@@ -75,7 +75,7 @@ it belongs.
   runs simulations, and produces a pass/fail report.
 - **Commit discipline**: Never commit without review. Group related changes.
   Message: reason first, then summary of changes.
-- **Plan files**: `docs/plan_$NAME.md`. Delete after implementation. Never commit.
+- **Plan before build**: When the user says "make a plan," produce only a plan — no code, no tests, no file edits. Wait for explicit approval (e.g. "implement it") before writing any code. Plans may be reviewed by other agents before approval.
 - **Completion checklist**: Route exercised, stash vars verified, new methods
   tested, no State internals accessed, transcript through `_log_event`,
   tests pass reported.
