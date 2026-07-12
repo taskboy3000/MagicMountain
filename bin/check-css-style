@@ -200,7 +200,7 @@ for my $cls (sort keys %css_classes) {
     next if $cls eq 'filled' || $cls eq 'danger' || $cls eq 'disabled';
     next if $cls eq 'nav-btn';
     next if $used_classes{$cls};
-    next if $cls eq 'text-rigth';
+    next if $cls eq 'text-rigth';  # DEPRECATED — remove after CSS cleanup
     push @unused, $cls;
 }
 if (@unused) {
@@ -208,13 +208,6 @@ if (@unused) {
         my $loc = $css_classes{$cls}[0] // 'public/css/app.css';
         report 'UNUSED', $loc, '', "class \"$cls\" defined but never used in templates";
     }
-} else {
-    print STDERR "  (none found)\n";
-}
-
-print STDERR "\n── Typo check ──\n\n";
-if ($css =~ /\.text-rigth\b/) {
-    print STDERR "  INFO public/css/app.css: \".text-rigth\" is a deprecated alias for \".text-right\"\n";
 } else {
     print STDERR "  (none found)\n";
 }
