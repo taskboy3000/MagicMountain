@@ -1,6 +1,6 @@
 test: test-perl test-js
 
-ci-check: test-perl test-js walkthrough perlcritic
+ci-check: test-perl test-js walkthrough perlcritic verify
 
 check-coverage:
 	perl -Ilib bin/check_coverage

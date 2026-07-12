@@ -19,8 +19,10 @@ sub run_script {
 
 subtest 'check_column_declarations on current codebase' => sub {
     my $result = run_script($CHECK_COLUMNS);
-    is($result->{exit}, 0, 'exits 0 — no undeclared columns');
-    ok(length($result->{stdout}) == 0 || $result->{stdout} eq '', 'no output');
+    is($result->{exit}, 0, 'exits 0 — no undeclared columns')
+      or diag("stdout: " . ($result->{stdout} // '(undef)'));
+    ok(length($result->{stdout}) == 0 || $result->{stdout} eq '', 'no output')
+      or diag("stdout: " . ($result->{stdout} // '(undef)'));
 };
 
 subtest 'check_unintended_files on current codebase' => sub {
