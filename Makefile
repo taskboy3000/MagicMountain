@@ -11,6 +11,9 @@ walkthrough:
 check-loyalist:
 	perl -Ilib bin/check_loyalist_balance
 
+check-style:
+	perl bin/check-css-style
+
 test-perl:
 	MOJO_MODE=test prove t
 
@@ -38,7 +41,7 @@ perlcritic-brutal:
 	@find . -name '*.pl' -o -name '*.pm' -o -name '*.t' -type f \
 	  | xargs perlcritic --severity 5 --verbose 8
 
-verify: check-columns check-unintended-files check-doc-consistency
+verify: check-columns check-unintended-files check-doc-consistency check-style
 	@echo "=== All verification checks passed ==="
 
 verify-coverage:
