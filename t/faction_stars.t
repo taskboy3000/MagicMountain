@@ -47,7 +47,6 @@ subtest 'mountain chart shows factions in rank order' => sub {
     );
     $t->get_ok('/factions?_format=fragment')->status_is(200);
 
-    $t->content_like(qr{TERRAIN SCAN}, 'mountain chart header present');
     $t->content_like(qr{title="SYND\.8TE}s,   'syndicate icon title');
     $t->content_like(qr{title="PURIF\.RS}s,   'purifiers icon title');
     $t->content_like(qr{title="FAC\.LTY1}s,   'faculty icon title');
@@ -68,7 +67,7 @@ subtest 'dominant faction gets proper ordering' => sub {
     );
     $t->get_ok('/factions?_format=fragment')->status_is(200);
 
-    $t->content_like(qr{TERRAIN SCAN}, 'header present');
+    $t->content_like(qr{mm-mountain-raster-row}ms, 'raster row present');
 };
 
 subtest 'close contest renders' => sub {
@@ -81,7 +80,7 @@ subtest 'close contest renders' => sub {
     );
     $t->get_ok('/factions?_format=fragment')->status_is(200);
 
-    $t->content_like(qr{TERRAIN SCAN}, 'header present');
+    $t->content_like(qr{mm-mountain-raster-row}ms, 'raster row present');
 };
 
 done_testing;

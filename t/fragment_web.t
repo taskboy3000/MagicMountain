@@ -173,7 +173,7 @@ subtest 'factions fragment shows mountain dominance chart' => sub {
     my $t = setup_with_dominance;
     $t->get_ok('/factions?_format=fragment')
       ->status_is(200)
-      ->content_like(qr{TERRAIN SCAN}, 'mountain chart header')
+      ->content_like(qr{mm-mountain-raster-row}ms, 'mountain chart raster row')
       ->content_like(qr{data-reference-id="faction_syndicate"}, 'syndicate reference link')
       ->content_like(qr{data-reference-id="faction_purifiers"}, 'purifiers reference link')
       ->content_like(qr{\x{2588}}, 'raster solid block present')

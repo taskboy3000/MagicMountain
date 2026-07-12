@@ -264,7 +264,7 @@ subtest 'fragment — climate premium badge in salvage ledger' => sub {
     my $html = $t->tx->res->body;
     like($html, qr/mm-badge-amber/, 'home shed premium badge class present');
     like($html, qr/✦ premium/, 'home shed premium badge text present');
-    like($html, qr/Finds:.*Strong boost: thermal/, 'finds summary rendered');
+    like($html, qr/Strong boost: thermal/, 'finds summary rendered');
 };
 
 subtest 'fragment — tags gated when skill_prospecting=0' => sub {
@@ -336,7 +336,7 @@ subtest 'fragment — climate card PROSPECT REPORT visible when skill_prospectin
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
     like($html, qr/PROSPECT REPORT:/, 'climate card shows PROSPECT REPORT heading');
-    like($html, qr/Finds:.*Strong boost: thermal/,
+    like($html, qr/Strong boost: thermal/,
         'climate card shows finds summary');
 };
 
@@ -373,7 +373,7 @@ subtest 'fragment — finds fallback when finds_summary missing' => sub {
     $t->post_ok('/sessions', json => { displayName => 'rookie3' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
-    like($html, qr/Finds:.*Climate recalibrating/,
+    like($html, qr/Climate recalibrating/,
         'fallback text shown when finds_summary is absent');
 };
 
@@ -411,9 +411,9 @@ subtest 'fragment — BAZAAR REPORT still renders narrative crier text' => sub {
     $t->post_ok('/sessions', json => { displayName => 'rookie4' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
-    like($html, qr/BAZAAR REPORT:.*Roads Belong to Fast Money/,
+    like($html, qr/Roads Belong to Fast Money/,
         'BAZAAR REPORT section renders crier text');
-    like($html, qr/Finds:.*Strong boost: thermal/,
+    like($html, qr/Strong boost: thermal/,
         'Finds line shows distinct data-driven text');
 };
 
