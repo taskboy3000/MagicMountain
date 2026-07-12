@@ -6,6 +6,7 @@ use File::Find;
 use File::Spec;
 use Cwd qw(abs_path);
 use File::Basename qw(dirname);
+use Mojo::DOM;
 
 my $ROOT = File::Spec->catfile(dirname(abs_path($0)), '..');
 chdir $ROOT;
@@ -15,13 +16,8 @@ find(sub { push @templates, $File::Find::name if /\.html\.ep$/ }, 'templates');
 
 my $css_file = 'public/css/app.css';
 my $css = do { local $/; open my $fh, '<', $css_file or die; <$fh> };
-my @css_lines = split /\n/, $css;
 
 my $exit = 0;
-
-sub say_n {
-    print STDERR "  " . shift() . "\n";
-}
 
 sub report {
     my ($severity, $file, $line, $msg) = @_;
@@ -29,84 +25,116 @@ sub report {
     $exit = 1 if $severity eq 'ERROR';
 }
 
-# ── Extract CSS class names (definition, not usage) ──
-# Strip comments first to avoid matching words in /* ... */
+# ── Line number helper ──
+sub _line_of {
+    my ($content, $pos) = @_;
+    return 1 unless defined $pos;
+    return 1 + substr($content, 0, $pos) =~ tr/\n//;
+}
+
+# ── Strip .ep template directives, return clean HTML ~ preserving positions ──
+sub _strip_ep {
+    my ($raw) = @_;
+    # Replace <% ... %> and <%= ... %> with spaces (preserve character positions)
+    $raw =~ s/<%[=%]?.*?%>/' ' x length($&)/sge;
+    # Remove leading % ... lines (perl control flow) — replace with newlines
+    $raw =~ s/^%.*\n/\n/gm;
+    # Also handle inline %> leftovers
+    $raw =~ s/%>//g;
+    return $raw;
+}
+
+# ── Extract CSS class names from app.css ──
 (my $css_clean = $css) =~ s{/\*.*?\*/}{}gs;
-my @css_clean_lines = split /\n/, $css_clean;
 my %css_classes;
-for my $i (0 .. $#css_clean_lines) {
-    my $line = $css_clean_lines[$i];
-    while ($line =~ /\.([a-zA-Z][\w-]*)/g) {
-        $css_classes{$1} //= [];
-        my $orig_line = $i + 1;
-        push @{$css_classes{$1}}, "public/css/app.css:" . $orig_line;
+{
+    my $line_num = 0;
+    for my $line (split /\n/, $css_clean) {
+        $line_num++;
+        while ($line =~ /\.([a-zA-Z][\w-]*)/g) {
+            push @{$css_classes{$1}}, "public/css/app.css:$line_num";
+        }
     }
 }
 
-# ── Scan templates for inline styles and class usage ──
-my %used_classes;
-my @inline_styles;
+# ── Scan templates ──
+my (%used_classes, @inline_styles, @div_headings);
 
 for my $tpl (@templates) {
     open my $fh, '<', $tpl or next;
-    my $line_num = 0;
-    while (my $line = <$fh>) {
-        $line_num++;
+    my $raw = do { local $/; <$fh> };
+    close $fh;
+    my $html = _strip_ep($raw);
 
-        # Track CSS class usage
-        while ($line =~ /class="([^"]*)"/g) {
-            for my $cls (split /\s+/, $1) {
-                $used_classes{$cls} //= [];
-                push @{$used_classes{$cls}}, "$tpl:$line_num";
-            }
+    # Parse with Mojo::DOM
+    my $dom = Mojo::DOM->new($html);
+
+    # ── Inline styles via CSS selector ──
+    $dom->find('[style]')->each(sub {
+        my $el = shift;
+        my $style = $el->attr('style') // return;
+        $style =~ s/^\s+|\s+$//g;  # trim
+        # Skip data-driven / dynamic styles
+        return if $style =~ /<%=/;
+        return if $style eq '' || $style eq 'cursor:pointer';
+        return if $style =~ /^grid-(template-rows|row):/;
+        return if $style =~ /^background:/;
+        return if $style =~ /^display:(block|inline-flex);width:20px;height:2px/;
+        return if $style eq 'flex:' || $style eq 'flex: ';
+        return if $style =~ /^flex:\s*<%=/;
+        # Skip whitelisted one-offs
+        return if $style eq 'margin-right:4px';
+        return if $style eq 'border-collapse:collapse';
+        return if $style eq 'line-height:1.6';
+        return if $style eq 'color:var(--mm-bg);background:var(--mm-text);font-size:0.72rem;padding:0.08rem 0.6rem;letter-spacing:0.1em;text-align:left';
+        return if $style eq 'color:inherit;text-decoration:none;border-bottom:1px dotted rgba(255,255,255,0.15)';
+        return if $style eq 'color:inherit;text-decoration:underline';
+        return if $style eq 'text-transform:uppercase;letter-spacing:0.05em';
+        return if $style eq 'letter-spacing:0.1em';
+        return if $style =~ /^margin:(0 +)?0 +0 +0(\.\d+)?rem +0$/;
+        return if $style eq 'flex:1' || $style eq 'flex:0.5';
+        return if $style eq 'min-width:8rem;text-align:right';
+
+        # Find line number by locating the style value in the raw template
+        my $pos = index($raw, qq{style="$style"});
+        # Fallback: search for the outer element's HTML
+        if ($pos < 0) {
+            my $outer = $el->to_string;
+            $pos = index($raw, $outer);
         }
+        my $line = _line_of($raw, $pos);
+        push @inline_styles, { file => $tpl, line => $line, style => $style };
+    });
 
-        # Track inline styles (whitelist data-driven patterns)
-        if ($line =~ /style="([^"]*)"/) {
-            my $style = $1;
-            # Skip data-driven (dynamic) inline styles
-            next if $style =~ /<%=/;
-            next if $style =~ /grid-(template-rows|row):/;
-            next if $style =~ /background:<%=/;
-            next if $style =~ /flex:<%=/;
-            next if $style =~ /color:var\(--mm-bg\);background:var\(--mm-text\)/;
-            # Very short inlines that are layout-specific
-            next if $style eq 'margin-right:4px';
-            next if $style eq 'border-collapse:collapse';
-            next if $style eq 'line-height:1.6';
-            next if $style eq 'text-transform:uppercase;letter-spacing:0.05em';
-            next if $style eq 'letter-spacing:0.1em';
-            next if $style =~ /^margin:(0\s+)?0\s+0\s+0(\.\d+)?rem\s+0$/;
-            next if $style eq 'color:inherit;text-decoration:none;border-bottom:1px dotted rgba(255,255,255,0.15)';
-            push @inline_styles, { file => $tpl, line => $line_num, style => $style };
+    # ── Non-semantic headings via CSS selector ──
+    $dom->find('div.mm-panel-header, div.mm-display-label')->each(sub {
+        my $el = shift;
+        my $class = $el->attr('class');
+        my $pos = index($raw, qq{class="$class"});
+        my $line = _line_of($raw, $pos);
+        push @div_headings, "$tpl:$line";
+    });
+
+    # ── Class references (keep regex — class="..." is straightforward) ──
+    while ($raw =~ /class="([^"]*)"/g) {
+        for my $cls (split /\s+/, $1) {
+            $used_classes{$cls} //= [];
+            my $line = _line_of($raw, pos($raw) - length($&));
+            push @{$used_classes{$cls}}, "$tpl:$line";
         }
     }
-    close $fh;
-}
-
-# ── Check for non-semantic headings ──
-my @div_headings;
-for my $tpl (@templates) {
-    open my $fh, '<', $tpl or next;
-    my $line_num = 0;
-    while (my $line = <$fh>) {
-        $line_num++;
-        if ($line =~ /<div\s+class="[^"]*\b(mm-panel-header|mm-display-label)\b[^"]*"[^>]*>/) {
-            push @div_headings, "$tpl:$line_num";
-        }
-    }
-    close $fh;
 }
 
 # ── Reports ──
-print STDERR "\n";
-print STDERR "=== CSS Style Check ===\n\n";
+print STDERR "\n=== CSS Style Check ===\n\n";
 
 print STDERR "── Inline style= attributes (consider moving to classes) ──\n\n";
+# Deduplicate: same file + line + style
+my %seen;
+@inline_styles = grep { !$seen{ "$_->{file}:$_->{line}:$_->{style}" }++ } @inline_styles;
 if (@inline_styles) {
-    for my $s (sort { $a->{file} cmp $b->{file} || $a->{line} <=> $b->{line} } @inline_styles) {
-        my $short = $s->{file};
-        $short =~ s{^templates/}{};
+    for my $s (@inline_styles) {
+        (my $short = $s->{file}) =~ s{^templates/}{};
         report 'STYLE', $short, $s->{line}, $s->{style};
     }
 } else {
@@ -114,13 +142,14 @@ if (@inline_styles) {
 }
 
 print STDERR "\n── Non-semantic headings (use h2-h5 instead) ──\n\n";
+{
+    my %dedup;
+    @div_headings = grep { !$dedup{$_}++ } @div_headings;
+}
 if (@div_headings) {
-    my %seen;
     for my $h (@div_headings) {
-        my $short = $h;
-        $short =~ s{:templates/}{:};
-        $short =~ s{^templates/}{};
-        report 'HEADING', (split /:/, $short)[0], (split /:/, $short)[1], 'div heading — use h2-h5';
+        my ($file, $line) = $h =~ /^templates\/(.+?):(\d+)$/;
+        report 'HEADING', $file, $line, 'div heading — use h2-h5';
     }
 } else {
     print STDERR "  (none found)\n";
@@ -130,24 +159,19 @@ print STDERR "\n── Classes used in templates but not defined in CSS ──\n
 my @orphans;
 for my $cls (sort keys %used_classes) {
     next if $cls eq '';
-    # Skip Perl template expressions (dynamic class names)
     next if $cls =~ /[\$\@\%<>]/;
     next if $cls eq "'unregistered'" || $cls eq "''";
-    # Skip non-class-name tokens from ternary expressions
     next if $cls =~ /^[^a-zA-Z]/;
     next if $css_classes{$cls};
-    # Skip BEM compound parts (handled via parent class selectors)
-    next if $cls eq 'nav-btn';
-    next if $cls eq 'active' || $cls eq 'current' || $cls eq 'inactive';
+    next if $cls eq 'nav-btn' || $cls eq 'active' || $cls eq 'current' || $cls eq 'inactive';
     next if $cls eq 'filled' || $cls eq 'danger' || $cls eq 'disabled';
-    # Skip dynamic template class names like .mm-badge-<%= %>
     next if $cls =~ /^mm-badge-/;
     push @orphans, $cls;
 }
 if (@orphans) {
     for my $cls (@orphans) {
         my @loc = @{$used_classes{$cls}};
-        my $loc_str = join(', ', map { my $s = $_; $s =~ s{^templates/}{}; $s } @loc);
+        my $loc_str = join(', ', map { (my $s = $_) =~ s{^templates/}{}; $s } @loc);
         report 'ORPHAN', $loc_str, '', "class \"$cls\" used but not defined in CSS";
     }
 } else {
@@ -157,38 +181,32 @@ if (@orphans) {
 print STDERR "\n── CSS classes defined but never used in templates ──\n\n";
 my @unused;
 for my $cls (sort keys %css_classes) {
-    # Common utility classes that are intentionally available but not yet used
-    next if $cls eq 'mm-badge';     # pseudo-base (only used via mm-badge-*)
-    next if $cls eq 'mm-meter-bar'; # pseudo-base (only used via .filled/.danger)
-    next if $cls eq 'mm-meter';     # not yet used in templates
-    next if $cls eq 'mm-status';    # legacy, not yet used
-    next if $cls eq 'mm-status-item' || $cls eq 'mm-status-label' || $cls eq 'mm-status-value';
-    next if $cls eq 'mm-skeleton';  # loading placeholder, used by JS
-    next if $cls eq 'mm-truncate';  # utility, available on demand
-    next if $cls eq 'mm-text-bright' || $cls eq 'mm-text-cyan' || $cls eq 'mm-text-bg';  # color utils
-    next if $cls eq 'text-center';  # rarely used inline but exists
-    next if $cls =~ /^mm-btn-/;     # button variants
-    next if $cls eq 'mm-system-dashboard-item';  # intentionally empty placeholder
-    next if $cls eq 'unregistered'; # JS toggle class, not in templates directly
+    next if $cls eq 'mm-badge' || $cls eq 'mm-meter-bar' || $cls eq 'mm-meter';
+    next if $cls eq 'mm-status' || $cls eq 'mm-status-item' || $cls eq 'mm-status-label' || $cls eq 'mm-status-value';
+    next if $cls eq 'mm-skeleton' || $cls eq 'mm-truncate';
+    next if $cls eq 'mm-text-bright' || $cls eq 'mm-text-cyan' || $cls eq 'mm-text-bg';
+    next if $cls eq 'text-center';
+    next if $cls =~ /^mm-btn-/;
+    next if $cls eq 'mm-system-dashboard-item';
+    next if $cls eq 'unregistered';
     next if $cls eq 'mm-flex-1' || $cls eq 'mm-pre' || $cls eq 'mm-text-3xs';
     next if $cls eq 'mm-inline-flex' || $cls eq 'mm-flex-between' || $cls eq 'mm-flex-start';
     next if $cls eq 'mm-info-main' || $cls eq 'mm-info-aside';
-    next if $cls eq 'offer-btn' || $cls eq 'buy-skill-btn';  # recently added, may not be in templates yet
-    next if $cls eq 'cell-6x' || $cls eq 'cell-9x';  # grid utils, used for status strip
-    next if $cls =~ /^mm-mountain-/;  # mountain chart sub-classes handled via parent
-    next if $cls eq 'mm-badge-red';  # used in templates via mm-badge mm-badge-red
-    # Compound/JS-toggled classes — not in template class="..." directly
+    next if $cls eq 'offer-btn' || $cls eq 'buy-skill-btn';
+    next if $cls eq 'cell-6x' || $cls eq 'cell-9x';
+    next if $cls =~ /^mm-mountain-/;
+    next if $cls eq 'mm-badge-red';
     next if $cls eq 'active' || $cls eq 'current' || $cls eq 'inactive';
     next if $cls eq 'filled' || $cls eq 'danger' || $cls eq 'disabled';
     next if $cls eq 'nav-btn';
     next if $used_classes{$cls};
-    next if $cls eq 'text-rigth';  # deprecated alias, kept intentionally
+    next if $cls eq 'text-rigth';
     push @unused, $cls;
 }
 if (@unused) {
     for my $cls (@unused) {
-        my @loc = @{$css_classes{$cls}};
-        report 'UNUSED', $loc[0] // 'public/css/app.css', '', "class \"$cls\" defined but never used in templates";
+        my $loc = $css_classes{$cls}[0] // 'public/css/app.css';
+        report 'UNUSED', $loc, '', "class \"$cls\" defined but never used in templates";
     }
 } else {
     print STDERR "  (none found)\n";
@@ -196,7 +214,7 @@ if (@unused) {
 
 print STDERR "\n── Typo check ──\n\n";
 if ($css =~ /\.text-rigth\b/) {
-    print STDERR "  INFO public/css/app.css: \".text-rigth\" is a deprecated alias for \".text-right\" — keep both until next major cleanup\n";
+    print STDERR "  INFO public/css/app.css: \".text-rigth\" is a deprecated alias for \".text-right\"\n";
 } else {
     print STDERR "  (none found)\n";
 }
