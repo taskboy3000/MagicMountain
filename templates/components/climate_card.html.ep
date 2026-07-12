@@ -1,18 +1,18 @@
 % my $cc = stash('faction_climate');
 % if ($cc && $cc->{intensity}) {
-<div class="mm-card" style="font-size:0.78rem;margin-bottom:0.5rem">
-  <div class="mm-text-amber" style="font-weight:600;margin-bottom:0.25rem">
-    PROSPECT REPORT: <%= $cc->{dominant_faction_name} %> — <%= $cc->{intensity_label} %>
+  <div class="mm-text-dim mm-system-dashboard-item mm-text-amber">
+    <h3>PROSPECT REPORT:</h3>
+    <span class="mm-text-bold">
+      <%= $cc->{dominant_faction_name} %> — <%= $cc->{intensity_label} %>
+    </span>
+    <p><%= $cc->{finds_summary} // 'Climate recalibrating.' %></p>
+    <p>Market: <%= $cc->{market}{market_summary} %></p>
+    % my $adelta = $cc->{market}{appetite_delta} // 0;
+    % if ($adelta < 0) {
+    <p>Market capacity reduced: factions demand is down</p>
+    % } elsif ($adelta > 0) {
+    <p>Market capacity increased: factions buy more items</p>
+    % }
   </div>
-    <div class="mm-text-dim">
-      <div>Finds: <%= $cc->{finds_summary} // 'Climate recalibrating.' %></div>
-    <div>Market: <%= $cc->{market}{market_summary} %></div>
-% my $adelta = $cc->{market}{appetite_delta} // 0;
-% if ($adelta < 0) {
-    <div class="mm-text-dim">Market capacity reduced: factions buy fewer items</div>
-% } elsif ($adelta > 0) {
-    <div class="mm-text-dim">Market capacity increased: factions buy more items</div>
-% }
-  </div>
-</div>
+
 % }

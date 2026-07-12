@@ -1,16 +1,19 @@
-<%= include 'components/climate_card' %>
-
-<div class="mm-panel">
-  <div class="mm-panel-header">SYSTEM DASHBOARD</div>
+<div class="mm-panel mm-system-dashboard">
+  <h2 class="mm-panel-header">SYSTEM DASHBOARD</h2>
   <div class="mm-panel-body">
+    <%= include 'components/climate_card' %>
 % if ($crier_msg) {
-    <p class="mm-text-dim" style="font-size:0.78rem;margin-bottom:0.75rem">
-      <strong class="mm-text-amber">BAZAAR REPORT:</strong> <%= $crier_msg %></p>
+    <div class="mm-text-dim mm-system-dashboard-item mm-text-amber">
+      <h3>FACTION MARKET REPORT:</h3>
+      <span>
+        <%= $crier_msg %>
+      </span>
+    </div>
 % }
 % if (@$suggestions) {
     <p class="mm-display-label">Advisories</p>
 %   for my $s (@$suggestions) {
-    <div class="mm-card" style="font-size:0.78rem;<%= $s->{view} ? 'cursor:pointer' : '' %>"
+    <div class="mm-card" style="<%= $s->{view} ? 'cursor:pointer' : '' %>"
       <%= $s->{view} ? qq{data-view="$s->{view}"} : '' %>>
       <span class="mm-text-amber" style="font-weight:600">[<%= $s->{icon} %>]</span>
       <%= $s->{text} %>

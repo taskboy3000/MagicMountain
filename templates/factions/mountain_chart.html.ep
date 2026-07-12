@@ -1,10 +1,10 @@
 % my $mh = stash('mountain_height') // 22;
 <div class="mm-mountain">
   <div class="mm-mountain-header">
-    TERRAIN SCAN
+    FACTIONAL DOMINANCE
 % my $cc = stash('faction_climate') // {};
 % if ($cc->{intensity_label}) {
-    <span class="mm-mountain-intensity">: <%= $cc->{intensity_label} %></span>
+    <!-- span class="mm-mountain-intensity">: <%= $cc->{intensity_label} %></span -->
 % }
   </div>
   <div class="mm-mountain-body" style="grid-template-rows: repeat(<%= $mh %>, 1fr); --mh: <%= $mh %>">
