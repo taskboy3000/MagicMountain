@@ -41,6 +41,71 @@ sub _market_summary ($self, $profile, $factor) {
     return @parts ? join(', ', @parts) : 'Neutral market';
 }
 
+sub _classify_trait_effects ($self, $biases) {
+    my $threshold = 0.15;
+    my ($strong_boost, $moderate_boost);
+    my ($strong_suppress, $moderate_suppress);
+
+    for my $trait (keys %$biases) {
+        my $deviation = abs($biases->{$trait} - 1);
+        next if $deviation < $threshold;
+
+        if ($biases->{$trait} > 1) {
+            if ($deviation >= 0.30) {
+                push @$strong_boost, { trait => $trait, deviation => $deviation };
+            } else {
+                push @$moderate_boost, { trait => $trait, deviation => $deviation };
+            }
+        } else {
+            if ($deviation >= 0.30) {
+                push @$strong_suppress, { trait => $trait, deviation => $deviation };
+            } else {
+                push @$moderate_suppress, { trait => $trait, deviation => $deviation };
+            }
+        }
+    }
+
+    my $_sort = sub { sort { $b->{deviation} <=> $a->{deviation} || $a->{trait} cmp $b->{trait} } @_ };
+
+    return {
+        boost => {
+            strong   => $strong_boost    ? [$_sort->(@$strong_boost)]    : [],
+            moderate => $moderate_boost  ? [$_sort->(@$moderate_boost)]  : [],
+        },
+        suppress => {
+            strong   => $strong_suppress ? [$_sort->(@$strong_suppress)] : [],
+            moderate => $moderate_suppress ? [$_sort->(@$moderate_suppress)] : [],
+        },
+    };
+}
+
+sub _format_trait_band ($self, $label, $traits) {
+    return '' unless $traits && @$traits;
+    my $names = join(', ', map { $_->{trait} } @$traits);
+    return "$label: $names. ";
+}
+
+sub _format_instability ($self, $mod) {
+    return 'More unstable than usual. ' if $mod > 0;
+    return 'More stable than usual. '   if $mod < 0;
+    return '';
+}
+
+sub _finds_summary ($self, $biases, $inst_mod) {
+    my $classified = $self->_classify_trait_effects($biases);
+    my $text = '';
+
+    $text .= $self->_format_trait_band('Strong boost', $classified->{boost}{strong});
+    $text .= $self->_format_trait_band('Moderate boost', $classified->{boost}{moderate});
+    $text .= $self->_format_trait_band('Suppressed', $classified->{suppress}{strong});
+    $text .= $self->_format_trait_band('Suppressed', $classified->{suppress}{moderate});
+    $text .= $self->_format_instability($inst_mod);
+
+    $text =~ s/^\s+//;
+    $text =~ s/\s+$//;
+    return $text || 'No meaningful climate effect on prospecting today.';
+}
+
 sub intensity_tier ($self, $margin) {
     return 'contested'  if $margin <= 4;
     return 'leading'    if $margin <= 12;
@@ -308,25 +373,23 @@ sub calculate_climate ($self, $season) {
     my $tier      = $self->intensity_tier($margin);
     my $factor    = $self->climate_intensity_factor($tier);
 
+    my $profile = $self->_profile_for($leader_id);
+    my $scaled_biases   = $self->_scale_biases($profile->{draw_biases}, $factor);
+    my $scaled_inst_mod = int(($profile->{starting_instability_mod} // 0) * $factor);
+
     my $climate = {
         day                 => $season->getCol('day'),
         dominant_faction    => $leader_id,
         dominant_faction_name => $self->_faction_name($leader_id),
-        banned_traits       => $factor > 0 ? ($self->_profile_for($leader_id)->{banned_traits} // []) : [],
+        banned_traits       => $factor > 0 ? ($profile->{banned_traits} // []) : [],
         intensity           => $tier,
         intensity_label     => ucfirst($tier),
         dominance_margin    => $margin,
-        prospecting         => {},
-        market              => {},
-    };
-
-    if ($factor > 0) {
-        my $profile = $self->_profile_for($leader_id);
-        $climate->{prospecting} = {
-            draw_biases              => $self->_scale_biases($profile->{draw_biases}, $factor),
-            starting_instability_mod => int(($profile->{starting_instability_mod} // 0) * $factor),
-        };
-        $climate->{market} = {
+        prospecting         => {
+            draw_biases              => $scaled_biases,
+            starting_instability_mod => $scaled_inst_mod,
+        },
+        market => {
             budget_delta        => int(($profile->{budget_delta} // 0) * $factor),
             mood_delta          => int(($profile->{mood_delta} // 0) * $factor),
             patience_delta      => int(($profile->{patience_delta} // 0) * $factor),
@@ -335,16 +398,16 @@ sub calculate_climate ($self, $season) {
             buyer_trait_biases  => $self->_scale_biases($profile->{buyer_trait_biases}, $factor),
             budget_label        => ($profile->{budget_delta} // 0) >= 0 ? 'Richer buyers' : 'Tighter budgets',
             market_summary      => $self->_market_summary($profile, $factor),
-        };
-        $climate->{town_crier} = $self->_crier_message($leader_id, $tier);
-        $climate->{crier_text} = $self->_crier_text($leader_id, $tier);
-    }
+        },
+        town_crier   => $self->_crier_message($leader_id, $tier),
+        crier_text   => $self->_crier_text($leader_id, $tier),
+        finds_summary => $self->_finds_summary($scaled_biases, $scaled_inst_mod),
+    };
 
     my $mountain = $self->_build_mountain_data($season, $tier);
     $climate->{mountain_positions} = $mountain->{mountain_positions};
     $climate->{mountain_height}    = $mountain->{mountain_height};
     $climate->{mountain_raster}    = $mountain->{mountain_raster};
-
     $season->setCol('faction_climate', $climate);
     $season->save;
     return $climate;

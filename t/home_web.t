@@ -254,6 +254,7 @@ subtest 'fragment — climate premium badge in salvage ledger' => sub {
             market_summary => 'Testing',
         },
         town_crier => { hint => 'test' },
+        finds_summary => 'Strong boost: thermal, volatile.',
     });
     $s->save;
 
@@ -263,6 +264,7 @@ subtest 'fragment — climate premium badge in salvage ledger' => sub {
     my $html = $t->tx->res->body;
     like($html, qr/mm-badge-amber/, 'home shed premium badge class present');
     like($html, qr/✦ premium/, 'home shed premium badge text present');
+    like($html, qr/Finds:.*Strong boost: thermal/, 'finds summary rendered');
 };
 
 subtest 'fragment — tags gated when skill_prospecting=0' => sub {
@@ -315,6 +317,7 @@ subtest 'fragment — climate card visible when skill_prospecting=0' => sub {
         intensity_label => 'Mild', intensity => 1,
         market => { buyer_trait_biases => { volatile => 1 }, market_summary => 'Test' },
         town_crier => { hint => 'test' },
+        finds_summary => 'Strong boost: thermal, storage.',
     });
     $s->save;
 
@@ -333,6 +336,85 @@ subtest 'fragment — climate card visible when skill_prospecting=0' => sub {
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
     like($html, qr/Paying premium for:/, 'climate card shows premium text even without prospecting skill');
+    like($html, qr/Finds:.*Strong boost: thermal/,
+        'climate card shows finds summary');
+};
+
+subtest 'fragment — finds fallback when finds_summary missing' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $season = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
+    $season->load;
+    my $s = $season->find(sub { 1 })->[0];
+    $s->setCol('faction_climate', {
+        dominant_faction_name => 'Syndicate',
+        intensity_label => 'Mild', intensity => 1,
+        market => { buyer_trait_biases => { volatile => 1 }, market_summary => 'Test' },
+        town_crier => { hint => 'test' },
+        # no finds_summary — simulates pre-existing data after deploy
+    });
+    $s->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'rookie3'); $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'rookie3', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 0,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'rookie3' })->status_is(200);
+    $t->get_ok('/home?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/Finds:.*Climate recalibrating/,
+        'fallback text shown when finds_summary is absent');
+};
+
+subtest 'fragment — NEWS still renders narrative crier text' => sub {
+    my $dataDir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir;
+
+    MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
+        ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
+
+    my $season = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
+    $season->load;
+    my $s = $season->find(sub { 1 })->[0];
+    $s->setCol('crier_message', 'Roads Belong to Fast Money — Expect rush traffic.');
+    $s->setCol('faction_climate', {
+        dominant_faction_name => 'Syndicate',
+        intensity_label => 'Mild', intensity => 1,
+        market => { buyer_trait_biases => { volatile => 1 }, market_summary => 'Test' },
+        town_crier => { hint => 'test' },
+        finds_summary => 'Strong boost: thermal.',
+    });
+    $s->save;
+
+    my $accts = MagicMountain::Model::Account->new(file => "$dataDir/accounts.json");
+    my $a = $accts->create(username => 'rookie4'); $a->save;
+
+    my $chars = MagicMountain::Model::Character->new(file => "$dataDir/characters.json");
+    $chars->create(
+        name => 'rookie4', account_id => $a->getCol('id'), season_id => 's1',
+        score => 0, scrap => 0, action_points => 15, action_points_max => 15,
+        skill_prospecting => 0,
+    )->save;
+
+    my $t = Test::Mojo->new('MagicMountain');
+    $t->post_ok('/sessions', json => { displayName => 'rookie4' })->status_is(200);
+    $t->get_ok('/home?_format=fragment')->status_is(200);
+    my $html = $t->tx->res->body;
+    like($html, qr/NEWS:.*Roads Belong to Fast Money/,
+        'NEWS section still renders narrative crier text');
+    like($html, qr/Finds:.*Strong boost: thermal/,
+        'Finds line shows distinct data-driven text');
 };
 
 done_testing;

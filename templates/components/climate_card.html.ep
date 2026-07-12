@@ -4,8 +4,8 @@
   <div class="mm-text-amber" style="font-weight:600;margin-bottom:0.25rem">
     Today's Climate: <%= $cc->{dominant_faction_name} %> — <%= $cc->{intensity_label} %>
   </div>
-  <div class="mm-text-dim">
-    <div>Finds: <%= $cc->{town_crier}{hint} %></div>
+    <div class="mm-text-dim">
+      <div>Finds: <%= $cc->{finds_summary} // 'Climate recalibrating.' %></div>
     <div>Market: <%= $cc->{market}{market_summary} %></div>
 % my %biases = %{ $cc->{market}{buyer_trait_biases} // {} };
 % if (keys %biases) {
