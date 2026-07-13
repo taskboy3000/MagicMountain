@@ -6,6 +6,8 @@ has transitions => sub {
     { idle => ['begin'], negotiating => ['accept', 'withdraw'] }
 };
 
+has _activity_type => sub { 'black_market' };
+
 sub create ($self, %params) {
     $params{type}  //= 'black_market';
     $params{phase} //= 'idle';

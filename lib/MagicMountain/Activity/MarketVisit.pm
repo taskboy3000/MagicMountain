@@ -9,6 +9,8 @@ has transitions => sub {
     { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter', 'stand_pat'] }
 };
 
+has _activity_type => sub { 'market_visit' };
+
 # ── Construction ──────────────────────────────────────────────────
 
 sub create ($self, %params) {

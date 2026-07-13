@@ -19,6 +19,7 @@ use MagicMountain::Model::BrokersCache;
 use MagicMountain::Model::ArtifactDisposition;
 use MagicMountain::Model::SeasonRecord;
 use MagicMountain::Model::FactionSnapshot;
+use MagicMountain::Model::Activity;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::Activity::BlackMarket;
@@ -31,6 +32,7 @@ use MagicMountain::Service::BotRunner;
 use MagicMountain::Service::PvP;
 use MagicMountain::Service::Dominance;
 use MagicMountain::Service::MarketGate;
+use MagicMountain::Service::SkillTraining;
 use MagicMountain::Service::SeasonFinalizer;
 use MagicMountain::Model::Pressure;
 
@@ -136,8 +138,17 @@ has transcript => sub ($self) {
     );
 };
 
+has activities => sub ($self) {
+    MagicMountain::Model::Activity->new(
+        file => $self->dataDir . '/activities.json',
+        log  => $self->log,
+    );
+};
+
 has prospecting => sub ($self) {
     my $p = MagicMountain::Activity::Prospecting->new(
+        table            => $self->activities->table,
+        store            => $self->activities,
         file             => $self->dataDir . '/activities.json',
         app              => $self,
         content_filename => $self->home . '/content/prospecting.yml',
@@ -151,6 +162,8 @@ use MagicMountain::Activity::MarketVisit;
 
 has market => sub ($self) {
     MagicMountain::Activity::MarketVisit->new(
+        table            => $self->activities->table,
+        store            => $self->activities,
         file             => $self->dataDir . '/activities.json',
         app              => $self,
         content_filename => $self->home . '/content/factions.yml',
@@ -189,6 +202,18 @@ has maintenance => sub ($self) {
                         my @shuffled = List::Util::shuffle(@$bot_chars);
                         my $saved_transcript = $maint->app->{transcript};
                         $maint->app->{transcript} = $bot_transcript;
+
+                        # Defer saves during bot processing — write each
+                        # model once after all bots complete.
+                        my @models = (
+                            $maint->app->activities,
+                            $maint->app->characters,
+                            $maint->app->shed,
+                        );
+                        push @models, $maint->app->pressures
+                            if $maint->app->can('pressures');
+                        $_->defer_saves for @models;
+
                         for my $bot_char (@shuffled) {
                             eval {
                                 $maint->app->bot_runner->run_day($bot_char);
@@ -200,6 +225,9 @@ has maintenance => sub ($self) {
                                 ));
                             }
                         }
+
+                        $_->flush for @models;
+
                         $maint->app->{transcript} = $saved_transcript;
                     }
                 }
@@ -367,12 +395,18 @@ has pvp_service => sub ($self) {
     MagicMountain::Service::PvP->new(app => $self);
 };
 
+has skill_training => sub ($self) {
+    MagicMountain::Service::SkillTraining->new(app => $self);
+};
+
 has dominance_service => sub ($self) {
     MagicMountain::Service::Dominance->new(app => $self);
 };
 
 has black_market => sub ($self) {
     MagicMountain::Activity::BlackMarket->new(
+        table            => $self->activities->table,
+        store            => $self->activities,
         file             => $self->dataDir . '/activities.json',
         app              => $self,
         content_filename => $self->home . '/content/flavor/black_market.yml',

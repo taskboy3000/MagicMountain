@@ -12,6 +12,7 @@ use Time::HiRes;
 use UUID::Tiny (':std');
 
 my %_mtime_for;
+my %_deferred_for;
 
 has 'file' => sub ($self) {
     die("Add a path to the state file");
@@ -126,6 +127,8 @@ sub load ($self) {
 
 # Only saves the table in its current form
 sub _saveTable ($self) {
+    return 1 if $_deferred_for{0+$self->table};
+
     my $start = Time::HiRes::time;
 
     my $version = ($self->_read_version_from_disk // 0) + 1;
@@ -286,6 +289,16 @@ sub delete ($self, $id = undef) {
 
 sub save_table ($self) {
     return $self->_saveTable;
+}
+
+sub defer_saves ($self) {
+    $_deferred_for{0+$self->table} = 1;
+}
+
+sub flush ($self) {
+    my $key = 0+$self->table;
+    return unless delete $_deferred_for{$key};
+    $self->_saveTable;
 }
 
 sub sync_row ($self) {

@@ -24,6 +24,8 @@ has columns => sub ($self) {
 has transitions      => sub { {} };
 has app              => sub { die "app is required" };
 has log              => sub ($self) { $self->app->log };
+has store            => undef;
+has _activity_type   => sub { die "_activity_type is abstract — set in subclass" };
 
 # Read-only content (set by app class, loaded once, shared across instances)
 has content_filename => undef;   # full path to YAML file, set by app class
@@ -91,17 +93,41 @@ sub dispatch ($self, $char, $action, %params) {
     return $self->$action($char, %params);
 }
 
-# ── Construction ──────────────────────────────────────────────────
-# Override Model::get and Model::create to propagate ephemeral
-# attributes. Model's versions pass only file/log/table/row to new();
-# Activity instances additionally need transitions, app, content_data.
+# ── Persistence delegation ──────────────────────────────────────────
+# All disk I/O for activities.json goes through the central Activities
+# model. Concrete activity objects update the shared table hashref
+# (via inherited Model::save) but delegate the actual file write.
+# This keeps _saveTable under the control of a single owner for
+# deferred-write batching during bot processing.
+
+sub _saveTable ($self) {
+    # In production, all Activity objects have a store set by the app
+    # accessors, delegating persistence to MagicMountain::Model::Activity.
+    # Tests may create bare Activity objects without a store — fall back
+    # to the inherited Model behavior for backward compatibility.
+    return $self->SUPER::_saveTable unless $self->store;
+    return $self->store->_saveTable;
+}
+
+# ── Type-filtered access ────────────────────────────────────────────
+# Each concrete activity accessor (prospecting, market, black_market)
+# must only return rows matching its own _activity_type discriminator.
 
 sub get ($self, $id) {
     my $instance = $self->SUPER::get($id) or return;
     $instance->transitions($self->transitions);
     $instance->app($self->app);
     $instance->content_data($self->content_data);
+    $instance->store($self->store);
     return $instance;
+}
+
+sub find ($self, $codeRef) {
+    my $type = $self->_activity_type;
+    return $self->SUPER::find(sub {
+        return 0 unless $_[0]->{type} eq $type;
+        $codeRef->(@_);
+    });
 }
 
 sub create ($self, %params) {
@@ -109,6 +135,7 @@ sub create ($self, %params) {
     $instance->transitions($self->transitions);
     $instance->app($self->app);
     $instance->content_data($self->content_data);
+    $instance->store($self->store);
     return $instance;
 }
 

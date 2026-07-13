@@ -11,6 +11,8 @@ has transitions => sub {
     }
 };
 
+has _activity_type => sub { 'prospecting' };
+
 # ── Construction ──────────────────────────────────────────────────
 
 sub create ($self, %params) {

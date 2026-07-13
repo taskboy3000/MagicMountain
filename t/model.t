@@ -394,4 +394,129 @@ subtest 'timing instrumentation does not crash' => sub {
     pass('load, save, delete with timing instrumentation did not crash');
 };
 
+{
+    package DeferredTest;
+    use Mojo::Base 'MagicMountain::Model', '-signatures';
+    has columns => sub ($self) {
+        my $cols = $self->defaultColumns;
+        return [ @$cols, qw(type value) ];
+    };
+    package main;
+}
+
+subtest 'defer_saves suppresses file writes' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = DeferredTest->new(file => $f2);
+
+    $m->defer_saves;
+    my $obj = $m->create(type => 'test', value => 10);
+    $obj->save;
+
+    my $after_save = decode_json(read_file($f2));
+    my @recs = grep { !/^_/ } keys %$after_save;
+    is(scalar @recs, 0, 'file unchanged after deferred save');
+};
+
+subtest 'deferred saves accumulate and flush writes all' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = DeferredTest->new(file => $f2);
+
+    $m->defer_saves;
+    my $a = $m->create(type => 'alpha', value => 1);
+    $a->save;
+    my $b = $m->create(type => 'beta', value => 2);
+    $b->save;
+
+    my $mid = decode_json(read_file($f2));
+    my @mid_recs = grep { !/^_/ } keys %$mid;
+    is(scalar @mid_recs, 0, 'nothing written before flush');
+
+    $m->flush;
+
+    my $after = decode_json(read_file($f2));
+    my @recs = grep { !/^_/ } keys %$after;
+    is(scalar @recs, 2, 'flush writes both records');
+    my @rows = grep { ref $_ eq 'HASH' } values %$after;
+    my ($alpha) = grep { $_->{value} == 1 } @rows;
+    my ($beta)  = grep { $_->{value} == 2 } @rows;
+    ok($alpha, 'alpha survives flush');
+    ok($beta, 'beta survives flush');
+};
+
+subtest 'deferred delete persists after flush' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = DeferredTest->new(file => $f2);
+
+    my $obj = $m->create(type => 'gone', value => 99);
+    $obj->save;   # write it
+
+    $m->defer_saves;
+    $m->delete($obj->getCol('id'));
+
+    my $mid = decode_json(read_file($f2));
+    ok(exists $mid->{$obj->getCol('id')}, 'record still on disk before flush');
+
+    $m->flush;
+
+    my $after = decode_json(read_file($f2));
+    my @recs_after = grep { !/^_/ } keys %$after;
+    ok(!exists $after->{$obj->getCol('id')}, 'record gone after flush');
+    is(scalar @recs_after, 0, 'no records remain after delete+flush');
+};
+
+subtest 'flush on non-deferred model is safe' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = DeferredTest->new(file => $f2);
+
+    my $result = $m->flush;
+    is($result, undef, 'flush on non-deferred returns undef (no-op)');
+};
+
+subtest 'double defer_saves is harmless' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = DeferredTest->new(file => $f2);
+
+    $m->defer_saves;
+    $m->defer_saves;
+    $m->create(type => 'x', value => 42)->save;
+
+    $m->flush;
+
+    my $after = decode_json(read_file($f2));
+    my @recs = grep { !/^_/ } keys %$after;
+    is(scalar @recs, 1, 'double defer then flush works');
+};
+
+subtest 'shared-table: defer on parent, save on child, flush writes all' => sub {
+    my ($fh2, $f2) = tempfile(SUFFIX => '.json', UNLINK => 1);
+    write_file($f2, '{}');
+    my $m = DeferredTest->new(file => $f2);
+
+    $m->defer_saves;
+
+    # child1 and child2 share $m's table via create
+    my $c1 = $m->create(type => 'child1', value => 10);
+    $c1->save;
+
+    my $c2 = $m->create(type => 'child2', value => 20);
+    $c2->save;
+
+    # flush on parent (shares 0+$table key with children)
+    $m->flush;
+
+    my $after = decode_json(read_file($f2));
+    my @recs = grep { !/^_/ } keys %$after;
+    is(scalar @recs, 2, 'flush on parent writes children data');
+    my @rows = grep { ref $_ eq 'HASH' } values %$after;
+    my @v10 = grep { $_->{value} == 10 } @rows;
+    is(scalar @v10, 1, 'child1 present');
+    my @v20 = grep { $_->{value} == 20 } @rows;
+    is(scalar @v20, 1, 'child2 present');
+};
+
 done_testing;
