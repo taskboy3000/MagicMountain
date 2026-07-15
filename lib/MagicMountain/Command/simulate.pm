@@ -18,7 +18,6 @@ has usage => "usage: $0 simulate [OPTIONS]\n"
            . "  --days N          Season length in days (default 30)\n"
            . "  --seed N          RNG seed\n"
            . "  --output FILE     Transcript output path\n"
-           . "  --skill-profile S Skill levels, e.g. 'prospecting=2,upcycling=1'\n"
            . "  --profile FILE    Bot profile YAML (default content/bots.yml)\n"
            . "  --profile-weights W  Weighted profile distribution, e.g. 'a=3,b=1'\n"
            . "  --counter-offers  Enable counter-offer haggle step\n"
@@ -29,7 +28,6 @@ sub run ($self, @args) {
     my $days    = 30;
     my $seed    = undef;
     my $output  = undef;
-    my $skill_profile = undef;
     my $profile_file  = undef;
     my $weights_str   = undef;
     my $counter_offers = 0;
@@ -40,7 +38,6 @@ sub run ($self, @args) {
         'days=i'            => \$days,
         'seed=i'            => \$seed,
         'output=s'          => \$output,
-        'skill-profile=s'   => \$skill_profile,
         'profile=s'         => \$profile_file,
         'profile-weights=s' => \$weights_str,
         'counter-offers!'   => \$counter_offers,
@@ -91,7 +88,8 @@ sub run ($self, @args) {
             id => 'default',
             push_policy => { name => 'stage_guard', params => { stop_at => 'unstable' } },
             sell_policy => { name => 'opportunist' },
-            skill_profile => { prospecting => 0, upcycling => 0, selling => 0 },
+            skill_policy => { name => 'never' },
+            pvp_aggressiveness => 0.10,
         });
     }
 
@@ -110,16 +108,6 @@ sub run ($self, @args) {
         }
     }
 
-    # Parse skill profile (used only when no profile YAML loaded)
-    my %skill_defaults = (prospecting => 0, upcycling => 0, selling => 0);
-    if ($skill_profile && @profiles == 1 && $profiles[0]->{id} eq 'default') {
-        for my $part (split /,/, $skill_profile) {
-            $part =~ s/\s+//g;
-            my ($key, $val) = split /=/, $part;
-            $skill_defaults{$key} = int($val // 0) if exists $skill_defaults{$key};
-        }
-    }
-
     # Create bot accounts, characters, and assign profiles
     my @bot_chars;
     my %char_profile;
@@ -132,8 +120,6 @@ sub run ($self, @args) {
             $profile = $profiles[ ($i - 1) % @profiles ];
         }
 
-        my $sk = $profile->{skill_profile} // \%skill_defaults;
-
         my $a = $accts->create(username => $name);
         $a->save;
 
@@ -145,9 +131,9 @@ sub run ($self, @args) {
             scrap             => 0,
             action_points     => 15,
             action_points_max => 15,
-            skill_prospecting => $sk->{prospecting} // 0,
-            skill_upcycling   => $sk->{upcycling} // 0,
-            skill_selling     => $sk->{selling} // 0,
+            skill_prospecting => 0,
+            skill_upcycling   => 0,
+            skill_selling     => 0,
         );
         $c->save;
         push @bot_chars, $c;
@@ -171,7 +157,7 @@ sub run ($self, @args) {
             push_params  => $p->{push_policy}{params},
             sell_policy  => $p->{sell_policy}{name},
             sell_params  => $p->{sell_policy}{params},
-            skills       => $p->{skill_profile},
+            skill_policy => $p->{skill_policy},
         };
     }
 

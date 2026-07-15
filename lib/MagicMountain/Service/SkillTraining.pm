@@ -19,6 +19,19 @@ sub purchase ($self, $char, $skill_id) {
     $char->setCol($col, $current_level + 1);
     $char->save;
 
+    if ($self->app->can('transcript') && $self->app->transcript) {
+        my $season = $self->app->active_season;
+        $self->app->transcript->log_event({
+            type           => 'skill_purchase',
+            char_id        => $char->getCol('id'),
+            day            => $season ? $season->getCol('day') : undef,
+            skill          => $skill_id,
+            level          => $current_level + 1,
+            cost           => $cost,
+            scrap_remaining => $char->getCol('scrap'),
+        });
+    }
+
     return {
         ok => 1,
         player => {

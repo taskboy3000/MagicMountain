@@ -5,6 +5,7 @@ use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
 use MagicMountain::Bot::PressurePolicy;
 use MagicMountain::Bot::BlackMarketPolicy;
+use MagicMountain::Bot::SkillPolicy;
 use YAML::XS qw(LoadFile);
 
 my %PRESSURE_RANK = (
@@ -349,6 +350,27 @@ sub run_day ($self, $char, $profile = undef) {
         last if $phase_done;
     }
     } # end if (!$did_black_market)
+
+    # Skill buying phase (after market so scrap is final)
+    {
+        my $policy_params = $profile->{skill_policy} // { name => 'never' };
+        my $decision = MagicMountain::Bot::SkillPolicy::decide(
+            $char, $policy_params, $app->skills_data, $app);
+        if ($decision) {
+            my $result = $app->skill_training->purchase($char, $decision->{skill_id});
+            if ($result->{ok} && $transcript) {
+                $transcript->log_event({
+                    type       => 'policy_skill_purchase',
+                    player     => $char_name,
+                    profile_id => $profile_id,
+                    policy     => $policy_params->{name},
+                    skill_id   => $decision->{skill_id},
+                    level      => $decision->{level},
+                    cost       => $decision->{cost},
+                });
+            }
+        }
+    }
 
     # Pressure phase (after market so scrap is final available)
     if ($self->app->config->{pvp_enabled}) {
