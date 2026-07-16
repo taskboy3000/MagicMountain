@@ -352,7 +352,7 @@ sub run_day ($self, $char, $profile = undef) {
     } # end if (!$did_black_market)
 
     # Skill buying phase (after market so scrap is final)
-    {
+    eval {
         my $policy_params = $profile->{skill_policy} // { name => 'never' };
         my $decision = MagicMountain::Bot::SkillPolicy::decide(
             $char, $policy_params, $app->skills_data, $app);
@@ -370,6 +370,10 @@ sub run_day ($self, $char, $profile = undef) {
                 });
             }
         }
+    };
+    if ($@) {
+        $app->log->warn(sprintf("Bot %s skill purchase error: %s",
+            $char_name // '?', $@));
     }
 
     # Pressure phase (after market so scrap is final available)

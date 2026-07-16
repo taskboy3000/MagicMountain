@@ -135,6 +135,19 @@ subtest 'highest_offer stops before opportunist on budget pressure' => sub {
 
     # Both profiles should make sales without crashing
     ok(scalar(keys %sale_count) > 0, 'bots made sales under state-based pressure');
+
+    # Check for policy_skill_purchase events
+    my @skill_events;
+    for my $line (@lines) {
+        my $ev = decode_json($line);
+        push @skill_events, $ev if $ev->{type} eq 'policy_skill_purchase';
+    }
+    diag(sprintf("policy_skill_purchase events: %d", scalar @skill_events));
+    for my $ev (@skill_events) {
+        ok($ev->{skill_id}, 'policy_skill_purchase has skill_id');
+        ok(defined $ev->{cost}, 'policy_skill_purchase has cost');
+        ok($ev->{policy},   'policy_skill_purchase has policy name');
+    }
 };
 
 done_testing;

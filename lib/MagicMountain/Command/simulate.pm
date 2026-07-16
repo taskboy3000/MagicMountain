@@ -21,7 +21,8 @@ has usage => "usage: $0 simulate [OPTIONS]\n"
            . "  --profile FILE    Bot profile YAML (default content/bots.yml)\n"
            . "  --profile-weights W  Weighted profile distribution, e.g. 'a=3,b=1'\n"
            . "  --counter-offers  Enable counter-offer haggle step\n"
-           . "  --multi-item      Enable multi-item sales per market visit\n";
+           . "  --multi-item      Enable multi-item sales per market visit\n"
+           . "  --pvp             Enable PvP pressure phase (disabled by default)\n";
 
 sub run ($self, @args) {
     my $count   = 5;
@@ -32,6 +33,7 @@ sub run ($self, @args) {
     my $weights_str   = undef;
     my $counter_offers = 0;
     my $multi_item     = 0;
+    my $pvp            = 0;
 
     GetOptionsFromArray(\@args,
         'count=i'           => \$count,
@@ -42,6 +44,7 @@ sub run ($self, @args) {
         'profile-weights=s' => \$weights_str,
         'counter-offers!'   => \$counter_offers,
         'multi-item!'       => \$multi_item,
+        'pvp!'              => \$pvp,
     );
 
     srand($seed) if defined $seed;
@@ -63,6 +66,7 @@ sub run ($self, @args) {
 
     $app->config->{market_counter_offers} = $counter_offers;
     $app->config->{market_multi_item}     = $multi_item;
+    $app->config->{pvp_enabled}           = $pvp;
 
     my $accts  = $app->accounts;
     my $chars  = $app->characters;

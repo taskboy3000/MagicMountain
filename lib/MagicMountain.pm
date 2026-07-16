@@ -185,6 +185,7 @@ has maintenance => sub ($self) {
                     my $bot_transcript = MagicMountain::Model::Transcript->new(
                         file => $maint->app->dataDir . '/transcript_bots.jsonl'
                     );
+                    my $saved_bot_runner_transcript = $maint->app->bot_runner->transcript;
                     $maint->app->bot_runner->transcript($bot_transcript);
 
                     my $bot_chars = $maint->app->characters->find(sub {
@@ -230,6 +231,8 @@ has maintenance => sub ($self) {
 
                         $maint->app->{transcript} = $saved_transcript;
                     }
+
+                    $maint->app->bot_runner->transcript($saved_bot_runner_transcript);
                 }
             }
 
