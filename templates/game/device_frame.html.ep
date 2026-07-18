@@ -25,8 +25,8 @@
       <div id="primary-content"></div>
 % } else {
       <div class="mm-panel mm-panel-centered">
-        <h2 class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</h2>
         <div class="mm-panel-body">
+          <h2 class="mm-panel-header">PROSPECTBOY 3000 REGISTRATION</h2>
           <form id="login-form">
             <div style="margin-bottom:0.5rem">
               <label for="display-name" class="mm-form-label">OWNER</label>
@@ -35,6 +35,14 @@
             <div id="error-msg" class="mm-error-msg"></div>
             <button type="submit" class="mm-btn mm-btn-primary mm-btn-block">Enter</button>
           </form>
+        </div>
+      </div>
+      <div class="mm-panel mm-panel-centered mm-panel-attention" style="margin-bottom:1.25rem">
+        <div class="mm-panel-header">WANTED — PROSPECTORS</div>
+        <div class="mm-panel-body">
+          <p>The Magic Mountain yields strange artifacts of unusual value to the right buyer. Must be willing to extract, destabilize, and re-imagine remnants for a discerning faction market.</p>
+          <p>Risk-takers only.</p>
+          <p class="want-ad-season">ProspectBoy 3000 terminal and <%= $season_number %> claim code provided to qualified applicants.</p>
         </div>
       </div>
 % }

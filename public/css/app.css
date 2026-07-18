@@ -41,6 +41,28 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 }
 .mm-panel-body { padding: 0.5rem 0.6rem; }
 
+.want-ad {
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--mm-border);
+  color: var(--mm-text);
+}
+.want-ad-headline {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.5rem 0;
+  color: var(--mm-amber);
+}
+.want-ad p { margin: 0 0 0.4rem 0; line-height: 1.5; }
+.want-ad-season {
+  margin: 0.4rem 0 0 0;
+  text-align: right;
+  color: var(--mm-amber);
+  font-style: italic;
+}
+
 /* ── Button ──────────────────────────────────────────────────── */
 .mm-btn {
   font-family: var(--mm-font);
