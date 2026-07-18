@@ -1,15 +1,6 @@
 package MagicMountain::Controller;
 use Mojo::Base 'Mojolicious::Controller', '-signatures';
 
-sub url_for ($self, $target = undef, @args) {
-    my $url = $self->SUPER::url_for($target, @args);
-    return $url unless defined $target;
-    my $base = $self->req->url->base;
-    return $url unless $base->path ne '/' && $base->path ne '';
-    $url->path($base->path . $url->path);
-    return $url;
-}
-
 sub _require_character ($self) {
     my $player_id = $self->current_player;
     return unless $player_id;
