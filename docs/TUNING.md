@@ -15,7 +15,8 @@ what it affects. Refer to this when adjusting game balance.
 | `secrets` | `[override-me]` | Session cookie signing key. **Set a real value in production.** |
 | `end_of_day_hour` | `0` (midnight) | Hour (0–23) when daily maintenance fires. AP refresh, decay, Crier. |
 | `maintenance_window_minutes` | `5` | How long write routes return 503 during maintenance. |
-| `session_timeout_minutes` | `60` | Minutes of inactivity before a session expires. |
+| `session_timeout_minutes` | `30` | Minutes of inactivity before a session expires (also used by concurrent session cap). |
+| `max_concurrent_sessions` | `10` | Max simultaneous active player sessions. `0` = unlimited. |
 | `default_season_length` | `30` | Days in a season before end is recommended (not enforced — admin-triggered). |
 | `default_season_label_prefix` | `Season` | Prefix for auto-generated season labels (e.g. "Season 1"). |
 | `default_action_points` | `20` | Daily AP cap for all players. |

@@ -23,6 +23,17 @@ sub touch ($self) {
     $self->save;
 }
 
+sub active_count ($self, $timeout_minutes) {
+    $self->load;
+    my $cutoff = time - $timeout_minutes * 60;
+    my $expired = $self->find(sub { ($_[0]->{last_active} // 0) < $cutoff });
+    for my $s (@$expired) {
+        $self->delete($s->getCol('id'));
+    }
+    my $active = $self->find(sub { ($_[0]->{last_active} // 0) >= $cutoff });
+    return scalar @$active;
+}
+
 sub delete_by_player_id ($self, $player_id) {
     my $session = $self->find_by_player_id($player_id);
     if ($session) {

@@ -17,7 +17,7 @@ sub run ($self, @args) {
 
     my $accounts = $self->app->accounts->all;
     my $sessions = $self->app->session_store->all;
-    my $timeout  = $self->app->config->{session_timeout_minutes} // 60;
+    my $timeout  = $self->app->config->{session_timeout_minutes} // 30;
 
     my %active_for;
     for my $sid (keys %$sessions) {

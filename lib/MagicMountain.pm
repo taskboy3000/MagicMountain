@@ -43,7 +43,8 @@ has configFile => sub ($self) {
 has defaultConfig => sub ($self) {
     return {
         secrets                   => [ 'override-me' ],
-        session_timeout_minutes   => 60,
+        session_timeout_minutes   => 30,
+        max_concurrent_sessions  => 10,
         end_of_day_hour           => 0,
         maintenance_window_minutes => 5,
         default_season_length     => 30,
@@ -542,13 +543,14 @@ sub startup ($self) {
         $c->app->session_store->load;
         my $session = $c->app->session_store->find_by_player_id($player_id);
         return unless $session;
-        my $timeout = $c->app->config->{session_timeout_minutes} // 60;
+        my $timeout = $c->app->config->{session_timeout_minutes} // 30;
         if ($session->is_expired($timeout)) {
             $c->app->session_store->delete($session->getCol('id'));
             $c->session(expires => 1);
             return;
         }
-        $session->touch;
+        my $last = $session->getCol('last_active') // 0;
+        $session->touch if time - $last >= 10;
         return $player_id;
     });
 

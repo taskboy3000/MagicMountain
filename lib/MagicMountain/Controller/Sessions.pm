@@ -11,6 +11,15 @@ sub _normalize_name ($self, $raw) {
     return $name;
 }
 
+sub _resolve_remember_me ($self, $name, $auth) {
+    my $data = $self->_read_remember_cookie or return;
+    my $acct = $self->app->accounts->get($data->{account_id}) or return;
+    return unless $acct->getCol('username') eq $name;
+    return if $acct->getCol('banned');
+    return unless $auth->verify_remember_token($acct, $data->{token});
+    return $acct;
+}
+
 sub create ($self) {
     my $ip   = $self->tx->remote_address;
     my $body = $self->req->json;
@@ -20,7 +29,6 @@ sub create ($self) {
     return $self->render(json => { ok => 0, error => 'displayName is required' }, status => 400)
         unless length $name > 0;
 
-    # Account-name rate limit
     if (!$rl->check_name(lc $name)) {
         my $retry_after = $rl->get_name_reset_time(lc $name);
         $self->res->headers->header('Retry-After' => $retry_after);
@@ -30,9 +38,10 @@ sub create ($self) {
         }, status => 429);
     }
 
-    # Check for existing valid session or remember-me cookie (skip if token provided)
     my $auth = $self->app->auth_service;
     my $submitted_token = uc ($body->{token} // '');
+
+    # Early return: existing Mojo session matches
     if (!$submitted_token) {
         my $player_id = $self->session('playerId');
         if ($player_id) {
@@ -46,106 +55,89 @@ sub create ($self) {
                 }
             }
         }
+    }
 
-        # Check for remember-me cookie
-        my $remember_data = $self->_read_remember_cookie;
-        if ($remember_data && $remember_data->{account_id}) {
-            my $remember_acct = $self->app->accounts->get($remember_data->{account_id});
-            if ($remember_acct && $remember_acct->getCol('username') eq $name) {
-                if ($remember_acct->getCol('banned')) {
-                    $self->app->log->debug(sprintf("Remember-me: %s is banned", $name));
-                } elsif (!$auth->verify_remember_token($remember_acct, $remember_data->{token})) {
-                    $self->app->log->debug(sprintf("Remember-me: token mismatch for %s (stale cookie)", $name));
+    my ($account, $creds, $auto_authenticated);
+
+    # Try remember-me
+    if (!$submitted_token) {
+        $account = $self->_resolve_remember_me($name, $auth);
+        $auto_authenticated = 1 if $account;
+    }
+
+    # Resolve account from username
+    if (!$account) {
+        my $row = $self->app->accounts->find_by_username($name);
+
+        if (!$row) {
+            return $self->render(json => { ok => 0, error => 'Display name must be 1-24 characters: letters, numbers, underscores, dashes' }, status => 400)
+                unless length $name <= 24 && $name =~ /^[a-zA-Z0-9_-]+$/;
+
+            my $result = $auth->new_account($name);
+            $account = $result->{account};
+            $creds   = { token => $result->{token}, recovery_code => $result->{recovery_code} };
+            $auto_authenticated = 1;
+
+            $rl->record_success($ip);
+            $rl->record_name_success(lc $name);
+
+            $self->app->audit_log->log('account_created',
+                player_id   => $account->getCol('id'),
+                player_name => $name,
+            );
+
+        } else {
+            return $self->render(json => { ok => 0, error => 'Account banned' }, status => 403)
+                if $row->getCol('banned');
+
+            my $token_hash = $row->getCol('token_hash');
+
+            if (!(defined $token_hash && length $token_hash > 0)) {
+                if (($ENV{MOJO_MODE} // '') eq 'test') {
+                    my $token = $auth->generate_token;
+                    $row->setCol('token_hash', $auth->hash_token($token));
+                    $row->save;
+                    $account = $row;
+                    $auto_authenticated = 1;
                 } else {
-                    return $self->render(json => $self->_build_session($remember_acct, $ip));
+                    return $self->render(json => {
+                        ok => 0, need_admin_reset => 1, display_name => $name,
+                        error => 'Account requires admin token reset',
+                    }, status => 400);
                 }
+
+            } elsif ($submitted_token) {
+                my $verify = $auth->verify_login($row, $submitted_token);
+                if ($verify->{error}) {
+                    $rl->record_failure($ip);
+                    $rl->record_name_failure(lc $name);
+                    $self->app->audit_log->log('token_verify_failed',
+                        player_id   => $row->getCol('id'),
+                        player_name => $name,
+                    );
+                    return $self->render(json => { ok => 0, error => $verify->{error} }, status => 403);
+                }
+                $account = $row;
+                $auto_authenticated = 1;
+                $rl->record_success($ip);
+                $rl->record_name_success(lc $name);
+
             } else {
-                $self->app->log->debug(sprintf("Remember-me: account %s not found for cookie %s",
-                    $remember_data->{account_id}, $name));
+                return $self->render(json => {
+                    ok => 0, need_token => 1, display_name => $name,
+                });
             }
         }
     }
 
-    # Find or create account
-    my $account = $self->app->accounts->find_by_username($name);
+    my $resp = $self->_build_session($account, $ip) or return;
 
-    if (!$account) {
-        # Validate display name for new accounts
-        return $self->render(json => { ok => 0, error => 'Display name must be 1-24 characters: letters, numbers, underscores, dashes' }, status => 400)
-            unless length $name <= 24 && $name =~ /^[a-zA-Z0-9_-]+$/;
-
-        # New account — generate token
-        my $result = $auth->new_account($name);
-        $account = $result->{account};
-        $self->_set_remember_cookie($result->{remember_token}, $account);
-
-        $rl->record_success($ip);
-        $rl->record_name_success(lc $name);
-
-        $self->app->audit_log->log('account_created',
-            player_id   => $account->getCol('id'),
-            player_name => $name,
-        );
-
-        # Log in immediately — session created so user can play
-        $self->_set_remember_cookie($result->{remember_token}, $account);
-        my $resp = $self->_build_session($account, $ip, 1);
-        $self->session(mm_new_credentials => {
-            token         => $result->{token},
-            recovery_code => $result->{recovery_code},
-        });
+    if ($creds) {
+        $self->session(mm_new_credentials => $creds);
         $resp->{show_credentials} = 1;
-        return $self->render(json => $resp);
     }
 
-    # Existing account — check banned
-    if ($account->getCol('banned')) {
-        $rl->record_failure($ip);
-        $rl->record_name_failure(lc $name);
-        return $self->render(json => { ok => 0, error => 'Account banned' }, status => 403);
-    }
-
-    # Check if account has a token set
-    my $token_hash = $account->getCol('token_hash');
-    if (!(defined $token_hash && length $token_hash > 0)) {
-        if (($ENV{MOJO_MODE} // '') eq 'test') {
-            # In test mode, auto-generate token_hash for legacy accounts
-            my $auth = $self->app->auth_service;
-            my $token = $auth->generate_token;
-            $account->setCol('token_hash', $auth->hash_token($token));
-            $account->save;
-            my $verify = $auth->verify_login($account, $token);
-            $self->_set_remember_cookie($verify->{remember_token}, $account);
-            return $self->render(json => $self->_build_session($account, $ip));
-        }
-        return $self->render(json => {
-            ok => 0, need_admin_reset => 1, display_name => $name,
-            error => 'Account requires admin token reset',
-        }, status => 400);
-    }
-
-    # Check for token in request body
-    if ($submitted_token) {
-        my $verify = $auth->verify_login($account, $submitted_token);
-        if ($verify->{error}) {
-            $rl->record_failure($ip);
-            $rl->record_name_failure(lc $name);
-            $self->app->audit_log->log('token_verify_failed',
-                player_id   => $account->getCol('id'),
-                player_name => $name,
-            );
-            return $self->render(json => { ok => 0, error => $verify->{error} }, status => 403);
-        }
-        $self->_set_remember_cookie($verify->{remember_token}, $account);
-        $rl->record_success($ip);
-        $rl->record_name_success(lc $name);
-        return $self->render(json => $self->_build_session($account, $ip));
-    }
-
-    # No token submitted — need token
-    return $self->render(json => {
-        ok => 0, need_token => 1, display_name => $name,
-    });
+    return $self->render(json => $resp);
 }
 
 sub recover ($self) {
@@ -178,7 +170,6 @@ sub recover ($self) {
     }
 
     my $result = $self->app->auth_service->recover_account($account);
-    $self->_set_remember_cookie($result->{remember_token}, $account);
 
     $self->app->rate_limiter->record_success($ip);
     $self->app->rate_limiter->record_name_success(lc $name);
@@ -188,7 +179,7 @@ sub recover ($self) {
         player_name => $name,
     );
 
-    my $resp = $self->_build_session($account, $ip);
+    my $resp = $self->_build_session($account, $ip) or return;
     $self->session(mm_new_credentials => {
         token         => $result->{token},
         recovery_code => $result->{recovery_code},
@@ -200,6 +191,7 @@ sub recover ($self) {
 sub _build_session ($self, $account, $ip, @rest) {
     my $player_id = $account->getCol('id');
 
+    # Bot check
     $self->app->characters->load;
     my ($bot_char) = @{ $self->app->characters->find(
         sub { $_[0]->{account_id} eq $player_id && $_[0]->{is_bot} }
@@ -208,7 +200,29 @@ sub _build_session ($self, $account, $ip, @rest) {
         my $rl = $self->app->rate_limiter;
         $rl->record_failure($ip);
         $rl->record_name_failure(lc $account->getCol('username'));
-        return $self->render(json => { ok => 0, error => 'Bot account' }, status => 403);
+        $self->render(json => { ok => 0, error => 'Bot account' }, status => 403);
+        return;
+    }
+
+    # Concurrent session cap
+    my $max = $self->app->config->{max_concurrent_sessions} // 10;
+    if ($max > 0) {
+        $self->app->session_store->load;
+        my $existing = $self->app->session_store->find_by_player_id($player_id);
+        if (!$existing) {
+            my $timeout = $self->app->config->{session_timeout_minutes} // 30;
+            my $active = $self->app->session_store->active_count($timeout);
+            if ($active >= $max) {
+                $self->app->log->debug(sprintf(
+                    "Session cap hit: %d active >= %d max for %s (%s)",
+                    $active, $max, $account->getCol('username'), $player_id,
+                ));
+                $self->render(json => {
+                    ok => 0, error => 'Server at capacity. Try again later.',
+                }, status => 503);
+                return;
+            }
+        }
     }
 
     my $existing = $self->app->session_store->find_by_player_id($player_id);
