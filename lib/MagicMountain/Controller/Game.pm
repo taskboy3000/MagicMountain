@@ -9,13 +9,12 @@ use MagicMountain::Service::CharacterView;
 sub show ($self) {
     my $player_id = $self->current_player;
 
-    my $active_season   = $self->app->active_season;
-    my $season_number   = $active_season ? ($active_season->getCol('label') // '1') : '1';
-
     if (!$player_id) {
         $self->respond_to(
             json => sub { $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401) },
             html => sub {
+                my $active_season = $self->app->active_season;
+                my $season_number = $active_season ? ($active_season->getCol('label') // '1') : '1';
                 $self->stash(authenticated => 0, player_name => '—', node_number => '—', unit_status => '',
                     season_number => $season_number,
                     admin_email => $self->app->config->{admin_email} // '');
@@ -52,6 +51,9 @@ sub show ($self) {
             $activity = $self->app->market->get($id);
         }
     }
+
+    my $active_season = $self->app->active_season;
+    my $season_number = $active_season ? ($active_season->getCol('label') // '1') : '1';
 
     $self->respond_to(
         json => sub {
