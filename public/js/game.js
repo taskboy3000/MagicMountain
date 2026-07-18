@@ -1,6 +1,6 @@
 let CSRF_TOKEN = '';
 
-const _G = window.MM?.baseUrls || { game: '/game', nav: '/nav', seasonRecap: '/season/recap?_format=fragment', orientation: '/orientation?_format=fragment', onboarding: '/onboarding/notice?_format=fragment', reference: '/reference' };
+// _G is defined in the layout template via url_for()
 
 // ── Audio: procedural keyboard click ────────────────────────────
 let _audioCtx = null;

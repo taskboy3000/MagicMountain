@@ -8,6 +8,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<%= url_for('/css/app.css') %>?<%= (stat app->home->child('public/css/app.css'))[9] // 0 %>">
+    <script>
+const _G = {
+  game:         '<%= url_for('game') %>',
+  nav:          '<%= url_for('nav') %>',
+  seasonRecap:  '<%= url_for('season_recap')->query(_format => 'fragment') %>',
+  orientation:  '<%= url_for('orientation')->query(_format => 'fragment') %>',
+  onboarding:   '<%= url_for('onboarding_notice')->query(_format => 'fragment') %>',
+  reference:    '<%= url_for('reference') %>',
+};
+</script>
   </head>
   <body>
     <div id="page-wrap">
@@ -19,15 +29,6 @@
 % unless (current_player) {
 <script src="<%= url_for('/js/ambient.js') %>?<%= (stat app->home->child('public/js/ambient.js'))[9] // 0 %>"></script>
 <script>
-window.MM = window.MM || {};
-window.MM.baseUrls = {
-  game:         '<%= url_for('game') %>',
-  nav:          '<%= url_for('nav') %>',
-  seasonRecap:  '<%= url_for('season_recap')->query(_format => 'fragment') %>',
-  orientation:  '<%= url_for('orientation')->query(_format => 'fragment') %>',
-  onboarding:   '<%= url_for('onboarding_notice')->query(_format => 'fragment') %>',
-  reference:    '<%= url_for('reference') %>',
-};
 let _pendingDisplayName = '';
 const panel = document.getElementById('panel-primary');
 
