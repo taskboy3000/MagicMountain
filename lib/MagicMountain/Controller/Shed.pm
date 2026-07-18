@@ -25,7 +25,8 @@ sub index ($self) {
         my $type = $self->_active_activity_type($char);
         my $is_secondary = ($self->param('panel') || '') eq 'secondary';
         my $skill = $char->getCol('skill_prospecting') // 0;
-        my $items = _enriched_items($filtered, $is_secondary, $skill, $self);
+        my $icon_base = $self->url_for('/images');
+        my $items = _enriched_items($filtered, $is_secondary, $skill, $icon_base, $self);
         my $season = $self->app->active_season;
         my $fc = $season ? $season->faction_climate : {};
         my $biases = $fc->{market}{buyer_trait_biases} // {};
@@ -87,7 +88,7 @@ sub _artifact_short_names ($c) {
     return +{ map { $_->{id} => ($_->{short_name} // $_->{id}) } @$specs };
 }
 
-sub _enriched_items ($items, $is_secondary, $skill, $c) {
+sub _enriched_items ($items, $is_secondary, $skill, $icon_base, $c) {
     my $short = $is_secondary ? _artifact_short_names($c) : undef;
     my @out;
     for my $item (@$items) {
@@ -97,7 +98,7 @@ sub _enriched_items ($items, $is_secondary, $skill, $c) {
             id          => $item->getCol('id'),
             label       => $is_secondary ? ($short->{$aid} // $aid) : $aid,
             label_full  => $aid,
-            icon        => '/images/artifact_' . $aid . '.svg',
+            icon        => $icon_base . '/artifact_' . $aid . '.svg',
             condition   => $item->getCol('condition'),
             tags        => $skill >= 1 ? join(', ', @$behaviors) : '-',
             value_label => $item->value_label,

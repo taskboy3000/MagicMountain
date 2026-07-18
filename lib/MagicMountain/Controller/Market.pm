@@ -36,8 +36,16 @@ sub show ($self) {
     }
 
     my $sell = $char->getCol('skill_selling') // 0;
+    my $portrait_url;
+    if ($c && $c->{portrait_id}) {
+        my $mood = ($c->{irritation} // 0) <= 1 ? 'happy'
+                 : ($c->{irritation} // 0) <= 3 ? 'neutral'
+                 : 'mad';
+        $portrait_url = $self->url_for('/images') . '/portraits/' . $c->{portrait_id} . '_' . $mood . '.svg';
+    }
     my $customer = $c ? MagicMountain::Customer->new({
         %$c,
+        portrait_url     => $portrait_url,
         faction_icon_url => $faction_icon_url,
         pressure_state   => $pressure ? $pressure->{state}   : undef,
         pressure_label   => $pressure ? $pressure->{display} : undef,

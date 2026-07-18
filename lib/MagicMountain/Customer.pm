@@ -4,20 +4,12 @@ use Mojo::Base '-base', '-signatures';
 has [qw(
     faction_id faction_name faction_icon_url disposition
     irritation spent_so_far soft_budget absolute_budget
-    portrait_id
+    portrait_id portrait_url
     desired_behaviors
     pending_counter last_message last_sale
     pressure_state pressure_label
     budget_min budget_max
 )];
-
-sub portrait_url ($self) {
-    my $pid = $self->portrait_id or return;
-    my $mood = ($self->irritation // 0) <= 1 ? 'happy'
-             : ($self->irritation // 0) <= 3 ? 'neutral'
-             : 'mad';
-    return '/images/portraits/' . $pid . '_' . $mood . '.svg';
-}
 
 sub has_pending_counter ($self) {
     return defined $self->pending_counter;

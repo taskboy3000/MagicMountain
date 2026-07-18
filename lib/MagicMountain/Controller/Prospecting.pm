@@ -43,6 +43,7 @@ HTML
     }
 
     my $artifact = MagicMountain::Artifact->new($activity->artifact);
+    $artifact->icon($self->url_for('/images') . '/artifact_' . $artifact->id . '.svg');
 
     my $push_url = $self->url_for('prospecting_push');
     my $stop_url = $self->url_for('prospecting_stop');

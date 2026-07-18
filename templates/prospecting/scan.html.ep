@@ -1,5 +1,5 @@
 <div class="mm-panel">
-  <h2 class="mm-panel-header"><img src="<%= $artifact->icon_url %>" alt="" class="mm-icon" style="margin-right:4px"><%= $artifact->id %></h2>
+  <h2 class="mm-panel-header"><img src="<%= $artifact->icon %>" alt="" class="mm-icon" style="margin-right:4px"><%= $artifact->id %></h2>
   <div class="mm-panel-body">
     <p>VALUE: <strong><%= $artifact->value_label %></strong>  ◆  STATUS: <span class="mm-badge <%= $artifact->stage_badge_css %>"><%= $artifact->stage || '—' %></span></p>
     <div class="mm-flex-center mm-gap mm-mt-sm">

@@ -46,6 +46,11 @@ work: the `url_for` override in `Controller.pm` prepends the proxy prefix
 to every generated URL. Hardcoded paths bypass the override and break behind
 the proxy.
 
+**Name routes consistently**: Use `<resource>#<action>` style names
+(`player#show`, `market#offer`) so that bare path strings like `'/game'`
+don't blend in with route names like `game`. A hardcoded `'/game'` jumps
+out when all references are `url_for('game#show')`.
+
 **Controllers compute URLs, templates render them**: Controllers call
 `$self->url_for('route_name')` and stash the result. Services receive URLs
 as pre-computed strings passed from the controller — NEVER call url_for

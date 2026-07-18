@@ -82,7 +82,7 @@ async function showRecoveryForm() {
 
 async function showCredentials() {
   const resp = await fetch('<%= url_for('new_credentials') %>?_format=fragment');
-  if (resp.status === 204) { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '/game'; return; }
+  if (resp.status === 204) { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '<%= url_for('game') %>'; return; }
   panel.innerHTML = await resp.text();
 }
 

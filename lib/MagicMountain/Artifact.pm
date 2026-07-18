@@ -3,14 +3,10 @@ use Mojo::Base '-base', '-signatures';
 
 use MagicMountain::ValueTier;
 
-has [qw(id intro signal stage instability max_instability value)];
+has [qw(id intro signal stage instability max_instability value icon)];
 
 sub value_label ($self) {
     MagicMountain::ValueTier::describe($self->value);
-}
-
-sub icon_url ($self) {
-    '/images/artifact_' . $self->id . '.svg';
 }
 
 sub stage_badge_css ($self) {
@@ -21,7 +17,7 @@ sub stage_badge_css ($self) {
 sub TO_JSON ($self) {
     return {
         id              => $self->id,
-        icon            => $self->icon_url,
+        icon            => $self->icon,
         stage           => $self->stage,
         value_tier      => $self->value_label,
         signal          => $self->signal // '',
