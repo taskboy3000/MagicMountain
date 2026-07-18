@@ -12,6 +12,14 @@ in `docs/TUNING.md`.
 
 Licensed under the [MIT License](LICENSE.txt).
 
+## Development approach
+
+This project was developed with AI-assisted tooling: specialized agents handle
+implementation scaffolding, boundary-rule review, and plan analysis, while
+human review gates every change through CI (tests, linting, structural checks).
+The result is a hybrid workflow — AI accelerates iteration, human judgment
+owns architecture and quality.
+
 ## Deploying behind a reverse proxy
 
 The game listens on `http://localhost:9000` and must be placed behind a reverse
