@@ -248,6 +248,11 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Model::Season** | Per-player character data, game logic |
 | **Model::FactionSnapshot** | Game logic, character data |
 | **Model::Session** | Game logic, character data |
+| **Model::Activity** | Game logic, activity domain rules, character data |
+| **Model::ArtifactDisposition** | Game logic, character data |
+| **Model::SeasonRecord** | Game logic, season data |
+| **Model::Pressure** | Game logic, market state, character data |
+| **Model::AuditLog** | Game logic, character data |
 | **Nav** (Controller::Nav) | Game logic, character data |
 | **Skills** / **CERTS** (YAML loader) | Game logic, character state |
 | **Maintenance** | Game math, artifact logic, character internals |
@@ -265,8 +270,15 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Service::Dominance** | Character data, market negotiation state, persistence (read-only — writes via season model API) |
 | **Service::PvP** | Character state mutation outside of `apply_pressure`, market negotiation logic |
 | **Service::MarketGate** | Game rules, controller decisions, phase validation. Returns bool — never mutates. |
+| **Service::AccountDeletion** | Game logic, character data, season state |
+| **Service::CharacterView** | Game logic, activity state, market data |
+| **Service::SeasonFinalizer** | Character data, season state (except via season model/character model API for clearance) |
+| **RateLimiter** | Account data, authentication state |
 | **Model::BrokersCache** | Game logic, market rules, character data |
 | **Bot::BlackMarketPolicy** | Activity dispatch, persistence operations |
+| **Bot::SkillPolicy** | Activity dispatch, persistence operations |
+| **Bot::PressurePolicy** | Activity dispatch, persistence operations |
+| **BotName** | Game logic, persistence |
 | **Transcript** (event recorder) | Game rules, account management |
 | **Faction** (buyer definition) | Character data, player identity |
 | **Bot** (automated player) | Direct persistence (uses same models and activities as controllers) |
@@ -500,9 +512,9 @@ maintenance. Used by market dynamics (§6.7).
 
 ### 5.8 ArtifactDisposition (per-sale record)
 
-| Field | Type |
-|-------|------|
-| disposition_id | UUID |
+| Field | Type | Notes |
+|-------|------|-------|
+| id | UUID | Inherited from base Model (disposition_id in earlier drafts) |
 | season_id | UUID |
 | player_id | UUID |
 | faction_id | string |
@@ -518,18 +530,18 @@ deletion.
 
 ### 5.9 SeasonRecord (post-season archive)
 
-| Field | Type |
-|-------|------|
-| record_id | UUID |
-| season_id | UUID |
-| player_id | UUID |
-| final_score | integer |
-| final_scrap | integer |
-| rank | integer |
-| faction_standing_snapshot | JSON |
-| skills_snapshot | JSON |
-| story_highlights | JSON |
-| created_at | timestamp |
+| Field | Type | Notes |
+|-------|------|-------|
+| id | UUID | Inherited from base Model (record_id in earlier drafts) |
+| season_id | UUID | |
+| player_id | UUID | |
+| final_score | integer | |
+| final_scrap | integer | |
+| rank | integer | |
+| faction_standing_snapshot | JSON | |
+| skills_snapshot | JSON | |
+| story_highlights | JSON | |
+| createdAt | timestamp | Inherited from base Model |
 
 Created during season finalization. Served as `season_recap` on first
 `/game` visit after season ends.
@@ -871,7 +883,7 @@ When a player starts a Market Visit (costs 1 AP):
 ### 6.6 Skills / CERTS (Mechanical Effects)
 
 Cert modules are purchasable per season via the Skills controller (`POST /skills/purchase`).
-Cert modules have YAML-defined max levels. Current maxes are GEO-SENSE 3, DEFRAG 4, and UP-CEL 3. Effects are applied
+Cert modules have YAML-defined max levels. Current maxes are GEO-SENSE 4, DEFRAG 4, UP-CEL 3, and SHADOW-ROUTE 4. Effects are applied
 at the point of use (draw, push, stop, offer) by reading the character's
 skill columns. The internal column names use the legacy IDs (`skill_prospecting`,
 `skill_upcycling`, `skill_selling`); the UI labels are the cert module names.
@@ -913,6 +925,12 @@ eliminate instability.
 | 2 | Seizure risk reduced by 10 percentage points |
 | 3 | Seizure risk reduced by 15 percentage points |
 | 4 | Seizure risk reduced by 20 percentage points; first seizure each day gets one free reroll |
+
+Seizure reduction effects (`seizure_reduction`, `seizure_reroll`) are defined in
+`content/skills.yml` effects blocks. The `BlackMarket` activity reads the skill
+level directly and applies `0.05 × level` for reduction — equivalent to the YAML
+values but computed inline rather than via YAML look-up. Reroll access is
+level-gated: `seizure_reroll` is granted at level 4.
 
 Skill costs are defined entirely in `content/skills.yml`. Skill training
 does not cost AP.
@@ -1280,6 +1298,27 @@ executes.
 end_of_day_hour: 0              # 0–23, local time hour when maintenance fires
 maintenance_window_minutes: 5   # reserved — route guard is currently a simple
                                 # boolean gate during the callback
+default_action_points: 20       # Daily AP refresh value
+default_season_length: 30       # Number of days before auto-finalization
+session_timeout_minutes: 30     # Server-side session idle timeout
+market_counter_offers: 1        # Enable customer counter-offers
+market_multi_item: 1            # Enable multi-item sales per visit
+market_trait_saturation_rate: 0.01 # Per-sale saturation increase
+market_max_saturation_discount: 0.50 # Floor for saturation discount
+market_desperation_bonus: 1.30  # Multiplier after desperation_days without purchase
+pvp_enabled: 1                  # Master switch for PvP pressure
+pvp_cost_corner_market: 50      # Scrap cost for Corner the Market
+pvp_cost_spoil_lead: 30         # Scrap cost for Spoil the Lead
+pvp_cost_outbid: 75             # Scrap cost for Outbid
+pvp_splash_standing_loss: 1     # Standing loss on Spoil the Lead splashback
+pvp_splash_budget_ratio: 0.80   # Budget cap on Outbid splashback
+pvp_max_stack: 3                # Max pending pressures per (target, faction)
+pvp_pressure_max_age_days: 7    # Lazy purge age
+pvp_bot_aggressiveness: 0.20    # Default bot PvP probability
+onboarding_skill_unlock_scrap: 100  # Scrap threshold for skill tab unlock
+faction_max_stars: 5            # Rating scale for faction standing display
+admin_email: root\@localhost    # Contact for operator actions
+bcrypt_cost: 10                 # bcrypt work factor
 ```
 
 **Maintenance.pm lifecycle**:
@@ -1287,10 +1326,11 @@ maintenance_window_minutes: 5   # reserved — route guard is currently a simple
 1. Every 60 seconds, `dailyMaintenance()` is called.
 2. If current time has not reached `next_run`, it returns immediately (no-op).
 3. If `next_run` has arrived:
-   a. Sets `in_maintenance` flag to `true` (write routes return HTTP 503).
-   b. Advances `next_run` to the same hour on the following day.
-   c. Invokes the `on_maintenance` callback.
-   d. Clears `in_maintenance` flag after callback completes.
+   a. Backs up all JSON data files to a date-stamped directory.
+   b. Sets `in_maintenance` flag to `true` (write routes return HTTP 503).
+   c. Advances `next_run` to the same hour on the following day.
+   d. Invokes the `on_maintenance` callback.
+   e. Clears `in_maintenance` flag after callback completes.
 
 **`on_maintenance` callback** (day-rollover logic):
 
@@ -1348,8 +1388,9 @@ exact order):
 14. **Preserve activity rows** — in-progress prospecting/market visits
     survive rollover naturally (no explicit cleanup).
 
-15. **If `season.day > season_length`**, emit a warning (season end is
-    manual — the game does not auto-finalize).
+15. **If `season.day > season_length`**, auto-finalize the season: call
+    `Service::SeasonFinalizer::finalize` which runs the clearance sale,
+    creates SeasonRecords, deletes characters, and archives the season.
 
 **Catch-up on server restart** (`_catch_up_maintenance`):
 
@@ -1521,6 +1562,12 @@ delete row, normal saves row). `processing → stop` (create ShedItem, delete
 row). `processing → resolve_event` (apply choice event, delete row).
 Activities own all persistence — controller never calls `save` or `delete`.
 
+**Breakthrough auto-continue**: After a breakthrough (which awards both scrap and
+score immediately, deletes the activity row, and returns a `result` payload),
+the player may POST to `/result/continue` to acknowledge the outcome and begin
+a new prospecting session from the home view. This eliminates an extra click
+for the most common follow-up action.
+
 ### 9.6 MarketVisit Activity
 
 Transitions: `idle → begin → negotiating → {offer, send_away, accept_counter, stand_pat}`.
@@ -1638,7 +1685,7 @@ recoveryCode}`, verifies via `verify_recovery_code`, rotates all three hashes.
 
 A signed `mm_remember` cookie (30-day expiry) allows resume without re-entering
 the token. Server-side session records track `last_active` with configurable
-timeout (default 60 min). `current_player` helper validates on each request.
+timeout (default 30 min, config key `session_timeout_minutes`). `current_player` helper validates on each request.
 `DELETE /sessions` / `GET /logout` destroy the session. `GET /player` returns
 current player info or 401. `GET /` and `GET /login` redirect to `/game`.
 
@@ -1669,6 +1716,8 @@ by `admin_secret` header. All events recorded in `audit.jsonl`.
         commission_triggers.yml     # Commission issuance text (unused until §7.3)
         pressure_reactions.yml      # PvP pressure outcome flavor text
         system_messages.yml         # Unit status flavor text (device frame boot message)
+        black_market.yml            # Black Market flavor text (arrival, match, seizure, withdraw)
+    wordlist.txt                    # Entropy source for token/bot-name generation
 ```
 
 ### 12.2 Artifact Definition Shape
@@ -2086,10 +2135,14 @@ These are non-negotiable rules for all content. The style guides in
 
 ### Transcript
 
-21. **The app class owns transcript lifecycle.** It opens a transcript context
-    on each request (session, player, endpoint, timestamp). Activities enrich
-    it with game events. The app closes it (duration, outcome). No single
-    module is the sole transcript writer.
+21. **The transcript is a shared JSONL file with a persistent file handle.**
+    The app class opens the file at startup (`MagicMountain::Model::Transcript`)
+    and stores the handle on `$app->transcript`. Activities write events via
+    `$self->app->transcript->log_event(...)` or the inherited `_log_event`
+    wrapper, which appends one JSON line per event with an auto-populated `ts`
+    (unix timestamp). No request-scoped open/close/duration tracking is
+    performed — events are fire-and-forget. Bot events are written to a
+    separate `transcript_bots.jsonl` file during maintenance.
 
 ### Shed & Decay
 
@@ -2160,10 +2213,26 @@ available to controllers at request time.
 |---------|----------|-------|
 | Commission system | Low | Faction notices, active commissions (§7.4) |
 | Desperate Recruiter (underdog catch-up) | Low | Premium standing/bonus for selling to trailing factions |
+| `brokers_cache_resurface` event | Low | Restore a seized artifact from BrokersCache to a player's shed via random event (§6.9) |
+| `arrival:` category in `negotiation_reactions.yml` | Low | In-character greeting surfaced by `Market#begin` (§7.3, §13.3) |
 
 ---
 
-## 20. Key Design Decisions
+## 20. Doc-Code Inconsistencies (Unresolved)
+
+These are behavioral divergences between this document and the codebase where
+the correct resolution is not yet determined. Each entry describes what the doc
+says, what the code does, and what needs to happen to reconcile them.
+
+| # | Area | Doc Says | Code Does | Resolution Required |
+|---|------|----------|-----------|--------------------|
+| 1 | **Black Market gate** (§6.9, `MarketVisit.pm:173`) | Intercept customer when player has **at least one** banned-trait item in the shed | `begin` blocks only when **all** items are banned (or shed is empty of non-banned items) | Either change code to check `any` instead of `all`, or update §6.9 to say "only when no non-banned items remain" |
+| 2 | **Trait saturation fallback** (§6.7, `MarketVisit.pm:99`) | `sat_rate` defaults to `0.01` | Config default is `0.01` but code fallback is `// 0.02` — never reached in practice since the config key exists | Change fallback to `0.01` to match documented default |
+| 3 | **Season end trigger** (§8.1, `MagicMountain.pm:326`) | Season end is **manual** (admin-triggered) | Code auto-finalizes when `season.day > length` | Resolve intent: either keep auto-finalize (current doc), or remove the auto-call and restore manual-only (restore old doc intent) |
+
+---
+
+## 21. Key Design Decisions
 
 Design rationale is embedded in the sections that define each rule. Key
 decisions are documented at these locations:
@@ -2188,7 +2257,7 @@ decisions are documented at these locations:
 
 ---
 
-## 21. UI Design References
+## 22. UI Design References
 
 | Document | Purpose |
 |----------|---------|
@@ -2197,7 +2266,7 @@ decisions are documented at these locations:
 
 ---
 
-## 22. Directory Layout (Top-Level)
+## 23. Directory Layout (Top-Level)
 
 ```
 magic_mountain/
