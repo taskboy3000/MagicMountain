@@ -469,7 +469,7 @@ sub startup ($self) {
         }
     }
 
-    $self->secrets($self->config->{secrets});
+    $self->secrets(@{$self->config->{secrets}});
     $self->sessions->cookie_name('mm_session');
     $self->sessions->default_expiration(86400);
 
