@@ -8,6 +8,11 @@ use File::Temp qw(tempdir);
 # than 'test' is impossible from within the test suite.
 BEGIN { $ENV{MOJO_MODE} = 'test' }
 
+# Web integration tests (Test::Mojo) are gated behind $ENV{GITHUB_ACTIONS}
+# to avoid flaky Mojo::Reactor::EV race conditions on CI. Add
+#   if ($ENV{GITHUB_ACTIONS}) { plan skip_all => 'reason'; }
+# to any new web test file that may fail nondeterministically in GitHub Actions.
+
 # Fixed seed for reproducible random sequences across test runs.
 # Individual tests may override this locally with local $ENV{MM_RAND_SEED}.
 BEGIN { $ENV{MM_RAND_SEED} //= '42' }
