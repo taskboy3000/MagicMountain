@@ -182,10 +182,11 @@ sub _player_snapshot ($self, $char) {
 
 sub _artifact_view ($self, $artifact) {
     return {
-        id     => $artifact->{id},
-        stage  => $artifact->{stage},
-        value  => $artifact->{value},
-        signal => $artifact->{signal},
+        id         => $artifact->{id},
+        stage      => $artifact->{stage},
+        value      => $artifact->{value},
+        signal     => $artifact->{signal},
+        push_count => $artifact->{push_count} // 0,
     };
 }
 

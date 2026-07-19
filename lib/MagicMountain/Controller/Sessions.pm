@@ -20,16 +20,23 @@ sub _resolve_remember_me ($self, $name, $auth) {
     return $acct;
 }
 
+sub _bot_service_token ($self) {
+    my $header = $self->req->headers->header('X-Bot-Service-Token') // '';
+    my $expected = $self->app->config->{bot_service_token} // '';
+    return $expected ne '' && $header eq $expected;
+}
+
 sub create ($self) {
     my $ip   = $self->tx->remote_address;
     my $body = $self->req->json;
     my $name = $self->_normalize_name($body->{displayName} // '');
     my $rl   = $self->app->rate_limiter;
+    my $is_bot_svc = $self->_bot_service_token;
 
     return $self->render(json => { ok => 0, error => 'displayName is required' }, status => 400)
         unless length $name > 0;
 
-    if (!$rl->check_name(lc $name)) {
+    if (!$is_bot_svc && !$rl->check_name(lc $name)) {
         my $retry_after = $rl->get_name_reset_time(lc $name);
         $self->res->headers->header('Retry-After' => $retry_after);
         return $self->render(json => {
@@ -191,17 +198,19 @@ sub recover ($self) {
 sub _build_session ($self, $account, $ip, @rest) {
     my $player_id = $account->getCol('id');
 
-    # Bot check
-    $self->app->characters->load;
-    my ($bot_char) = @{ $self->app->characters->find(
-        sub { $_[0]->{account_id} eq $player_id && $_[0]->{is_bot} }
-    ) };
-    if ($bot_char) {
-        my $rl = $self->app->rate_limiter;
-        $rl->record_failure($ip);
-        $rl->record_name_failure(lc $account->getCol('username'));
-        $self->render(json => { ok => 0, error => 'Bot account' }, status => 403);
-        return;
+    # Bot check (skip for service-token authenticated requests)
+    if (!$self->_bot_service_token) {
+        $self->app->characters->load;
+        my ($bot_char) = @{ $self->app->characters->find(
+            sub { $_[0]->{account_id} eq $player_id && $_[0]->{is_bot} }
+        ) };
+        if ($bot_char) {
+            my $rl = $self->app->rate_limiter;
+            $rl->record_failure($ip);
+            $rl->record_name_failure(lc $account->getCol('username'));
+            $self->render(json => { ok => 0, error => 'Bot account' }, status => 403);
+            return;
+        }
     }
 
     # Concurrent session cap

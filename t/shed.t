@@ -33,6 +33,7 @@ subtest '_item_view structure' => sub {
         condition           => 'settling',
         days_in_shed        => 3,
         original_value      => 20,
+        decayed_value       => 18,
         estimated_value_min => 14,
         estimated_value_max => 18,
         behaviors           => ['thermal', 'power'],
@@ -54,7 +55,7 @@ subtest '_item_view structure' => sub {
     is $v->{stage},               'strained',         'stage';
     is $v->{has_evolved},         0,                  'has_evolved';
 
-    ok !exists($v->{decayed_value}),  'decayed_value not leaked';
+    is $v->{decayed_value},          18,                 'decayed_value exposed';
     ok !exists($v->{instability}),    'instability not leaked';
 };
 
