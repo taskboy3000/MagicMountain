@@ -11,7 +11,6 @@
   sell_policy: { name: "desperate", params: { max_irritation: 4, max_pressure_state: "mood_strained", haggle_aggression: 1, min_counter_pct: 0.50 } }
   skill_policy: { name: "specialize", params: { priority: ["upcycling", "prospecting"], reserve: 10 } }
   pvp_aggressiveness: 0.35
-  black_market_policy: { name: "desperate", params: { threshold: 1.2 } }
 
 - id: value_hoarder
   display_name: "Hoarder"
@@ -19,7 +18,6 @@
   sell_policy: { name: "hoarder" }
   skill_policy: { name: "never" }
   pvp_aggressiveness: 0.05
-  black_market_policy: { name: "greedy", params: { threshold: 1.8 } }
 
 - id: fixed_highest
   display_name: "Measured"

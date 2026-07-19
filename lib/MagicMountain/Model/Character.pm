@@ -4,7 +4,7 @@ use Mojo::Base 'MagicMountain::Model', '-signatures';
 
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
-    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'action_points', 'action_points_max', 'pending_activity_id', 'faction_sales', 'standing', 'faction_snubs', 'snub_day', 'current_location', 'current_view', 'result', 'skill_prospecting', 'skill_upcycling', 'skill_selling', 'skill_smuggling', 'loyalty_visits_since', 'is_bot', 'bot_profile_id', 'seen_orientation', 'settings_muted', 'onboarding', 'pending_notices', 'turns_remaining', 'black_market_opportunity_offered_today', 'smuggle_reroll_used' ];
+    return [ @$cols, 'name', 'account_id', 'season_id', 'score', 'scrap', 'action_points', 'action_points_max', 'pending_activity_id', 'faction_sales', 'standing', 'faction_snubs', 'snub_day', 'current_location', 'current_view', 'result', 'skill_prospecting', 'skill_upcycling', 'skill_selling', 'skill_smuggling', 'loyalty_visits_since', 'is_bot', 'bot_profile_id', 'seen_orientation', 'settings_muted', 'onboarding', 'pending_notices', 'turns_remaining', 'smuggle_reroll_used' ];
 };
 
 has app => undef;
@@ -17,7 +17,6 @@ sub create ($self, %params) {
     $params{onboarding}                           //= 0;
     $params{pending_notices}                      //= 0;
     $params{skill_smuggling}                      //= 0;
-    $params{black_market_opportunity_offered_today} //= 0;
     $params{smuggle_reroll_used}                  //= 0;
     my $obj = $self->SUPER::create(%params);
     $obj->app($self->app);

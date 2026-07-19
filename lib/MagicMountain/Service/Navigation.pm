@@ -8,6 +8,7 @@ my %BASE_TAB = (
         home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
         bazaar   => { active => 1, reason => undef },
+        pawn     => { active => 1, reason => undef },
         pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
@@ -15,6 +16,7 @@ my %BASE_TAB = (
         home     => { active => 1, reason => undef },
         prospect => { active => 1, reason => undef },
         bazaar   => { active => 0, reason => 'Finish your current expedition first' },
+        pawn     => { active => 0, reason => 'Finish your current expedition first' },
         pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
@@ -22,13 +24,7 @@ my %BASE_TAB = (
         home     => { active => 1, reason => undef },
         prospect => { active => 0, reason => 'Complete your market visit first' },
         bazaar   => { active => 1, reason => undef },
-        pvp      => { active => 1, reason => undef },
-        skills   => { active => 1, reason => undef },
-    },
-    black_market => {
-        home     => { active => 1, reason => undef },
-        prospect => { active => 0, reason => 'Complete your current transaction first' },
-        bazaar   => { active => 1, reason => undef },
+        pawn     => { active => 1, reason => undef },
         pvp      => { active => 1, reason => undef },
         skills   => { active => 1, reason => undef },
     },
@@ -40,7 +36,7 @@ my %TAB_ID_FOR = (
     result       => 'home',
     prospecting  => 'prospect',
     market       => 'bazaar',
-    black_market => 'bazaar',
+    pawn         => 'pawn',
     pvp          => 'pvp',
     skills       => 'skills',
     account      => 'account',
@@ -59,7 +55,7 @@ sub base_tab_state ($self, $type) {
 
 sub build_tabs ($self, $char, $type, $overrides = {}) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
-    my @tab_ids  = qw(home prospect bazaar pvp skills);
+    my @tab_ids  = qw(home prospect bazaar pawn pvp skills);
     my $onboarding = $char ? ($char->getCol('onboarding') // 0) : 15;
     my %REQUIRES = (
         bazaar => BIT_BAZAAR,
@@ -136,7 +132,7 @@ sub tab_id_for ($self, $view) {
 sub resolve_view ($self, $stored_view, $active_type, $tabs) {
     my $view = $stored_view || $active_type || 'home';
 
-    if (($view eq 'prospecting' || $view eq 'market' || $view eq 'black_market') && !$active_type) {
+    if (($view eq 'prospecting' || $view eq 'market' || $view eq 'pawn') && !$active_type) {
         $view = 'home';
     }
     if ($active_type && $view ne $active_type) {

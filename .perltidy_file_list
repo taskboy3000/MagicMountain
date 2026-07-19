@@ -70,7 +70,7 @@
 ./lib/MagicMountain/ValueTier.pm
 ./lib/MagicMountain/Artifact.pm
 ./lib/MagicMountain/Controller.pm
-./lib/MagicMountain/Activity/BlackMarket.pm
+
 ./lib/MagicMountain/Activity/Prospecting.pm
 ./lib/MagicMountain/Activity/MarketVisit.pm
 ./lib/MagicMountain/Maintenance.pm
@@ -84,7 +84,7 @@
 ./lib/MagicMountain/Controller/Skills.pm
 ./lib/MagicMountain/Controller/Leaderboard.pm
 ./lib/MagicMountain/Controller/Orientation.pm
-./lib/MagicMountain/Controller/BlackMarket.pm
+
 ./lib/MagicMountain/Controller/Home.pm
 ./lib/MagicMountain/Controller/Prospecting.pm
 ./lib/MagicMountain/Controller/Game.pm
@@ -118,7 +118,7 @@
 ./lib/MagicMountain/Bot/PushPolicy.pm
 ./lib/MagicMountain/Bot/SkillPolicy.pm
 ./lib/MagicMountain/Bot/PressurePolicy.pm
-./lib/MagicMountain/Bot/BlackMarketPolicy.pm
+
 ./lib/MagicMountain/BotName.pm
 ./lib/MagicMountain/Command/reset_token.pm
 ./lib/MagicMountain/Command/simulate.pm
@@ -138,7 +138,7 @@
 ./lib/MagicMountain/Service/PvP.pm
 ./lib/MagicMountain/Service/Suggestion.pm
 ./lib/MagicMountain/Service/Dominance.pm
-./lib/MagicMountain/Service/MarketGate.pm
+
 ./lib/MagicMountain/Service/SkillTraining.pm
 ./lib/MagicMountain/Service/RandomEvents.pm
 ./lib/MagicMountain/Service/CharacterView.pm

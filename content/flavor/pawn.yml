@@ -1,0 +1,18 @@
+arrival:
+  - "The broker leans forward, eyes glinting. 'I can move your restricted goods. The authorities watch everything, but my channels run deep.'"
+  - "'Tricky merchandise,' the pawn broker murmurs, studying your artifact. 'I can shift it, but there's always a risk the constables are watching.'"
+  - "'You find me at a dangerous time,' the broker says with a thin smile. 'The price will be good, but if the law arrives... you walk away with nothing.'"
+
+sale:
+  - "The broker slides a pouch across the counter. 'Pleasure doing business. Come back if you find more... unusual items.'"
+  - "'Clean transaction,' the broker says, counting out scrap. 'No records, no witnesses. Just the way I like it.'"
+  - "The broker nods once and produces the agreed scrap. 'Fair exchange. Your merchandise has found a new home.'"
+
+seizure:
+  - "Boots pound on the stairs. The broker's eyes go wide. 'Constables! Get out!' You flee as the door splinters behind you."
+  - "A whistle sounds in the alley. The broker pales. 'They're here. I'm sorry — I have to burn the evidence.' Your goods are lost."
+  - "The transaction is interrupted by a sharp rap at the door. The broker's face hardens. 'Nothing personal. The law always gets its due.' You escape empty-handed."
+
+closed:
+  - "The pawn shop is dark. A handwritten sign reads: 'Gone to ground. Try again when the heat dies down.'"
+  - "The broker's stall is empty. Only a chalk mark on the wall remains — a signal that the channel is closed for now."

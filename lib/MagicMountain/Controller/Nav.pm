@@ -9,7 +9,7 @@ my %SECONDARY = (
     prospecting   => 'factions',
     result        => 'factions',
     market        => 'shed',
-    black_market  => 'shed',
+    pawn          => 'shed',
     factions      => 'leaderboard',
     skills        => 'leaderboard',
     account       => 'leaderboard',
@@ -20,7 +20,7 @@ my %FRAGMENT_URL = (
     idle        => sub ($c) { $c->url_for('idle')->query(_format => 'fragment') },
     prospecting => sub ($c) { $c->url_for('prospecting_show')->query(_format => 'fragment') },
     market      => sub ($c) { $c->url_for('market_show')->query(_format => 'fragment') },
-    black_market => sub ($c) { $c->url_for('black_market_show')->query(_format => 'fragment') },
+    pawn        => sub ($c) { $c->url_for('pawn_show')->query(_format => 'fragment') },
     result      => sub ($c) { $c->url_for('result_show')->query(_format => 'fragment') },
     shed        => sub ($c) { $c->url_for('shed')->query(_format => 'fragment') },
     pvp         => sub ($c) { $c->url_for('pvp_show')->query(_format => 'fragment') },
@@ -34,6 +34,7 @@ my %TAB_LABEL = (
     home     => 'HOME',
     prospect => 'PROSPECT',
     bazaar   => 'BAZAAR',
+    pawn     => 'PAWN',
     pvp      => 'INTEL',
     skills   => 'CERTS',
 );
@@ -41,6 +42,7 @@ my %TAB_LABEL = (
 my %TAB_TO_VIEW = (
     home     => 'home',
     bazaar   => 'market',
+    pawn     => 'pawn',
     pvp      => 'pvp',
     skills   => 'skills',
 );
@@ -68,6 +70,12 @@ sub show ($self) {
             $overrides->{prospect} = { active => 0, reason => 'Not enough AP (2 required)' };
         }
     }
+    if ($base->{pawn}{active}) {
+        my $calc = $self->app->pawn_calculator;
+        if (!$calc->has_banned_items($char)) {
+            $overrides->{pawn} = { active => 0, reason => 'No restricted items' };
+        }
+    }
     my $primary_tabs = $nav->build_tabs($char, $type, $overrides);
 
     my $view = _resolve_requested_view($self, $primary_tabs);
@@ -87,6 +95,9 @@ sub show ($self) {
         }
         if ($tab->{id} eq 'prospect' && $tab->{active} && !$type) {
             $tab->{action_url} = $self->url_for('prospecting_begin');
+        }
+        if ($tab->{id} eq 'pawn' && $tab->{active} && !$type) {
+            $tab->{action_url} = $self->url_for('pawn_show');
         }
     }
 
@@ -188,13 +199,15 @@ sub _context_text ($self, $char, $view) {
         return sprintf "BUYER: %s  \x{7c}  IRRITATION %d  \x{7c}  MOOD: %s",
             $short, $c->{irritation} // 0, $state;
     }
-    if ($view eq 'black_market') {
+    if ($view eq 'pawn') {
         my $id = $char->getCol('pending_activity_id') or return '';
-        $self->app->black_market->load;
-        my $act = $self->app->black_market->get($id) or return '';
+        $self->app->pawn->load;
+        my $act = $self->app->pawn->get($id) or return '';
         my $c = $act->customer or return '';
-        return sprintf "BROKER  \x{7c}  OFFER %d  \x{7c}  SEIZURE RISK %.0f%%",
-            $c->{offer_value} // 0, ($c->{seizure_chance} // 0) * 100;
+        my $seizure_pct = $c->{outcome} ? 0 : ($c->{seizure_chance} // 0) * 100;
+        return sprintf "BROKER  \x{7c}  %s  \x{7c}  SEIZURE RISK %.0f%%",
+            $c->{outcome} ? 'RESULT' : 'AWAITING',
+            $seizure_pct;
     }
     return '';
 }

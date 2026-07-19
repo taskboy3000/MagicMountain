@@ -26,15 +26,15 @@ sub index ($self) {
         my $is_secondary = ($self->param('panel') || '') eq 'secondary';
         my $skill = $char->getCol('skill_prospecting') // 0;
         my $icon_base = $self->url_for('/images');
-        my $items = _enriched_items($filtered, $is_secondary, $skill, $icon_base, $self);
         my $season = $self->app->active_season;
-        my $fc = $season ? $season->faction_climate : {};
-        my $biases = $fc->{market}{buyer_trait_biases} // {};
+        my $banned_lookup = $self->app->pawn_calculator->banned_trait_lookup;
+        my $items = _enriched_items($filtered, $is_secondary, $skill, $icon_base, $banned_lookup);
         $self->stash(
             items                 => $items,
             market_active         => ($type && $type eq 'market') ? 1 : 0,
-            offer_url             => $self->url_for('market_offer'),
-            climate_premium_traits => [ sort keys %$biases ],
+            pawn_active           => ($type && $type eq 'pawn') ? 1 : 0,
+            offer_url             => $type && $type eq 'pawn' ? $self->url_for('pawn_offer') : $self->url_for('market_offer'),
+            climate_premium_traits => [ $type && $type eq 'pawn' ? () : sort keys %{ ($self->app->active_season ? $self->app->active_season->faction_climate : {})->{market}{buyer_trait_biases} // {} } ],
             show_trait_tags       => $skill >= 1 ? 1 : 0,
             pending_counter_item_id => $pc ? $pc->{item_id} : undef,
             pending_counter_value   => $pc ? $pc->{value} : undef,
@@ -48,16 +48,23 @@ sub index ($self) {
     my $offer_url = $self->url_for('market_offer');
     my $icon_base = $self->url_for('/images');
 
+    my $banned_lookup_json = $self->app->pawn_calculator->banned_trait_lookup;
+    my $offer_url_json = $type && $type eq 'pawn' ? $self->url_for('pawn_offer') : $self->url_for('market_offer');
     $self->render(json => {
         ok    => 1,
-        shed  => [ map { _item_view($_, $market_active, $offer_url, $icon_base, $pc) } @$filtered ],
+        shed  => [ map { _item_view($_, $market_active, $offer_url_json, $icon_base, $pc, $banned_lookup_json) } @$filtered ],
         total => scalar @$all,
         count => scalar @$filtered,
         _self => { actions => [] },
     });
 }
 
-sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '', $pending_counter = undef) {
+sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '', $pending_counter = undef, $banned_lookup = {}) {
+    my $behaviors = $item->getCol('behaviors') // [];
+    my $banned = 0;
+    for my $b (@$behaviors) {
+        if ($banned_lookup->{$b}) { $banned = 1; last; }
+    }
     my $v = {
         id                  => $item->getCol('id'),
         artifact_id         => $item->getCol('artifact_id'),
@@ -66,10 +73,11 @@ sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '', 
         original_value      => $item->getCol('original_value'),
         estimated_value_min => $item->getCol('estimated_value_min'),
         estimated_value_max => $item->getCol('estimated_value_max'),
-        behaviors           => $item->getCol('behaviors'),
+        behaviors           => $behaviors,
         push_count          => $item->getCol('push_count'),
         stage               => $item->getCol('stage'),
         has_evolved         => $item->getCol('has_evolved') ? 1 : 0,
+        banned              => $banned,
     };
     $v->{icon} = $icon_base . '/artifact_' . $v->{artifact_id} . '.svg';
     if ($market_active) {
@@ -78,25 +86,26 @@ sub _item_view ($item, $market_active = 0, $offer_url = undef, $icon_base = '', 
         if ($pending_counter && $pending_counter->{item_id} eq $v->{id}) {
             $v->{disabled}         = 1;
             $v->{disabled_reason}  = sprintf('In negotiation — accept the %d-scrap counter or pick a different item', $pending_counter->{value});
+        } elsif ($banned) {
+            $v->{disabled}        = 1;
+            $v->{disabled_reason} = 'Restricted by the dominant faction';
         }
     }
     return $v;
 }
 
-sub _artifact_short_names ($c) {
-    my $specs = $c->app->prospecting->content_data // [];
-    return +{ map { $_->{id} => ($_->{short_name} // $_->{id}) } @$specs };
-}
-
-sub _enriched_items ($items, $is_secondary, $skill, $icon_base, $c) {
-    my $short = $is_secondary ? _artifact_short_names($c) : undef;
+sub _enriched_items ($items, $is_secondary, $skill, $icon_base, $banned_lookup = {}) {
     my @out;
     for my $item (@$items) {
         my $aid = $item->getCol('artifact_id');
         my $behaviors = $item->getCol('behaviors') // [];
+        my $banned = 0;
+        for my $b (@$behaviors) {
+            if ($banned_lookup->{$b}) { $banned = 1; last; }
+        }
         push @out, {
             id          => $item->getCol('id'),
-            label       => $is_secondary ? ($short->{$aid} // $aid) : $aid,
+            label       => $aid,
             label_full  => $aid,
             icon        => $icon_base . '/artifact_' . $aid . '.svg',
             condition   => $item->getCol('condition'),
@@ -104,6 +113,7 @@ sub _enriched_items ($items, $is_secondary, $skill, $icon_base, $c) {
             value_label => $item->value_label,
             days        => $item->getCol('days_in_shed'),
             behaviors   => $behaviors,
+            banned      => $banned,
         };
     }
     return \@out;

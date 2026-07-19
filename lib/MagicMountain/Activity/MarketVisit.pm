@@ -169,41 +169,6 @@ sub begin ($self, $char, %params) {
     );
     die "no items in shed" unless @$shed_items;
 
-    # Check: if all items are banned by the dominant faction, don't waste AP
-    if ($self->app->can('market_gate') && $self->app->market_gate->should_route_to_black_market($char)) {
-        my $season = $self->app->active_season;
-        my $climate = $season->getCol('faction_climate') // {};
-        my @banned = @{ $climate->{banned_traits} // [] };
-        if (@banned) {
-            # Check if ALL items are banned
-            my $all_banned = 1;
-            for my $item (@$shed_items) {
-                my $behaviors = $item->getCol('behaviors') // [];
-                my $has_non_banned = 0;
-                for my $b (@$behaviors) {
-                    if (!grep { $_ eq $b } @banned) {
-                        $has_non_banned = 1;
-                        last;
-                    }
-                }
-                if ($has_non_banned) {
-                    $all_banned = 0;
-                    last;
-                }
-            }
-            if ($all_banned) {
-                return {
-                    view => {
-                        ok      => 1,
-                        result  => 'all_items_banned',
-                        message => 'All items in your shed are restricted by the dominant faction. The broker awaits.',
-                        player  => $self->_player_snapshot($char),
-                    },
-                };
-            }
-        }
-    }
-
     # Pick faction before event check so customer context is available
     my $faction = $self->_weighted_faction($char);
 
@@ -436,7 +401,7 @@ sub offer ($self, $char, %params) {
     if ($season_bm && $self->app->can('dominance_service')) {
         my $climate = $season_bm->getCol('faction_climate') // {};
         my @banned = @{ $climate->{banned_traits} // [] };
-        if (@banned && $customer->{faction_id} eq ($climate->{dominant_faction} // '')) {
+        if (@banned) {
             my $item_behaviors = $item->getCol('behaviors') // [];
             for my $bt (@banned) {
                 if (grep { $_ eq $bt } @$item_behaviors) {

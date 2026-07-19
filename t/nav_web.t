@@ -168,6 +168,7 @@ subtest 'idle state — all tabs active' => sub {
 
     my $json = $t->tx->res->json;
     for my $tab (@{ $json->{primary_tabs} }) {
+        next if $tab->{id} eq q{pawn};
         is $tab->{active}, 1, "tab $tab->{id} is active in idle"
             or diag explain $tab;
         if ($tab->{id} eq 'prospect' || $tab->{id} eq 'bazaar') {

@@ -22,7 +22,7 @@ use MagicMountain::Model::FactionSnapshot;
 use MagicMountain::Model::Activity;
 use MagicMountain::Maintenance;
 use MagicMountain::Activity::Prospecting;
-use MagicMountain::Activity::BlackMarket;
+use MagicMountain::Activity::Pawn;
 use MagicMountain::ShedManager;
 use MagicMountain::Crier;
 use MagicMountain::Service::Authentication;
@@ -31,7 +31,7 @@ use MagicMountain::Service::RandomEvents;
 use MagicMountain::Service::BotRunner;
 use MagicMountain::Service::PvP;
 use MagicMountain::Service::Dominance;
-use MagicMountain::Service::MarketGate;
+use MagicMountain::Service::PawnCalculator;
 use MagicMountain::Service::SkillTraining;
 use MagicMountain::Service::SeasonFinalizer;
 use MagicMountain::Model::Pressure;
@@ -252,7 +252,6 @@ has maintenance => sub ($self) {
             for my $char (@$chars) {
                 my $max = $char->getCol('action_points_max') // $maint->app->config->{default_action_points} // 15;
                 $char->setCol('action_points', $max);
-                $char->setCol('black_market_opportunity_offered_today', 0);
                 $char->setCol('smuggle_reroll_used', 0);
                 $char->save;
             }
@@ -407,19 +406,19 @@ has dominance_service => sub ($self) {
     MagicMountain::Service::Dominance->new(app => $self);
 };
 
-has black_market => sub ($self) {
-    MagicMountain::Activity::BlackMarket->new(
+has pawn_calculator => sub ($self) {
+    MagicMountain::Service::PawnCalculator->new(app => $self);
+};
+
+has pawn => sub ($self) {
+    MagicMountain::Activity::Pawn->new(
         table            => $self->activities->table,
         store            => $self->activities,
         file             => $self->dataDir . '/activities.json',
         app              => $self,
-        content_filename => $self->home . '/content/flavor/black_market.yml',
+        content_filename => $self->home . '/content/flavor/pawn.yml',
         log              => $self->log,
     )->load_content;
-};
-
-has market_gate => sub ($self) {
-    MagicMountain::Service::MarketGate->new(app => $self);
 };
 
 has brokers_cache => sub ($self) {
@@ -469,7 +468,7 @@ sub startup ($self) {
         }
     }
 
-    $self->secrets(@{$self->config->{secrets}});
+    $self->secrets($self->config->{secrets}) if ref ($self->config->{secrets} // '') eq ref [];
     $self->sessions->cookie_name('mm_session');
     $self->sessions->default_expiration(86400);
 
@@ -719,7 +718,7 @@ sub buildRoutes ($self) {
     $auth->get('/leaderboard')->to('leaderboard#index')->name('leaderboard');
     $auth->get('/leaderboard/factions')->to('leaderboard#factions')->name('leaderboard_factions');
     $auth->get('/result')->to('result#show')->name('result_show');
-    $auth->get('/black_market')->to('black_market#show')->name('black_market_show');
+    $auth->get('/pawn')->to('pawn#show')->name('pawn_show');
     $auth->get('/nav')->to('nav#show')->name('nav');
     $auth->post('/nav/toggle')->to('nav#toggle')->name('nav_toggle');
 
@@ -748,8 +747,9 @@ sub buildRoutes ($self) {
     $auth_write->post('/market/send_away')->to('market#send_away')->name('market_send_away');
     $auth_write->post('/market/accept_counter')->to('market#accept_counter')->name('market_accept_counter');
     $auth_write->post('/market/stand_pat')->to('market#stand_pat')->name('market_stand_pat');
-    $auth_write->post('/black_market/accept')->to('black_market#accept')->name('black_market_accept');
-    $auth_write->post('/black_market/withdraw')->to('black_market#withdraw')->name('black_market_withdraw');
+    $auth_write->post('/pawn/offer')->to('pawn#offer')->name('pawn_offer');
+    $auth_write->post('/pawn/dismiss')->to('pawn#dismiss')->name('pawn_dismiss');
+    $auth_write->post('/pawn/offer_next')->to('pawn#offer_next')->name('pawn_offer_next');
     $auth_write->post('/result/dismiss')->to('result#dismiss')->name('result_dismiss');
     $auth_write->post('/result/continue')->to('result#do_continue')->name('result_continue');
     # DEAD-SUPPRESS: future season history UI

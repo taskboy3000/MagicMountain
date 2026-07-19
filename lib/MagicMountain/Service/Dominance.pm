@@ -383,11 +383,13 @@ sub ensure_mountain_data ($self, $season) {
     my $margin    = ($fs->{$leader_id}{influence} // 0) - ($fs->{$runner_id}{influence} // 0);
     my $tier      = $self->intensity_tier($margin);
     my $mountain  = $self->_build_mountain_data($season, $tier);
+    my $profile = $self->_profile_for($leader_id);
     $fc->{day}                  = $season->getCol('day');
     $fc->{dominant_faction}     = $leader_id;
     $fc->{dominant_faction_name} = $self->_faction_name($leader_id);
     $fc->{dominance_margin}     = $margin;
     $fc->{intensity}            = $tier;
+    $fc->{banned_traits}        = $profile->{banned_traits} // [];
     $fc->{intensity_label}      = ucfirst($tier);
     $fc->{mountain_positions}   = $mountain->{mountain_positions};
     $fc->{mountain_height}      = $mountain->{mountain_height};

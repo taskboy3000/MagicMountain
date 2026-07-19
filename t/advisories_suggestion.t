@@ -50,6 +50,7 @@ sub set_climate {
     my $season = MagicMountain::Model::Season->new(file => "$dataDir/seasons.json");
     $season->load;
     my $s = $season->find(sub { 1 })->[0];
+    return if !$s;
     $s->setCol('faction_climate', $climate);
     $s->save;
 }

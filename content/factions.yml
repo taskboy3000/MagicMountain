@@ -55,6 +55,7 @@ factions:
       risk_tolerance_delta: -1
       appetite_delta: 0
       buyer_trait_biases: { signal: 1, field: 1, archival: 1 }
+      banned_traits: [force, instability, food_processing]
   - id: purifiers
     name: "The Purifiers"
     disposition: "zealous reformers — contain the old world"

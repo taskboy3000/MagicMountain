@@ -5,7 +5,8 @@
     <div class="mm-ledger-wrap"><table class="mm-ledger">
       <thead><tr>
         <th>Item</th><th>Tags</th><th>Value</th>
-% if ($market_active) {
+% my $show_col = $market_active || stash('pawn_active');
+% if ($show_col) {
         <th></th>
 % }
       </tr></thead>
@@ -35,15 +36,24 @@
 % }
           </td>
           <td><%= $item->{value_label} // '?' %></td>
-% if ($market_active) {
+% if ($show_col) {
           <td>
 %   my $item_id = $item->{id};
 %   my $pc_id = stash('pending_counter_item_id');
 %   if (defined $pc_id && $pc_id eq $item_id) {
 %     my $pc_val = stash('pending_counter_value') // '?';
-            <button class="mm-btn" disabled title="In negotiation — accept the <%= $pc_val %>-scrap counter or pick a different item"><%= $pc_val %> SCR</button>
+        <button class="mm-btn" disabled title="In negotiation — accept the <%= $pc_val %>-scrap counter or pick a different item"><%= $pc_val %> SCR</button>
+%   } elsif (stash('pawn_active') && !$item->{banned}) {
+        <button class="mm-btn" disabled title="Not accepted by the broker">—</button>
+%   } elsif ($item->{banned}) {
+%     my $label = stash('pawn_active') ? 'PAWN' : 'BANNED';
+%     my $banned_btn = stash('pawn_active')
+%       ? { label => $label, attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } }
+%       : { label => $label, attrs => { class => 'mm-btn', disabled => 'disabled', title => 'Restricted by the dominant faction' } };
+%=     include 'components/action_buttons', actions => [$banned_btn]
 %   } else {
-%     my $offer = { label => 'Offer', attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } };
+%     my $offer_label = stash('pawn_active') ? 'PAWN' : 'Offer';
+%     my $offer = { label => $offer_label, attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } };
 %=     include 'components/action_buttons', actions => [$offer]
 %   }
           </td>

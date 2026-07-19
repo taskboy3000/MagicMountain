@@ -59,6 +59,7 @@ sub ensure_season ($self, $player_id) {
         $season->save;
 
         $self->seed_bots($season);
+        $self->app->dominance_service->calculate_climate($season);
     }
 
     return ($season, $season_recap);

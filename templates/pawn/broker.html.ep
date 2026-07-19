@@ -1,0 +1,40 @@
+% my $closed = stash('pawn_closed');
+% my $deal = stash('pawn_deal');
+% if ($closed) {
+<div class="mm-panel">
+  <h2 class="mm-panel-header">PAWN SHOP</h2>
+  <div class="mm-panel-body">
+    <p class="mm-text-dim"><%= $self->app->pawn->content_data->{closed}[int(rand(scalar @{$self->app->pawn->content_data->{closed}}))] // 'The pawn shop is closed.' %></p>
+    <button class="mm-btn" data-action-url="<%= url_for('result_dismiss') %>" data-method="POST">Dismiss</button>
+  </div>
+</div>
+% } elsif ($deal && $deal->{outcome}) {
+<div class="mm-panel">
+  <h2 class="mm-panel-header">PAWN SHOP — RESULT</h2>
+  <div class="mm-panel-body">
+%   if ($deal->{outcome} eq 'sold') {
+    <p class="mm-text">Sold for <strong><%= $deal->{value} %> SCR</strong> (<%= $deal->{premium_mult} %>x)</p>
+%   } else {
+    <p class="mm-text mm-text-danger">SEIZED! You got nothing.</p>
+%   }
+    <div class="mm-flex mm-gap-sm" style="margin-top:0.5rem">
+      <button class="mm-btn" data-action-url="<%= url_for('pawn_dismiss') %>" data-method="POST">Dismiss</button>
+%   my $calc = $self->app->pawn_calculator;
+%   if ($calc->has_banned_items($char)) {
+      <button class="mm-btn" data-action-url="<%= url_for('pawn_offer_next') %>" data-method="POST">Offer Another</button>
+%   }
+    </div>
+  </div>
+</div>
+% } else {
+<div class="mm-panel">
+  <h2 class="mm-panel-header">PAWN SHOP</h2>
+  <div class="mm-panel-body">
+    <p class="mm-text-dim">
+% my $arrival = $self->app->pawn->content_data->{arrival}[int(rand(scalar @{$self->app->pawn->content_data->{arrival}}))] // 'The broker eyes your restricted goods.';
+      <%= $arrival %>
+    </p>
+    <p class="mm-text-2xs mm-text-amber" style="margin-top:0.5rem">Select an artifact from the ledger to pawn it. The broker will make an offer — but the authorities watch this channel.</p>
+  </div>
+</div>
+% }
