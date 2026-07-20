@@ -5,8 +5,8 @@ use YAML::XS qw(LoadFile);
 use MagicMountain::Bot::PushPolicy;
 use MagicMountain::Bot::SellPolicy;
 use MagicMountain::Bot::SkillPolicy;
+use MagicMountain::Bot::PawnPolicy;
 use MagicMountain::Bot::PressurePolicy;
-use MagicMountain::Bot::BlackMarketPolicy;
 
 my %PRESSURE_RANK = (
     mood_comfortable   => 0,
@@ -27,6 +27,11 @@ has profile_file  => 'content/bots.yml';
 has profile_id    => undef;
 has transcript_cb => undef;
 
+sub _ap_remaining ($self) {
+    my $game = $self->agent->game;
+    return $game->{player}{action_points} // 0;
+}
+
 sub load_profile ($self) {
     return {} unless $self->profile_id;
     my $file = $self->profile_file;
@@ -45,8 +50,11 @@ sub run_day ($self, $profile = undef) {
 
     $actions += $self->_prospect_phase($profile, $push_pol);
     $actions += $self->_market_phase($profile, $sell_pol);
+    $self->_pawn_phase($profile);
     $self->_skill_phase($profile);
     $self->_pvp_phase($profile);
+
+    $self->agent->logout;
 
     return { ok => 1, actions => $actions };
 }
@@ -77,6 +85,7 @@ sub _prospect_phase ($self, $profile, $push_pol) {
 
         # Push loop
         while (1) {
+            last if $self->_ap_remaining < 2;
             my $push_res = $self->agent->push;
             $actions++;
             last unless $push_res->{ok};
@@ -134,6 +143,7 @@ sub _market_phase ($self, $profile, $sell_pol) {
         my $max_pressure_state = $sell_pol->{params}{max_pressure_state} // 'mood_wary';
 
         while ($keep_offering) {
+            last if $self->_ap_remaining < 1;
             $shed_res = $self->agent->shed;
             my $current = $shed_res->{shed} // [];
             last unless @$current;
@@ -183,6 +193,11 @@ sub _market_phase ($self, $profile, $sell_pol) {
                     next;
                 }
 
+                if ($offer_res->{result} eq 'refused') {
+                    $self->_log('refused', { item_id => $item->{id}, reason => $offer_res->{reason} });
+                    next;
+                }
+
                 if ($offer_res->{result} eq 'over_budget' || $offer_res->{result} eq 'no_match') {
                     next;
                 }
@@ -197,6 +212,38 @@ sub _market_phase ($self, $profile, $sell_pol) {
     };
     warn "Market error: $@" if $@;
     return $actions;
+}
+
+sub _pawn_phase ($self, $profile) {
+    my $pawn_pol = $profile->{pawn_policy} // { name => 'always' };
+    eval {
+        my $pawn_res = $self->agent->pawn;
+        return unless $pawn_res->{ok};
+        return if $pawn_res->{pawn_closed};
+
+        my $shed_res = $self->agent->shed;
+        my @banned = grep { $_->{banned} } @{ $shed_res->{shed} // [] };
+        return unless @banned;
+
+        my $state = { consecutive_seizures => 0 };
+
+        for my $item (@banned) {
+            last if $self->_ap_remaining < 1;
+            my $decision = MagicMountain::Bot::PawnPolicy::evaluate($item, $state, $pawn_pol);
+            last if $decision eq 'stop';
+            next if $decision eq 'skip';
+
+            my $offer_res = $self->agent->offer_pawn($item->{id});
+            $self->_log('offer_pawn', { item_id => $item->{id}, result => $offer_res->{result} });
+
+            if ($offer_res->{result} eq 'seized') {
+                $state->{consecutive_seizures}++;
+            } else {
+                $state->{consecutive_seizures} = 0;
+            }
+        }
+    };
+    warn "Pawn phase error: $@" if $@;
 }
 
 sub _skill_phase ($self, $profile) {

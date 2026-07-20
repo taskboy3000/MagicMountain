@@ -55,8 +55,7 @@ sub skills    ($self) { $self->req(GET => '/skills') }
 sub rivals    ($self) { $self->req(GET => '/pvp') }
 sub factions  ($self) { $self->req(GET => '/factions') }
 sub result    ($self) { $self->req(GET => '/result') }
-sub black_mkt ($self) { $self->req(GET => '/black_market') }
-
+sub pawn      ($self) { $self->req(GET => '/pawn') }
 # Write endpoints
 sub begin_prospect   ($self)              { $self->req(POST => '/prospecting/begin') }
 sub push             ($self)              { $self->req(POST => '/prospecting/push') }
@@ -67,8 +66,7 @@ sub begin_market     ($self)              { $self->req(POST => '/market/begin') 
 sub offer            ($self, $shed_item_id) { $self->req(POST => '/market/offer', { shed_item_id => $shed_item_id }) }
 sub send_away        ($self)              { $self->req(POST => '/market/send_away') }
 sub accept_counter   ($self)              { $self->req(POST => '/market/accept_counter') }
-sub accept_bm        ($self)              { $self->req(POST => '/black_market/accept') }
-sub withdraw_bm      ($self)              { $self->req(POST => '/black_market/withdraw') }
+sub offer_pawn       ($self, $shed_item_id) { $self->req(POST => '/pawn/offer', { shed_item_id => $shed_item_id }) }
 sub purchase_skill   ($self, $skill_id)   { $self->req(POST => '/skills/purchase', { skill_id => $skill_id }) }
 sub apply_pressure   ($self, %params)     { $self->req(POST => '/pvp/apply', \%params) }
 

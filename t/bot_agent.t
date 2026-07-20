@@ -160,6 +160,56 @@ subtest 'Agent game and nav work with season + character' => sub {
     ok exists $nav->{primary_tabs}, 'nav has primary_tabs';
 };
 
+subtest 'Agent pawn endpoints work' => sub {
+    my $agent = _make_agent($token);
+    $agent->login('test-pawn-agent');
+    _make_season_and_char('test-pawn-agent');
+
+    my $season = $t->app->active_season;
+    SKIP: {
+        skip 'No active season', 5 unless $season;
+        $season->setCol('faction_climate', {
+            banned_traits => ['illicit'],
+            market => { buyer_trait_biases => {} },
+        });
+        $season->save;
+
+        $t->app->shed->load;
+        my $char;
+        $t->app->characters->load;
+        ($char) = @{ $t->app->characters->find(sub { $_[0]->{name} eq 'test-pawn-agent' }) };
+        skip 'No character', 5 unless $char;
+
+        # Give the character AP and scrap
+        $char->setCol('action_points', 15);
+        $char->setCol('scrap', 100);
+        $char->save;
+
+        # Create a shed item with a banned behavior
+        my $item = $t->app->shed->create(
+            char_id       => $char->getCol('id'),
+            artifact_id   => 'test_artifact',
+            original_value => 30,
+            decayed_value  => 20,
+            behaviors      => ['illicit'],
+            condition      => 'fair',
+        );
+        $item->save;
+
+        # Call pawn
+        my $pawn = $agent->pawn;
+        ok $pawn->{ok}, 'pawn endpoint ok';
+        ok !$pawn->{pawn_closed}, 'pawn shop is open';
+
+        # Call offer_pawn
+        my $offer = $agent->offer_pawn($item->getCol('id'));
+        ok $offer->{ok}, 'offer_pawn endpoint ok';
+        ok $offer->{result} eq 'sold' || $offer->{result} eq 'seized', 'offer_pawn returned valid result';
+
+        $agent->logout;
+    }
+};
+
 subtest 'Agent ->req fails on bad endpoints' => sub {
     my $agent = _make_agent($token);
     $agent->login('test-fail-player');

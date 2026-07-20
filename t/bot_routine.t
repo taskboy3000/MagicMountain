@@ -102,6 +102,97 @@ subtest 'Routine with different push policy' => sub {
     ok $result->{actions} > 0, 'actions performed with push policy';
 };
 
+subtest 'Routine pawn phase processes banned items' => sub {
+    my $agent = _make_agent;
+    $agent->login('test-pawn-routine');
+    _ensure_season_and_char('test-pawn-routine');
+
+    my $season = $t->app->active_season;
+    SKIP: {
+        skip 'No active season', 4 unless $season;
+
+        $season->setCol('faction_climate', {
+            banned_traits => ['illicit'],
+            market => { buyer_trait_biases => {} },
+        });
+        $season->save;
+
+        $t->app->shed->load;
+        my $char;
+        $t->app->characters->load;
+        ($char) = @{ $t->app->characters->find(sub { $_[0]->{name} eq 'test-pawn-routine' }) };
+        skip 'No character', 4 unless $char;
+
+        $char->setCol('action_points', 15);
+        $char->setCol('scrap', 50);
+        $char->save;
+
+        my $item = $t->app->shed->create(
+            char_id       => $char->getCol('id'),
+            artifact_id   => 'pawn_test_art',
+            original_value => 30,
+            decayed_value  => 20,
+            behaviors     => ['illicit'],
+            condition     => 'fair',
+        );
+        $item->save;
+
+        my @transcript;
+        my $routine = MagicMountain::Bot::Routine->new(
+            agent      => $agent,
+            transcript_cb => sub { push @transcript, $_[0] },
+        );
+
+        my $profile = {
+            id           => 'test_pawn',
+            push_policy  => { name => 'fixed_pushes', params => { max => 1 } },
+            sell_policy  => { name => 'opportunist', params => {} },
+            pawn_policy  => { name => 'always' },
+            skill_policy => { name => 'never' },
+        };
+
+        my $result = $routine->run_day($profile);
+        ok $result->{ok}, 'run_day ok with pawn';
+
+        my @pawn_logs = grep { $_->{type} eq 'offer_pawn' } @transcript;
+        cmp_ok scalar(@pawn_logs), '>', 0, 'pawn offers were made';
+
+        my @all_results = map { $_->{result} } @pawn_logs;
+        for my $r (@all_results) {
+            ok $r eq 'sold' || $r eq 'seized', "pawn result valid: $r";
+        }
+    }
+};
+
+subtest 'Routine handles AP exhaustion in loops' => sub {
+    my $agent = _make_agent;
+    $agent->login('test-ap-exhaust');
+    _ensure_season_and_char('test-ap-exhaust');
+
+    my $char;
+    $t->app->characters->load;
+    ($char) = @{ $t->app->characters->find(sub { $_[0]->{name} eq 'test-ap-exhaust' }) };
+    SKIP: {
+        skip 'No character', 2 unless $char;
+
+        $char->setCol('action_points', 0);
+        $char->setCol('scrap', 100);
+        $char->save;
+
+        my $routine = MagicMountain::Bot::Routine->new(agent => $agent);
+        my $profile = {
+            id           => 'test_ap',
+            push_policy  => { name => 'fixed_pushes', params => { max => 5 } },
+            sell_policy  => { name => 'opportunist', params => {} },
+            skill_policy => { name => 'never' },
+        };
+
+        my $result = $routine->run_day($profile);
+        ok $result->{ok}, 'run_day ok with 0 AP';
+        is $result->{actions}, 0, 'no actions with 0 AP';
+    }
+};
+
 subtest 'Routine handles invalid profile' => sub {
     my $agent = _make_agent;
     my $routine = MagicMountain::Bot::Routine->new(agent => $agent);

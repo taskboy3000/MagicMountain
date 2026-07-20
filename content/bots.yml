@@ -2,6 +2,7 @@
   display_name: "Cautious"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
   sell_policy: { name: "opportunist", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.7, min_counter_pct: 0.70 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "immediate", params: { reserve: 30 } }
   pvp_aggressiveness: 0.10
 
@@ -9,6 +10,7 @@
   display_name: "Risk Taker"
   push_policy: { name: "greed", params: { prob: 0.8 } }
   sell_policy: { name: "desperate", params: { max_irritation: 4, max_pressure_state: "mood_strained", haggle_aggression: 1, min_counter_pct: 0.50 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling", "prospecting"], reserve: 10 } }
   pvp_aggressiveness: 0.35
 
@@ -16,6 +18,7 @@
   display_name: "Hoarder"
   push_policy: { name: "value_target", params: { min: 30 } }
   sell_policy: { name: "hoarder" }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "never" }
   pvp_aggressiveness: 0.05
 
@@ -23,6 +26,7 @@
   display_name: "Measured"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
   sell_policy: { name: "highest_offer", params: { min_value: 18, max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0.3, min_counter_pct: 0.80 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
   pvp_aggressiveness: 0.15
 
@@ -30,6 +34,7 @@
   display_name: "Loyalist"
   push_policy: { name: "instability_cap", params: { max: 3 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling"], reserve: 20 } }
   pvp_aggressiveness: 0.25
 
@@ -37,6 +42,7 @@
   display_name: "Fixed Loyalist"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 20 } }
   pvp_aggressiveness: 0.20
 
@@ -44,6 +50,7 @@
   display_name: "Stage Loyalist"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.65 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "immediate", params: { reserve: 30 } }
   pvp_aggressiveness: 0.15
 
@@ -51,6 +58,7 @@
   display_name: "Greedy Loyalist"
   push_policy: { name: "greed", params: { prob: 0.8 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.70 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling", "prospecting"], reserve: 10 } }
   pvp_aggressiveness: 0.30
 
@@ -58,5 +66,6 @@
   display_name: "Value Loyalist"
   push_policy: { name: "value_target", params: { min: 30 } }
   sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0 } }
+  pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
   pvp_aggressiveness: 0.10
