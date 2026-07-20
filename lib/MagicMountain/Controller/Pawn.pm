@@ -55,8 +55,8 @@ sub _activity_action ($self, $action, %params) {
     my $activity;
     if ($id) {
         $self->app->prospecting->load;
-        my $row = $self->app->prospecting->table->{$id};
-        if ($row && $row->{type} eq 'pawn') {
+        my $row = $self->app->prospecting->get($id);
+        if ($row && $row->getCol('type') eq 'pawn') {
             $activity = $pawn->get($id);
         }
     }

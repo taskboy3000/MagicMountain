@@ -11,10 +11,9 @@ sub delete_account ($self, $player_id) {
     for my $char (@$existing) {
         my $char_id = $char->getCol('id');
         $self->app->shed->load;
-        for my $sid (keys %{ $self->app->shed->table }) {
-            next unless $self->app->shed->table->{$sid}{char_id}
-                     && $self->app->shed->table->{$sid}{char_id} eq $char_id;
-            $self->app->shed->delete($sid);
+        my $shedItems = $self->app->shed->find({char_id => $char_id});
+        for my $shedItem (@$shedItems) {
+            $shedItem->delete;
         }
         $chars->delete($char_id);
     }

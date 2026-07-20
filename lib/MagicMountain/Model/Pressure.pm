@@ -49,7 +49,7 @@ sub _find_active ($self, $char_id, $faction_id, $age_key, $max_age_days = undef)
             )
         } values %{$self->table};
         if (@purge) {
-            delete $self->table->{$_->{id}} for @purge;
+            delete $self->table->{$_->{id}} for @purge; # ok: model violation for performance
             $self->_saveTable;
         }
     }

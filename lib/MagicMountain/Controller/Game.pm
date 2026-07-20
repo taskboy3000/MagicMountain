@@ -40,15 +40,22 @@ sub show ($self) {
     my $skills           = $cv->player_skills($char_model);
     my $shed_items       = $cv->shed_items($char_model);
 
-    my $activity;
+    my $activityPhase = '';
     my $id = $row->{pending_activity_id};
     if ($id) {
         $self->app->prospecting->load;
-        my $type = $self->app->prospecting->table->{$id}{type} // '';
-        if ($type eq 'prospecting') {
-            $activity = $self->app->prospecting->get($id);
-        } elsif ($type eq 'market_visit') {
-            $activity = $self->app->market->get($id);
+        if (my $row = $self->app->prospecting->get($id)) {
+            my $type = $row->getCol('type') // '';
+            my $activity;
+            if ($type eq 'prospecting') {
+                $activity = $self->app->prospecting->get($id);
+            } elsif ($type eq 'market_visit') {
+                $activity = $self->app->market->get($id);
+            }
+
+            if ($activity && $activity->phase) {
+                $activityPhase = $activity->phase;
+            }
         }
     }
 
@@ -102,7 +109,7 @@ sub show ($self) {
                 scrap             => $row->{scrap} // 0,
                 action_points     => $row->{action_points} // 0,
                 action_points_max => $row->{action_points_max} // 15,
-                active_phase      => $activity ? $activity->phase : undef,
+                active_phase      => $activityPhase,
                 artifact_json     => $prospecting_view ? encode_json($prospecting_view) : 'null',
                 unit_status       => $self->_unit_status,
                 admin_email       => $self->app->config->{admin_email} // '',

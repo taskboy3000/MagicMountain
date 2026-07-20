@@ -23,11 +23,11 @@ sub _active_activity_type ($self, $char) {
     # All activity types share activities.json, so loading any one model
     # populates the table for all. Load a known-good model to read the row.
     $self->app->prospecting->load;
-    my $row = $self->app->prospecting->table->{$id};
-    return unless $row;
-    return 'prospecting'  if $row->{type} eq 'prospecting';
-    return 'market'       if $row->{type} eq 'market_visit';
-    return 'pawn'         if $row->{type} eq 'pawn';
+    my $activity = $self->app->prospecting->get($id) or return;
+    my $type     = $activity->getCol('type') or return;
+    return 'prospecting' if $type eq 'prospecting';
+    return 'market'      if $type eq 'market_visit';
+    return 'pawn'        if $type eq 'pawn';
     return;
 }
 

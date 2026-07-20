@@ -209,6 +209,10 @@ sub _market_phase ($self, $profile, $sell_pol) {
             }
             $keep_offering = 0;
         }
+
+        # Clean up any lingering market negotiation so the character is
+        # not stuck in "negotiating" phase on the next day.
+        eval { $self->agent->send_away; $actions++ };
     };
     warn "Market error: $@" if $@;
     return $actions;

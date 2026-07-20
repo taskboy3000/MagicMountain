@@ -6,11 +6,13 @@ has app => sub { die "app is required" };
 sub prospecting_view ($self, $char) {
     my $id = $char->getCol('pending_activity_id') or return;
     $self->app->prospecting->load;
-    my $type = $self->app->prospecting->table->{$id}{type} // '';
-    return unless $type eq 'prospecting';
+    my $row = $self->app->prospecting->get($id);
+    return if !$row;
+    my $type = $row->getCol('type') // '';
+    return if $type ne 'prospecting';
 
     my $activity = $self->app->prospecting->get($id);
-    return unless $activity && $activity->phase ne 'idle';
+    return unless $activity && $activity->getCol('phase') ne 'idle';
 
     my $a = $activity->artifact;
     return {
@@ -25,11 +27,13 @@ sub prospecting_view ($self, $char) {
 sub market_view ($self, $char) {
     my $id = $char->getCol('pending_activity_id') or return;
     $self->app->prospecting->load;
-    my $type = $self->app->prospecting->table->{$id}{type} // '';
-    return unless $type eq 'market_visit';
+    my $row = $self->app->prospecting->get($id);
+    return if !$row;
+    my $type = $row->getCol('type') // '';
+    return if $type ne 'market_visit';
 
     my $activity = $self->app->market->get($id);
-    return unless $activity && $activity->phase ne 'idle';
+    return unless $activity && $activity->getCol('phase') ne 'idle';
 
     my $c = $activity->customer;
     my $pressure_state = $c ? $activity->budget_pressure_state($c)->{state} : undef;
