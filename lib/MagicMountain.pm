@@ -28,7 +28,7 @@ use MagicMountain::Crier;
 use MagicMountain::Service::Authentication;
 use MagicMountain::RateLimiter;
 use MagicMountain::Service::RandomEvents;
-use MagicMountain::Service::BotRunner;
+
 use MagicMountain::Service::PvP;
 use MagicMountain::Service::Dominance;
 use MagicMountain::Service::PawnCalculator;
@@ -69,6 +69,7 @@ has defaultConfig => sub ($self) {
         admin_email                     => 'root@localhost',
         bcrypt_cost                     => 10,
         admin_secret                    => 'override-me',
+        bot_service_token               => undef,
         pvp_enabled                    => 1,
         pvp_max_stack                  => 3,
         pvp_cost_corner_market         => 50,
@@ -183,12 +184,6 @@ has maintenance => sub ($self) {
             if (!$maint->_catching_up) {
                 my $bots_cfg = $maint->app->config->{bots} // {};
                 if (($bots_cfg->{count} // 0) > 0) {
-                    my $bot_transcript = MagicMountain::Model::Transcript->new(
-                        file => $maint->app->dataDir . '/transcript_bots.jsonl'
-                    );
-                    my $saved_bot_runner_transcript = $maint->app->bot_runner->transcript;
-                    $maint->app->bot_runner->transcript($bot_transcript);
-
                     my $bot_chars = $maint->app->characters->find(sub {
                         $_[0]->{season_id} eq $season->getCol('id')
                         && $_[0]->{is_bot}
@@ -202,23 +197,31 @@ has maintenance => sub ($self) {
                         }
                         srand($seed);
                         my @shuffled = List::Util::shuffle(@$bot_chars);
+                        my $bot_transcript = MagicMountain::Model::Transcript->new(
+                            file => $maint->app->dataDir . '/transcript_bots.jsonl'
+                        );
                         my $saved_transcript = $maint->app->{transcript};
                         $maint->app->{transcript} = $bot_transcript;
 
-                        # Defer saves during bot processing — write each
-                        # model once after all bots complete.
-                        my @models = (
-                            $maint->app->activities,
-                            $maint->app->characters,
-                            $maint->app->shed,
-                        );
-                        push @models, $maint->app->pressures
-                            if $maint->app->can('pressures');
-                        $_->defer_saves for @models;
+                        my $port = $maint->app->config->{port} // 9000;
+                        my $svc_token = $maint->app->config->{bot_service_token};
+                        my $base_url = "http://127.0.0.1:$port";
 
                         for my $bot_char (@shuffled) {
                             eval {
-                                $maint->app->bot_runner->run_day($bot_char);
+                                my $ua = Mojo::UserAgent->new;
+                                my $agent = MagicMountain::Bot::Agent->new(
+                                    ua        => $ua,
+                                    base_url  => $base_url,
+                                    svc_token => $svc_token,
+                                );
+                                $agent->login($bot_char->getCol('name'));
+                                my $routine = MagicMountain::Bot::Routine->new(
+                                    agent      => $agent,
+                                    profile_id => $bot_char->getCol('bot_profile_id'),
+                                    transcript_cb => sub { $bot_transcript->log_event($_[0]) },
+                                );
+                                $routine->run_day;
                             };
                             if ($@) {
                                 $maint->app->log->warn(sprintf(
@@ -228,12 +231,8 @@ has maintenance => sub ($self) {
                             }
                         }
 
-                        $_->flush for @models;
-
                         $maint->app->{transcript} = $saved_transcript;
                     }
-
-                    $maint->app->bot_runner->transcript($saved_bot_runner_transcript);
                 }
             }
 
@@ -374,13 +373,8 @@ has rate_limiter => sub ($self) {
 has random_events => sub ($self) {
     MagicMountain::Service::RandomEvents->new(app => $self);
 };
-
 has auth_service => sub ($self) {
     MagicMountain::Service::Authentication->new(app => $self);
-};
-
-has bot_runner => sub ($self) {
-    MagicMountain::Service::BotRunner->new(app => $self);
 };
 
 has season_manager => sub ($self) {
@@ -456,8 +450,9 @@ sub startup ($self) {
     if (!-e $local_cfg && -w $self->home && ($self->config->{secrets} // [])->[0] =~ /^(override-me|surewhynot)$/) {
         my $random = unpack('H*', do { open my $fh, '<', '/dev/urandom'; my $b; read $fh, $b, 32; close $fh; $b });
         YAML::XS::DumpFile($local_cfg, {
-            secrets      => [ $random ],
-            admin_secret => $random,
+            secrets           => [ $random ],
+            admin_secret      => $random,
+            bot_service_token => $random,
         });
         $self->log->info("Generated $local_cfg with random secret");
     }

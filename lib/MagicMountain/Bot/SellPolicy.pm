@@ -2,23 +2,23 @@ package MagicMountain::Bot::SellPolicy;
 use Mojo::Base '-base', '-signatures';
 
 my %ACCEPT_CUSTOMER = (
-    hoarder          => sub ($char, $cust, $p) { 0 },
-    faction_loyalist => sub ($char, $cust, $p) { ($cust->{faction_id} // '') eq ($p->{faction} // '') },
-    default          => sub ($char, $cust, $p) { 1 },
+    hoarder          => sub ($cust, $p) { 0 },
+    faction_loyalist => sub ($cust, $p) { ($cust->{faction} // '') eq ($p->{faction} // '') },
+    default          => sub ($cust, $p) { 1 },
 );
 
 my %OFFER_ITEM = (
-    highest_offer    => sub ($char, $item, $p) { ($item->getCol('decayed_value') // 0) >= ($p->{min_value} // 10) },
-    default          => sub ($char, $item, $p) { 1 },
+    highest_offer    => sub ($item, $p) { ($item->{decayed_value} // 0) >= ($p->{min_value} // 10) },
+    default          => sub ($item, $p) { 1 },
 );
 
 my %TRY_ANOTHER = (
-    opportunist      => sub ($char, $offer, $cust, $p) { 0 },
-    default          => sub ($char, $offer, $cust, $p) { 1 },
+    opportunist      => sub ($offer, $cust, $p) { 0 },
+    default          => sub ($offer, $cust, $p) { 1 },
 );
 
 my %ACCEPT_COUNTER = (
-    default          => sub ($char, $counter_value, $decayed, $p) {
+    default          => sub ($counter_value, $decayed, $p) {
         my $agg = $p->{haggle_aggression};
         return 0 if defined($agg) && !$agg;
         if (defined($agg) && $agg < 1.0) {
@@ -34,24 +34,24 @@ sub _dispatch ($name, $table, @args) {
     return $handler->(@args);
 }
 
-sub accept_customer ($char, $customer, $policy) {
+sub accept_customer ($customer, $policy) {
     my $name = $policy->{name} // 'default';
-    _dispatch($name, \%ACCEPT_CUSTOMER, $char, $customer, $policy->{params} // {});
+    _dispatch($name, \%ACCEPT_CUSTOMER, $customer, $policy->{params} // {});
 }
 
-sub should_offer_item ($char, $item, $policy) {
+sub should_offer_item ($item, $policy) {
     my $name = $policy->{name} // 'default';
-    _dispatch($name, \%OFFER_ITEM, $char, $item, $policy->{params} // {});
+    _dispatch($name, \%OFFER_ITEM, $item, $policy->{params} // {});
 }
 
-sub try_another ($char, $offer_view, $customer, $policy) {
+sub try_another ($offer_view, $customer, $policy) {
     my $name = $policy->{name} // 'default';
-    _dispatch($name, \%TRY_ANOTHER, $char, $offer_view, $customer, $policy->{params} // {});
+    _dispatch($name, \%TRY_ANOTHER, $offer_view, $customer, $policy->{params} // {});
 }
 
-sub should_accept_counter ($char, $counter_value, $decayed_value, $policy) {
+sub should_accept_counter ($counter_value, $decayed_value, $policy) {
     my $name = $policy->{name} // 'default';
-    _dispatch($name, \%ACCEPT_COUNTER, $char, $counter_value, $decayed_value, $policy->{params} // {});
+    _dispatch($name, \%ACCEPT_COUNTER, $counter_value, $decayed_value, $policy->{params} // {});
 }
 
 1;

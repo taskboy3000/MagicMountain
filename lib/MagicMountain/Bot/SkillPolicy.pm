@@ -2,14 +2,13 @@ package MagicMountain::Bot::SkillPolicy;
 use Mojo::Base '-base', '-signatures';
 
 my %DECIDE = (
-    immediate  => sub ($char, $params, $skills, $app) {
+    immediate  => sub ($state, $params, $skills) {
         my $reserve = $params->{reserve} // 30;
-        my $scrap   = $char->getCol('scrap') // 0;
+        my $scrap   = $state->{scrap} // 0;
 
         my @affordable;
         for my $s (@$skills) {
-            my $col = 'skill_' . $s->{id};
-            my $cur = $char->getCol($col) // 0;
+            my $cur = $s->{current_level} // 0;
             next if $cur >= $s->{max_level};
 
             my $cost = $s->{levels}[$cur]{cost};
@@ -27,17 +26,16 @@ my %DECIDE = (
         return $affordable[0];
     },
 
-    specialize => sub ($char, $params, $skills, $app) {
+    specialize => sub ($state, $params, $skills) {
         my $reserve  = $params->{reserve} // 30;
         my $priority = $params->{priority} // [];
-        my $scrap    = $char->getCol('scrap') // 0;
+        my $scrap    = $state->{scrap} // 0;
 
         for my $skill_id (@$priority) {
             my ($s) = grep { $_->{id} eq $skill_id } @$skills;
             next unless $s;
 
-            my $col = 'skill_' . $skill_id;
-            my $cur = $char->getCol($col) // 0;
+            my $cur = $s->{current_level} // 0;
             next if $cur >= $s->{max_level};
 
             my $cost = $s->{levels}[$cur]{cost};
@@ -53,13 +51,13 @@ my %DECIDE = (
         return;
     },
 
-    never      => sub ($char, $params, $skills, $app) { return },
+    never      => sub ($state, $params, $skills) { return },
 );
 
-sub decide ($char, $policy_params, $skills, $app) {
+sub decide ($state, $policy_params, $skills) {
     my $name = $policy_params->{name} // 'never';
     my $handler = $DECIDE{$name} || $DECIDE{never};
-    return $handler->($char, $policy_params->{params} // {}, $skills, $app);
+    return $handler->($state, $policy_params->{params} // {}, $skills);
 }
 
 1;

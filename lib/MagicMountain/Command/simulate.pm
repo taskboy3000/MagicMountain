@@ -11,6 +11,8 @@ use MagicMountain::Model::Character;
 use MagicMountain::Model::Session;
 use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::Transcript;
+use MagicMountain::Bot::Agent;
+use MagicMountain::Bot::Routine;
 
 has description => 'Run a bot simulation season with configurable policies.';
 has usage => "usage: $0 simulate [OPTIONS]\n"
@@ -93,7 +95,6 @@ sub run ($self, @args) {
             push_policy => { name => 'stage_guard', params => { stop_at => 'unstable' } },
             sell_policy => { name => 'opportunist' },
             skill_policy => { name => 'never' },
-            pvp_aggressiveness => 0.10,
         });
     }
 
@@ -131,6 +132,7 @@ sub run ($self, @args) {
             name              => $name,
             account_id        => $a->getCol('id'),
             season_id         => $s->getCol('id'),
+            is_bot            => 1,
             score             => 0,
             scrap             => 0,
             action_points     => 15,
@@ -175,22 +177,58 @@ sub run ($self, @args) {
             $s->getCol('id'), $count, $days, scalar @profiles),
     });
 
+    # Set up in-process HTTP for agents
+    $ENV{MM_DATA_DIR} = $data_dir;
+    my $svc_token = $app->config->{bot_service_token} // 'sim-token';
+    $app->config->{bot_service_token} = $svc_token;
+
+    # Enable shed transcript logging
     $app->shed_manager->log_transcript(1);
-    $app->bot_runner->transcript($transcript);
 
     # Run simulation
     my $maint = $app->maintenance;
     my @chars = @bot_chars;
+
+    # Create one in-process UA per bot (isolates cookies/sessions)
+    my %ua_for;
+    for my $char (@chars) {
+        my $ua = Mojo::UserAgent->new;
+        $ua->server->app($app);
+        $ua->server->url;
+        $ua_for{ $char->getCol('id') } = $ua;
+    }
+
     for my $day (1 .. $days) {
         $app->seasons->load;
         for my $char (@chars) {
             my $profile = $char_profile{$char->getCol('id')};
             next unless $profile;
-            my $result = $app->bot_runner->run_day($char, $profile);
-            $app->log->warn(sprintf("Bot %s run failed: %s",
-                $char->getCol('name') // '?',
-                $result->{error} // 'unknown'))
-                unless $result->{ok};
+
+            my $ua = $ua_for{ $char->getCol('id') };
+            my $agent = MagicMountain::Bot::Agent->new(
+                ua        => $ua,
+                base_url  => $ua->server->url->to_string,
+                svc_token => $svc_token,
+            );
+
+            eval {
+                $agent->login($char->getCol('name'));
+                my $routine = MagicMountain::Bot::Routine->new(
+                    agent      => $agent,
+                    transcript_cb => sub {
+                        $transcript->log_event({
+                            char_id => $char->getCol('id'),
+                            player  => $char->getCol('name'),
+                            %{$_[0]},
+                        });
+                    },
+                );
+                $routine->run_day($profile);
+            };
+            if ($@) {
+                $app->log->warn(sprintf("Bot %s run failed: %s",
+                    $char->getCol('name') // '?', $@));
+            }
         }
         $maint->on_maintenance->($maint) if $day < $days;
         @chars = @{ $app->characters->find(sub { $_[0]->{season_id} eq $s->getCol('id') }) };
