@@ -5,6 +5,10 @@ use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
 use TestEnv;
 
 use Test::More;
+
+if ($ENV{GITHUB_ACTIONS}) {
+    plan skip_all => 'skipping web integration test in GitHub CI';
+}
 use Test::Mojo;
 use File::Temp qw(tempdir);
 
