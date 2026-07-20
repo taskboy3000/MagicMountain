@@ -99,6 +99,31 @@ it belongs.
 | Update | `$r->setCol('col', $newval); $r->save;` |
 | Delete | `$model->delete($uuid)` |
 
+### Critical: `create()` Does Not Generate an ID
+
+**`create()` only creates the object in memory — the UUID is generated
+inside `save()`.** This means `getCol('id')` returns **undef** until the
+first `save()`:
+
+```perl
+my $r = $model->create(col => $val);
+say $r->getCol('id');   # undef — no ID yet!
+$r->save;
+say $r->getCol('id');   # now valid
+```
+
+**Always persist the parent before reading its ID:**
+
+```perl
+# WRONG: reads ID before it exists
+$child->setCol('parent_id', $parent->getCol('id'));
+$parent->save;
+
+# RIGHT: save first, then read the generated ID
+$parent->save;
+$child->setCol('parent_id', $parent->getCol('id'));
+```
+
 ### Critical: `get()` Returns a Row Copy
 
 `$model->get($id)` returns a new object whose C<row> is a **shallow copy**.

@@ -41,8 +41,11 @@ sub offer ($self, $char, %params) {
     $seizure_chance = $calc->apply_smuggling($char, $seizure_chance);
     my $offer_value = int($decayed * $premium_mult);
 
-    $char->setCol('action_points', $char->getCol('action_points') - 1);
-    $char->setCol('pending_activity_id', $self->getCol('id'));
+    $self->save;
+    my $id = $self->getCol('id');
+    my $newActionPoints = $char->getCol('action_points') - 1;
+    $char->setCol('action_points', $newActionPoints);
+    $char->setCol('pending_activity_id', $id);
 
     my $seized = 0;
     if (rand() < $seizure_chance) {

@@ -3,7 +3,7 @@ use Mojo::Base 'Mojolicious::Controller', '-signatures';
 
 sub _require_character ($self) {
     my $player_id = $self->current_player;
-    return unless $player_id;
+    return if !$player_id;
     my $season = $self->app->active_season;
     my $season_id = $season ? $season->getCol('id') : undef;
 
@@ -19,7 +19,8 @@ sub _require_character ($self) {
 }
 
 sub _active_activity_type ($self, $char) {
-    my $id = $char->getCol('pending_activity_id') or return;
+    my $id = $char->getCol('pending_activity_id');
+    return if !$id;
     # All activity types share activities.json, so loading any one model
     # populates the table for all. Load a known-good model to read the row.
     $self->app->prospecting->load;

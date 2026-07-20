@@ -16,12 +16,11 @@
 % my $factions = stash('factions') // [];
 % for my $f (@$factions) {
       <div class="mm-mountain-faction" style="grid-row: <%= $f->{row_offset} %>">
-% if ($f->{icon}) {
-        <img src="<%= $f->{icon} %>" alt="<%= $f->{short_name} %>" title="<%= $f->{short_name} %> — <%= $f->{name} %>" class="mm-mountain-glyph" data-reference-id="faction_<%= $f->{faction_id} %>">
-% }
-% if ($f->{rank} == 1 && $cc->{intensity_label}) {
-        <span class="mm-mountain-badge"><%= $cc->{intensity_label} %></span>
-% }
+%   if ($f->{icon}) {
+        <img src="<%= $f->{icon} %>" alt="<%= $f->{short_name} %>" title="<%= $f->{name} %> (AKA: <%= $f->{short_name} %>)" class="mm-mountain-glyph" data-reference-id="faction_<%= $f->{faction_id} %>">
+%   } else {
+        &nbsp;
+%   }        
       </div>
 % }
     </div>

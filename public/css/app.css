@@ -105,6 +105,76 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 .mm-ledger th { color: var(--mm-text-dim); text-transform: uppercase; text-align: left; }
 .mm-ledger td:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── Ledger card layout (replaces table on mobile-friendly view) ── */
+.mm-ledger-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.mm-ledger-card {
+  border: 1px solid var(--mm-border);
+  border-left: 3px solid var(--mm-border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--mm-bg-panel);
+}
+.mm-ledger-card--fresh    { border-left-color: var(--mm-green); }
+.mm-ledger-card--settling { border-left-color: var(--mm-amber); }
+.mm-ledger-card--fading   { border-left-color: var(--mm-red); }
+
+/* ── Driver's-license body ───────────────────────────────── */
+.mm-ledger-card__body {
+  display: flex;
+  gap: 0.6rem;
+}
+.mm-ledger-card__icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.mm-ledger-card__icon-img {
+  width: 56px;
+  height: 56px;
+}
+.mm-ledger-card__condition-bar {
+  display: block;
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+}
+.mm-ledger-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  justify-content: center;
+}
+.mm-ledger-card__name {
+  font-size: 0.85rem;
+  color: var(--mm-amber-bright);
+}
+.mm-ledger-card__detail {
+  font-size: 0.75rem;
+  color: var(--mm-text-dim);
+}
+.mm-ledger-card__traits {
+  font-size: 0.72rem;
+  flex-wrap: wrap;
+  gap: 0 0.25rem;
+}
+
+.mm-ledger-card__action {
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--mm-border);
+}
+
 /* ── Badge ────────────────────────────────────────────────────── */
 .mm-badge {
   font-size: 0.7rem; padding: 0.1rem 0.4rem;
@@ -384,13 +454,15 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
   overflow: hidden;
   min-height: 0;
 }
+
 #panel-primary {
-  flex: 2;
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
 }
+
 #primary-content {
   flex: 1;
   overflow-y: auto;
@@ -695,6 +767,7 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 .mm-card        { border: 1px solid var(--mm-border); padding: 0.4rem; margin: 0.5rem 0; border-radius: 4px; }
 .mm-card-amber  { border-color: var(--mm-amber); }
 .mm-card-green  { border-color: var(--mm-green); }
+.mm-card-red    { border-color: var(--mm-red); }
 
 /* Portrait + title flex row (market customer card) */
 .mm-card-head     { display: flex; gap: 8px; margin-bottom: 0.5rem; padding: 0.4rem; border: 1px solid var(--mm-border); border-radius: 4px; }
