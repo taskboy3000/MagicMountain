@@ -453,7 +453,7 @@ h1, h2, h3, h4, h5 { color: var(--mm-amber-bright); font-weight: 400; }
 }
 
 /* ── Reference link ───────────────────────────────────────────── */
-.ref-link { cursor: pointer; border-bottom: 1px dashed var(--mm-amber); touch-action: manipulation; }
+.ref-link { cursor: pointer; border-bottom: 1px solid var(--mm-amber); touch-action: manipulation; }
 .ref-link:hover { color: var(--mm-amber-bright); border-bottom-style: solid; }
 
 /* ── Mountain dominance chart ────────────────────────────────── */

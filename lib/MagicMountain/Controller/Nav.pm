@@ -96,9 +96,6 @@ sub show ($self) {
         if ($tab->{id} eq 'prospect' && $tab->{active} && !$type) {
             $tab->{action_url} = $self->url_for('prospecting_begin');
         }
-        if ($tab->{id} eq 'pawn' && $tab->{active} && !$type) {
-            $tab->{action_url} = $self->url_for('pawn_show');
-        }
     }
 
     my $secondary_tabs = $nav->secondary_tabs($char, {
@@ -109,6 +106,8 @@ sub show ($self) {
     });
     my $secondary      = $SECONDARY{$view} // 'factions';
     my $context        = $self->_context_text($char, $view);
+    my $secondary_url  = $FRAGMENT_URL{$secondary}->($self) . '&panel=secondary';
+    $secondary_url .= '&view=' . $view if $view ne $secondary;
 
     my $stored = $char->getCol('current_view');
     if (!defined $stored || $stored ne $view) {
@@ -121,7 +120,7 @@ sub show ($self) {
         current_view           => $view,
         primary_fragment_url   => $FRAGMENT_URL{$view}->($self),
         secondary_view         => $secondary,
-        secondary_fragment_url => $FRAGMENT_URL{$secondary}->($self) . '&panel=secondary',
+        secondary_fragment_url => $secondary_url,
         primary_tabs           => $primary_tabs,
         secondary_tabs         => $secondary_tabs,
         context                => $context,

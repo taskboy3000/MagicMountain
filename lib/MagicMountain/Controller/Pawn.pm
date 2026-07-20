@@ -64,6 +64,7 @@ sub _activity_action ($self, $action, %params) {
 
     my $result = eval { $activity->dispatch($char, $action, %params) };
     if (my $err = $@) {
+        $self->app->log->error(sprintf("Pawn %s error: %s", $action, $err));
         return $self->render(json => { ok => 0, error => $err }, status => 409);
     }
 

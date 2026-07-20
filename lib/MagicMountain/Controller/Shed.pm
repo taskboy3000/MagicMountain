@@ -24,16 +24,17 @@ sub index ($self) {
     if ($format && $format eq 'fragment') {
         my $type = $self->_active_activity_type($char);
         my $is_secondary = ($self->param('panel') || '') eq 'secondary';
+        my $view_param = $self->param('view') || '';
         my $skill = $char->getCol('skill_prospecting') // 0;
         my $icon_base = $self->url_for('/images');
-        my $season = $self->app->active_season;
         my $banned_lookup = $self->app->pawn_calculator->banned_trait_lookup;
         my $items = _enriched_items($filtered, $is_secondary, $skill, $icon_base, $banned_lookup);
+        my $pawn_context = ($type && $type eq 'pawn') || $view_param eq 'pawn';
         $self->stash(
             items                 => $items,
             market_active         => ($type && $type eq 'market') ? 1 : 0,
-            pawn_active           => ($type && $type eq 'pawn') ? 1 : 0,
-            offer_url             => $type && $type eq 'pawn' ? $self->url_for('pawn_offer') : $self->url_for('market_offer'),
+            pawn_active           => $pawn_context ? 1 : 0,
+            offer_url             => $pawn_context ? $self->url_for('pawn_offer') : $self->url_for('market_offer'),
             climate_premium_traits => [ $type && $type eq 'pawn' ? () : sort keys %{ ($self->app->active_season ? $self->app->active_season->faction_climate : {})->{market}{buyer_trait_biases} // {} } ],
             show_trait_tags       => $skill >= 1 ? 1 : 0,
             pending_counter_item_id => $pc ? $pc->{item_id} : undef,
@@ -49,7 +50,9 @@ sub index ($self) {
     my $icon_base = $self->url_for('/images');
 
     my $banned_lookup_json = $self->app->pawn_calculator->banned_trait_lookup;
-    my $offer_url_json = $type && $type eq 'pawn' ? $self->url_for('pawn_offer') : $self->url_for('market_offer');
+    my $view_param = $self->param('view') || '';
+    my $pawn_context = ($type && $type eq 'pawn') || $view_param eq 'pawn';
+    my $offer_url_json = $pawn_context ? $self->url_for('pawn_offer') : $self->url_for('market_offer');
     $self->render(json => {
         ok    => 1,
         shed  => [ map { _item_view($_, $market_active, $offer_url_json, $icon_base, $pc, $banned_lookup_json) } @$filtered ],

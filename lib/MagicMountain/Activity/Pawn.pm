@@ -42,6 +42,7 @@ sub offer ($self, $char, %params) {
     my $offer_value = int($decayed * $premium_mult);
 
     $char->setCol('action_points', $char->getCol('action_points') - 1);
+    $char->setCol('pending_activity_id', $self->getCol('id'));
 
     my $seized = 0;
     if (rand() < $seizure_chance) {
@@ -90,7 +91,7 @@ sub offer ($self, $char, %params) {
             message      => $narrative,
             item_name    => $item->getCol('artifact_id'),
         });
-        $char->setCol('current_view', 'result');
+        $char->setCol('current_view', 'pawn');
         $self->phase('result');
         $self->customer({ outcome => 'seized', value => 0, premium_mult => $premium_mult, seizure_chance => $seizure_chance });
         $self->save;
@@ -134,7 +135,7 @@ sub offer ($self, $char, %params) {
         message      => $narrative,
         item_name    => $item->getCol('artifact_id'),
     });
-    $char->setCol('current_view', 'result');
+    $char->setCol('current_view', 'pawn');
     $self->phase('result');
     $self->customer({ outcome => 'sold', value => $offer_value, premium_mult => $premium_mult, seizure_chance => $seizure_chance });
     $self->save;
@@ -155,6 +156,8 @@ sub offer ($self, $char, %params) {
 sub dismiss ($self, $char, %params) {
     $self->delete;
     $char->setCol('pending_activity_id', undef);
+    $char->setCol('current_view', 'home');
+    $char->setCol('result', undef);
     $char->save;
 
     $self->_log_event($char, {
@@ -188,6 +191,14 @@ sub offer_next ($self, $char, %params) {
             message => 'Select another item to pawn.',
             player  => $self->_player_snapshot($char),
         },
+    };
+}
+
+sub _player_snapshot ($self, $char) {
+    return {
+        action_points => $char->getCol('action_points'),
+        scrap         => $char->getCol('scrap'),
+        score         => $char->getCol('score'),
     };
 }
 
