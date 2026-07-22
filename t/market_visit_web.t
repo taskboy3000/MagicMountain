@@ -46,7 +46,7 @@ sub setup {
         estimated_value_min => 16, estimated_value_max => 24,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }

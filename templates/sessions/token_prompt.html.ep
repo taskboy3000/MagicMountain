@@ -2,11 +2,11 @@
   <h2 class="mm-panel-header">TOKEN REQUIRED</h2>
   <div class="mm-panel-body">
     <p class="mm-text-dim mm-text-sm mm-mb-sm">Enter your token for <strong><%= $display_name %></strong></p>
-    <form id="token-form">
+    <form id="token-form" action="<%= url_for('login') %>" data-display-name="<%= $display_name %>">
       <input type="text" id="token-input" class="mm-input mm-input-block mm-mb-sm" placeholder="Your token" autofocus required>
       <button type="submit" class="mm-btn mm-btn-primary mm-btn-block">Verify</button>
     </form>
-    <p class="mm-text-dim mm-center mm-text-2xs mm-mt-sm mm-clickable" id="forgot-token-link">Lost your token? Use recovery code.</p>
+    <p class="mm-text-dim mm-center mm-text-2xs mm-mt-sm mm-clickable" id="forgot-token-link" data-fragment-url="<%= url_for('recovery_form')->query(display_name => $display_name, _format => 'fragment') %>">Lost your token? Use recovery code.</p>
     <div id="token-error" class="mm-error-msg"></div>
   </div>
 </div>

@@ -84,6 +84,18 @@ it belongs.
 - **Completion checklist**: Route exercised, stash vars verified, new methods
   tested, no State internals accessed, transcript through `_log_event`,
   tests pass reported.
+- **JavaScript: ES2015+**. `'use strict'` at file scope, no IIFE. `let`/`const`
+  only, never `var`. Arrow functions for anonymous callbacks.
+  `URLSearchParams` for dynamic query params, never string concatenation.
+- **Zero inline JS in templates**. All JS in external files under `public/js/`.
+  URLs come from DOM attributes (`data-*`, `form action`, `<a href>`) or server
+  JSON responses — never from a JS global like `_G`.
+- **JS owns only UI glue**: DOM manipulation, event delegation, fetch. The
+  backend owns all routing, game logic, and URL generation.
+- **Fetch JSON always needs `Accept: application/json`**: Controllers use
+  `respond_to(json => ...)` which checks the `Accept` header. Any `fetch()` that
+  expects JSON back must include `'Accept': 'application/json'` in its headers.
+  HTML fragment fetches do not need it.
 
 ---
 

@@ -30,7 +30,7 @@ sub setup {
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -208,7 +208,7 @@ subtest 'do_continue — insufficient AP returns 400' => sub {
         score => 0, scrap => 0, action_points => 0, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     $chars->load;
@@ -246,7 +246,7 @@ subtest 'do_continue — prospecting outcome begins new prospecting' => sub {
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     $chars->load;
@@ -297,7 +297,7 @@ subtest 'do_continue — market outcome begins new market visit' => sub {
         estimated_value_min => 19, estimated_value_max => 29,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     $chars->load;

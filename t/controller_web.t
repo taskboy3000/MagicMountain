@@ -43,7 +43,7 @@ sub setup_with_char {
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -88,7 +88,7 @@ subtest '_require_character returns 404 for endpoints without character' => sub 
     my $a = $accts->create(username => 'lonely');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'lonely' })->status_is(200);
 
     $t->get_ok('/idle?_format=fragment')

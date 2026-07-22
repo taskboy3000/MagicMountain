@@ -2,11 +2,11 @@
   <h2 class="mm-panel-header">RECOVER ACCOUNT</h2>
   <div class="mm-panel-body">
     <p class="mm-text-dim mm-text-sm mm-mb-sm">Enter your recovery code for <strong><%= $display_name %></strong></p>
-    <form id="recovery-form">
+    <form id="recovery-form" action="<%= url_for('recover') %>" data-display-name="<%= $display_name %>">
       <input type="text" id="recovery-input" class="mm-input mm-input-block mm-mb-sm" placeholder="Recovery code" autofocus required>
       <button type="submit" class="mm-btn mm-btn-primary mm-btn-block">Recover Account</button>
     </form>
-    <p class="mm-text-dim mm-center mm-text-2xs mm-mt-sm mm-clickable" id="back-to-token-link">Back to token login.</p>
+    <p class="mm-text-dim mm-center mm-text-2xs mm-mt-sm mm-clickable" id="back-to-token-link" data-fragment-url="<%= url_for('token_prompt')->query(display_name => $display_name, _format => 'fragment') %>">Back to token login.</p>
     <p class="mm-text-dim mm-center mm-text-2xs" style="margin-top:0.3rem">If you lose both, contact <a href="mailto:<%= $admin_email %>" style="color:inherit;text-decoration:underline">an admin</a>.</p>
     <div id="recovery-error" class="mm-error-msg"></div>
   </div>

@@ -38,7 +38,7 @@ my $alice = $account->create(username => 'alice');
 $alice->save;
 my $aliceId = $alice->getCol('id');
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 
 subtest 'GET / redirects to /game (login page is at /game now)' => sub {
     $t->get_ok('/')->status_is(302)
@@ -81,7 +81,7 @@ subtest 'banned account rejected' => sub {
     $ENV{MM_DATA_DIR} = $data_dir;
     my $accts = MagicMountain::Model::Account->new(file => "$data_dir/accounts.json");
     $accts->create(id => 'a1', username => 'locked', banned => 1)->save;
-    my $t2 = Test::Mojo->new('MagicMountain');
+    my $t2 = TestEnv->create_app;
     $t2->post_ok('/sessions', json => { displayName => 'locked' })
       ->status_is(403)
       ->json_is('/error' => 'Account banned');
@@ -101,7 +101,7 @@ subtest 'DELETE /sessions logs out' => sub {
 };
 
 subtest 'existing session touched on re-login' => sub {
-    my $t2 = Test::Mojo->new('MagicMountain');
+    my $t2 = TestEnv->create_app;
     $t2->post_ok('/sessions', json => { displayName => 'alice' })
       ->status_is(200)
       ->json_is('/ok' => 1);
@@ -110,7 +110,7 @@ subtest 'existing session touched on re-login' => sub {
 subtest 'logout redirects to login form' => sub {
     my $dataDir2 = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir2;
-    my $t2 = Test::Mojo->new('MagicMountain');
+    my $t2 = TestEnv->create_app;
     $t2->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
     $t2->get_ok('/logout')
       ->status_is(302)

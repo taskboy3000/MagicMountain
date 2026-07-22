@@ -54,7 +54,7 @@ sub setup {
         estimated_value_min => 20, estimated_value_max => 30,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -130,8 +130,8 @@ subtest 'climate premium badge in shed fragment' => sub {
 
     $t->get_ok('/shed?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
-    like($html, qr/mm-badge-amber/, 'climate premium badge class present');
-    like($html, qr/✦ premium/, 'premium badge text present');
+    like($html, qr/mm-text-amber/, 'climate premium badge class present');
+    like($html, qr/title="premium"/, 'premium badge title present');
 };
 
 subtest 'shed fragment — tags gated when skill_prospecting=0' => sub {
@@ -160,7 +160,7 @@ subtest 'shed fragment — tags gated when skill_prospecting=0' => sub {
         estimated_value_min => 14, estimated_value_max => 22,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'rookie' })->status_is(200);
     $t->get_ok('/shed?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;

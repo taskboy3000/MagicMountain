@@ -1,4 +1,4 @@
-<div id="device-frame" class="registered">
+<div id="device-frame" class="registered" data-game-url="<%= url_for('game') %>" data-nav-url="<%= url_for('nav') %>" data-season-recap-url="<%= url_for('season_recap')->query(_format => 'fragment') %>" data-orientation-url="<%= url_for('orientation')->query(_format => 'fragment') %>" data-onboarding-url="<%= url_for('onboarding_notice') %>">
   <div id="device-header">
     <div id="device-name">ProspectBoy 3000 || LOCAL NODE: <%= $node_number %></div>
     <div id="device-meta">REGISTERED TO: <span id="device-owner"><%= $player_name %></span></div>

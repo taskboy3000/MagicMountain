@@ -30,7 +30,7 @@ sub setup {
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -92,7 +92,7 @@ subtest 'begin picks active-season character over orphaned character' => sub {
     $chars->create(name => 'player', account_id => $a->getCol('id'),
         season_id => 's1', score => 0, scrap => 0,  action_points => 15, action_points_max => 15)->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
     $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})

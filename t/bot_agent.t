@@ -19,7 +19,7 @@ bot_service_token: $token
 YAML
 $ENV{MM_CFG_FILE} = "$dataDir/magic_mountain.yml";
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 $t->app->config->{bot_service_token} = $token;
 
 sub _make_agent ($;$) {

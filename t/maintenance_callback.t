@@ -77,7 +77,7 @@ subtest 'maintenance callback fires all 8 steps' => sub {
     # Initialize empty files for models the app helpers will access
     MagicMountain::Model::Account->new(file => "$dataDir/sessions.json")->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
 
     my $app    = $t->app;
     my $maint  = $app->maintenance;
@@ -171,7 +171,7 @@ subtest 'season ends automatically when day exceeds length' => sub {
 
     MagicMountain::Model::Account->new(file => "$dir/sessions.json")->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     my $maint = $t->app->maintenance;
 
     $maint->on_maintenance->($maint);

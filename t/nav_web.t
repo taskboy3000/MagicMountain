@@ -45,7 +45,7 @@ sub setup_idle {
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -68,7 +68,7 @@ sub setup_no_ap {
         onboarding => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tired' })->status_is(200);
     return $t;
 }
@@ -91,7 +91,7 @@ sub setup_empty_shed {
         onboarding => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'empty' })->status_is(200);
     return $t;
 }
@@ -114,7 +114,7 @@ sub setup_prospecting {
         onboarding => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'prospector' })->status_is(200);
     my $csrf = $t->tx->res->json->{csrf_token} // '';
     $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
@@ -151,7 +151,7 @@ sub setup_market {
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'trader' })->status_is(200);
     my $csrf = $t->tx->res->json->{csrf_token} // '';
     $t->post_ok('/market/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
@@ -301,7 +301,7 @@ subtest 'AP=1 — bazaar active but prospect inactive' => sub {
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'lowap' })->status_is(200);
 
     $t->get_ok('/nav')
@@ -347,7 +347,7 @@ subtest 'no activity defaults stored view to home' => sub {
         # No current_view set — should default to home
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'fresh' })->status_is(200);
 
     $t->get_ok('/nav')
@@ -423,7 +423,7 @@ subtest 'onboarding — fresh character hides unrevealed tabs' => sub {
         onboarding => 0,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'fresh' })->status_is(200);
 
     $t->get_ok('/nav')
@@ -474,7 +474,7 @@ subtest 'onboarding — bazaar revealed with shed item' => sub {
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'shedder' })->status_is(200);
 
     $t->get_ok('/nav')

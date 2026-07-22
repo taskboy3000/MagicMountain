@@ -28,7 +28,7 @@ sub setup_with_faction_state {
     my $a = $accts->create(username => 'player');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->app->characters->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
@@ -51,11 +51,11 @@ subtest 'mountain chart shows factions in rank order' => sub {
     );
     $t->get_ok('/factions?_format=fragment')->status_is(200);
 
-    $t->content_like(qr{title="SYND\.8TE}s,   'syndicate icon title');
-    $t->content_like(qr{title="PURIF\.RS}s,   'purifiers icon title');
-    $t->content_like(qr{title="FAC\.LTY1}s,   'faculty icon title');
-    $t->content_like(qr{title="LBR_MT\.01}s,  'libremount icon title');
-    $t->content_like(qr{title="RVL_IST\.1}s,  'revelationists icon title');
+    $t->content_like(qr{The Syndicate .AKA: SYND\.8TE.}s,   'syndicate icon title');
+    $t->content_like(qr{The Purifiers .AKA: PURIF\.RS.}s,   'purifiers icon title');
+    $t->content_like(qr{The Faculty .AKA: FAC\.LTY1.}s,     'faculty icon title');
+    $t->content_like(qr{LibreMount .AKA: LBR_MT\.01.}s,     'libremount icon title');
+    $t->content_like(qr{The Revelationists .AKA: RVL_IST\.1.}s, 'revelationists icon title');
     $t->content_like(qr{mm-mountain-raster-row}ms, 'raster row present');
     $t->content_like(qr{data-reference-id="faction_syndicate"}ms, 'reference link present');
     $t->content_like(qr{grid-row:\s*1}ms, 'leader at summit row');

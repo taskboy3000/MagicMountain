@@ -13,7 +13,7 @@ use YAML::XS qw(DumpFile);
 my $dataDir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $dataDir;
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 
 $t->app->config->{bots}{count} = 0;   # no bots
 $t->app->config->{pvp_enabled} = 1;

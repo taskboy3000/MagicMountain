@@ -14,7 +14,7 @@ sub make_app {
     my ($cap) = @_;
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->app->config->{max_concurrent_sessions} = $cap;
     return $t;
 }

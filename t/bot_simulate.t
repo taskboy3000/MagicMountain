@@ -50,7 +50,7 @@ sub _make_app {
     my $pf = "$data_dir/profiles.yml";
     write_file($pf, Dump(\@TEST_PROFILES));
     use Test::Mojo;
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->app->config->{bot_service_token} //= 'sim-test-token';
     return ($t->app, $data_dir, $pf);
 }

@@ -55,7 +55,7 @@ subtest 'JSON — shed + AP available shows suggestions' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     add_shed_item($dataDir, $char->getCol('id'));
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     $t->get_ok('/home')
@@ -87,7 +87,7 @@ subtest 'JSON — no shed + no AP shows idle suggestion' => sub {
         score => 0, scrap => 0, action_points => 0, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tired' })->status_is(200);
 
     $t->get_ok('/home')
@@ -121,7 +121,7 @@ subtest 'JSON — shed + no AP shows no_ap_with_shed suggestion' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     add_shed_item($dataDir, $char->getCol('id'));
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'stocked' })->status_is(200);
 
     $t->get_ok('/home')
@@ -155,7 +155,7 @@ subtest 'JSON — season end shows season_end suggestion' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     add_shed_item($dataDir, $char->getCol('id'));
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'closer' })->status_is(200);
 
     $t->get_ok('/home')
@@ -200,7 +200,7 @@ subtest 'JSON — faction hunger suggestion appears when days_since_purchase >= 
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'hungry_faction' })->status_is(200);
 
     $t->get_ok('/home')
@@ -220,7 +220,7 @@ subtest 'fragment — renders dashboard with advisory text' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     add_shed_item($dataDir, $char->getCol('id'));
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     $t->get_ok('/home?_format=fragment')
@@ -262,12 +262,12 @@ subtest 'fragment — climate premium badge in salvage ledger' => sub {
     });
     $s->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
-    like($html, qr/mm-badge-amber/, 'home shed premium badge class present');
-    like($html, qr/✦ premium/, 'home shed premium badge text present');
+    like($html, qr/mm-text-amber/, 'home shed premium badge class present');
+    like($html, qr/title="premium"/, 'home shed premium badge title present');
     like($html, qr/Strong boost: thermal/, 'finds summary rendered');
 };
 
@@ -298,7 +298,7 @@ subtest 'fragment — tags gated when skill_prospecting=0' => sub {
         estimated_value_min => 8, estimated_value_max => 12,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'rookie' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
@@ -335,7 +335,7 @@ subtest 'fragment — climate card PROSPECT REPORT visible when skill_prospectin
         skill_prospecting => 0,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'rookie2' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
@@ -373,7 +373,7 @@ subtest 'fragment — finds fallback when finds_summary missing' => sub {
         skill_prospecting => 0,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'rookie3' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
@@ -411,7 +411,7 @@ subtest 'fragment — BAZAAR REPORT still renders narrative crier text' => sub {
         skill_prospecting => 0,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'rookie4' })->status_is(200);
     $t->get_ok('/home?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;

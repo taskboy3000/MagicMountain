@@ -33,7 +33,7 @@ $chars->create(name => 'bob',   account_id => $a->getCol('id'), season_id => 's1
 $chars->create(name => 'carol', account_id => $a->getCol('id'), season_id => 's1',
     score => 20, scrap => 0,  action_points => 15, action_points_max => 15)->save;
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 $t->get_ok('/leaderboard')
   ->status_is(200)

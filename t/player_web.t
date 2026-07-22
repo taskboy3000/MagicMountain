@@ -30,7 +30,7 @@ sub setup {
         score => 42, scrap => 100, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -43,7 +43,7 @@ subtest 'show — unauthenticated returns 401 with JSON accept' => sub {
     MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
         ->create(id => 's1', label => 'Test', status => 'active', day => 1, length => 30)->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->get_ok('/player' => {Accept => 'application/json'})->status_is(401);
 };
 
@@ -73,7 +73,7 @@ subtest 'show — fragment returns 204 when no character' => sub {
     my $a = $accts->create(username => 'lonely');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'lonely' })->status_is(200);
     $t->get_ok('/player?_format=fragment')->status_is(204);
 };
@@ -100,7 +100,7 @@ subtest 'destroy — unauthenticated returns 401 with JSON accept' => sub {
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->delete_ok('/player' => {Accept => 'application/json'})->status_is(401);
 };
 

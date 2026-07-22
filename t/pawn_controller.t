@@ -3,10 +3,9 @@ use FindBin;
 use lib ("$FindBin::Bin/../lib", "$FindBin::Bin/lib");
 use Test::Mojo;
 use Test::More;
+use TestEnv;
 
-BEGIN { $ENV{MOJO_MODE} = 'test' }
-
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 $t->app->log->level('fatal');
 
 # Unauthenticated access redirects to login

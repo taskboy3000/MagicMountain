@@ -50,10 +50,10 @@ $recs->create(
     },
 )->save;
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 
 subtest 'unauthenticated redirects to login' => sub {
-    my $t2 = Test::Mojo->new('MagicMountain');
+    my $t2 = TestEnv->create_app;
     $t2->get_ok('/season/recap?_format=fragment')
       ->status_is(302)
       ->header_like(Location => qr{/login});
@@ -129,7 +129,7 @@ subtest 'no archived seasons returns 204' => sub {
     my $a = $accts->create(username => 'lonely');
     $a->save;
 
-    my $t2 = Test::Mojo->new('MagicMountain');
+    my $t2 = TestEnv->create_app;
     $t2->post_ok('/sessions', json => { displayName => 'lonely' })->status_is(200);
     $t2->get_ok('/season/recap')
       ->status_is(204);
@@ -148,7 +148,7 @@ subtest 'specific season_id with no player record returns 204' => sub {
     my $a = $accts->create(username => 'norecord');
     $a->save;
 
-    my $t2 = Test::Mojo->new('MagicMountain');
+    my $t2 = TestEnv->create_app;
     $t2->post_ok('/sessions', json => { displayName => 'norecord' })->status_is(200);
     $t2->get_ok('/season/recap?season_id=s_other')
       ->status_is(204);

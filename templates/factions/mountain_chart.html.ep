@@ -17,7 +17,7 @@
 % for my $f (@$factions) {
       <div class="mm-mountain-faction" style="grid-row: <%= $f->{row_offset} %>">
 %   if ($f->{icon}) {
-        <img src="<%= $f->{icon} %>" alt="<%= $f->{short_name} %>" title="<%= $f->{name} %> (AKA: <%= $f->{short_name} %>)" class="mm-mountain-glyph" data-reference-id="faction_<%= $f->{faction_id} %>">
+        <img src="<%= $f->{icon} %>" alt="<%= $f->{short_name} %>" title="<%= $f->{name} %> (AKA: <%= $f->{short_name} %>)" class="mm-mountain-glyph" data-reference-id="faction_<%= $f->{faction_id} %>" data-fragment-url="<%= url_for('reference', id => 'faction_' . $f->{faction_id})->query(_format => 'fragment') %>">
 %   } else {
         &nbsp;
 %   }        

@@ -26,7 +26,7 @@ sub setup {
     my $a = $accts->create(username => 'player');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
 
     # Use the app's model instances to avoid mtime cache collisions (Model.pm
     # keys its load cache by hashref memory address, which can collide when
@@ -71,7 +71,7 @@ sub setup_with_dominance {
     my $a = $accts->create(username => 'player');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->app->characters->create(
         name => 'player', account_id => $a->getCol('id'), season_id => 's1',
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
@@ -104,7 +104,7 @@ subtest 'player fragment returns 204 when no character' => sub {
     my $a = $accts->create(username => 'lonely');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'lonely' })->status_is(200);
     $t->get_ok('/player?_format=fragment')->status_is(204);
 };

@@ -9,18 +9,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css">
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<%= url_for('/css/app.css') %>?<%= (stat app->home->child('public/css/app.css'))[9] // 0 %>">
-    <script>
-const _G = {
-  game:         '<%= url_for('game') %>',
-  nav:          '<%= url_for('nav') %>',
-  seasonRecap:  '<%= url_for('season_recap')->query(_format => 'fragment') %>',
-  orientation:  '<%= url_for('orientation')->query(_format => 'fragment') %>',
-  onboarding:   '<%= url_for('onboarding_notice')->query(_format => 'fragment') %>',
-  reference:    '<%= url_for('reference') %>',
-};
-</script>
   </head>
-  <body>
+  <body data-game-url="<%= url_for('game') %>">
     <div id="page-wrap">
       <%= content %>
     </div>
@@ -29,104 +19,7 @@ const _G = {
     </footer>
 % unless (current_player) {
 <script src="<%= url_for('/js/ambient.js') %>?<%= (stat app->home->child('public/js/ambient.js'))[9] // 0 %>"></script>
-<script>
-let _pendingDisplayName = '';
-const panel = document.getElementById('panel-primary');
-
-async function showTokenPrompt() {
-  const resp = await fetch(`<%= url_for('token_prompt') %>?display_name=${encodeURIComponent(_pendingDisplayName)}&_format=fragment`);
-  panel.innerHTML = await resp.text();
-  panel.querySelector('#token-form')?.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const tokenInput = document.getElementById('token-input');
-    const errEl = document.getElementById('token-error');
-    const token = tokenInput ? tokenInput.value.trim() : '';
-    if (!token) return;
-    const resp = await fetch('<%= url_for('login') %>', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: _pendingDisplayName, token })
-    });
-    const data = await resp.json();
-    if (!data.ok) {
-      errEl.textContent = data.error || 'Invalid token';
-      errEl.style.display = 'block';
-      return;
-    }
-    if (typeof window.stopAmbient === 'function') window.stopAmbient(500);
-    window.location.href = '<%= url_for('game') %>';
-  });
-}
-
-async function showRecoveryForm() {
-  const resp = await fetch(`<%= url_for('recovery_form') %>?display_name=${encodeURIComponent(_pendingDisplayName)}&_format=fragment`);
-  panel.innerHTML = await resp.text();
-  panel.querySelector('#recovery-form')?.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const input = document.getElementById('recovery-input');
-    const errEl = document.getElementById('recovery-error');
-    const code = input ? input.value.trim() : '';
-    if (!code) return;
-    const resp = await fetch('<%= url_for('recover') %>', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: _pendingDisplayName, recoveryCode: code })
-    });
-    const data = await resp.json();
-    if (!data.ok) {
-      errEl.textContent = data.error || 'Invalid recovery code';
-      errEl.style.display = 'block';
-      return;
-    }
-    showCredentials();
-  });
-}
-
-async function showCredentials() {
-  const resp = await fetch('<%= url_for('new_credentials') %>?_format=fragment');
-  if (resp.status === 204) { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '<%= url_for('game') %>'; return; }
-  panel.innerHTML = await resp.text();
-}
-
-panel.addEventListener('click', (ev) => {
-  if (ev.target.id === 'forgot-token-link') showRecoveryForm();
-  if (ev.target.id === 'back-to-token-link') showTokenPrompt();
-  if (ev.target.id === 'continue-btn') { if (typeof window.stopAmbient === 'function') window.stopAmbient(500); window.location.href = '<%= url_for('game') %>'; }
-});
-
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const nameInput = document.getElementById('display-name');
-  const name = nameInput ? nameInput.value.trim() : '';
-  const errEl = document.getElementById('error-msg');
-  errEl.style.display = 'none';
-  if (!name && !_pendingDisplayName) return;
-  const body = { displayName: _pendingDisplayName || name };
-  const resp = await fetch('<%= url_for('login') %>', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  const data = await resp.json();
-  if (!data.ok) {
-    if (data.need_token) {
-      _pendingDisplayName = data.display_name;
-      showTokenPrompt();
-      return;
-    }
-    errEl.textContent = data.error || 'Login failed';
-    errEl.style.display = 'block';
-    return;
-  }
-  _pendingDisplayName = '';
-  if (data.show_credentials) {
-    showCredentials();
-    return;
-  }
-  if (typeof window.stopAmbient === 'function') window.stopAmbient(500);
-  window.location.href = '<%= url_for('game') %>';
-});
-</script>
+<script src="<%= url_for('/js/app.js') %>?<%= (stat app->home->child('public/js/app.js'))[9] // 0 %>"></script>
 % }
   </body>
 </html>

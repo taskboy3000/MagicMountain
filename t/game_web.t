@@ -36,7 +36,7 @@ sub setup {
 
 subtest 'JSON — returns full game state' => sub {
     my $dataDir = setup;
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     $t->get_ok('/game' => {Accept => 'application/json'})
@@ -77,7 +77,7 @@ subtest 'JSON — shows shed items' => sub {
         estimated_value_min => 14, estimated_value_max => 22,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     $t->get_ok('/game' => {Accept => 'application/json'})
       ->status_is(200)
@@ -91,7 +91,7 @@ subtest 'JSON — shows prospecting resume when activity active' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     my $char_id = $char->getCol('id');
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     my $act = $t->app->prospecting->create(
@@ -114,7 +114,7 @@ subtest 'JSON — shows market resume when activity active' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     my $char_id = $char->getCol('id');
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     my $act = $t->app->market->create(
@@ -142,7 +142,7 @@ subtest 'JSON — idle activity phase is not shown' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     my $char_id = $char->getCol('id');
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     my $act = $t->app->prospecting->create(char_id => $char_id, phase => 'idle');
@@ -157,7 +157,7 @@ subtest 'JSON — idle activity phase is not shown' => sub {
 
 subtest 'HTML — renders successfully' => sub {
     my $dataDir = setup;
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     $t->get_ok('/game')
       ->status_is(200)
@@ -171,7 +171,7 @@ subtest 'JSON — market activity idle phase is not shown' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     my $char_id = $char->getCol('id');
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
 
     my $act = $t->app->market->create(char_id => $char_id, phase => 'idle');
@@ -193,7 +193,7 @@ subtest 'JSON — season auto-creates with correct label' => sub {
     my $a = $accts->create(username => 'pioneer');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'pioneer' })->status_is(200);
 
     $t->get_ok('/game' => {Accept => 'application/json'})
@@ -216,7 +216,7 @@ subtest 'JSON — onboarding_notices for fresh character' => sub {
     my $a = $accts->create(username => 'rookie');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'rookie' })->status_is(200);
 
     $t->get_ok('/game' => {Accept => 'application/json'})
@@ -244,7 +244,7 @@ subtest 'JSON — onboarding_notices when scrap >= threshold' => sub {
         faction_sales => { syndicate => 3 },
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'skillful' })->status_is(200);
 
     $t->get_ok('/game' => {Accept => 'application/json'})
@@ -265,7 +265,7 @@ subtest 'JSON — onboarding_notices absent on second load' => sub {
     my $a = $accts->create(username => 'twoload');
     $a->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'twoload' })->status_is(200);
 
     # First load — notices present
@@ -286,7 +286,7 @@ subtest 'JSON — displays faction_sales' => sub {
     $char->setCol('faction_sales', { syndicate => 3, faculty => 1 });
     $char->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     $t->get_ok('/game' => {Accept => 'application/json'})
       ->status_is(200)

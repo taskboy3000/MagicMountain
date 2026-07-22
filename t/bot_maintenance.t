@@ -66,7 +66,7 @@ subtest 'bot runs during maintenance, AP consumed, then reset' => sub {
 
     MagicMountain::Model::Account->new(file => "$dataDir/sessions.json")->save;
 
-    my $t    = Test::Mojo->new('MagicMountain');
+    my $t    = TestEnv->create_app;
     my $app  = $t->app;
     $app->config->{bot_service_token} = $svc_token;
 

@@ -11,7 +11,7 @@
         <div class="mm-flex mm-gap-sm mm-items-center">
 % my $ficon = $customer->faction_icon_url;
 % my $icon_html = $ficon ? qq{<img src="$ficon" alt="" class="mm-icon">} : '';
-<%== $icon_html %><strong class="ref-link" data-reference-id="faction_<%= $customer->faction_id %>"><%= $customer->faction_name %></strong>
+<%== $icon_html %><strong class="ref-link" data-reference-id="faction_<%= $customer->faction_id %>" data-fragment-url="<%= url_for('reference', id => 'faction_' . $customer->faction_id)->query(_format => 'fragment') %>"><%= $customer->faction_name %></strong>
         </div>
         <div class="mm-text-dim mm-text-xs"><%= $customer->disposition %></div>
 % my @seeking = @{ $customer->desired_behaviors // [] };

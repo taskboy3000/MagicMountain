@@ -46,7 +46,7 @@ $shed->create(
     behaviors => ['thermal'], estimated_value_min => 12, estimated_value_max => 18,
 )->save;
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 $t->post_ok('/sessions', json => { displayName => 'alice' })->status_is(200);
 my $csrf = $t->tx->res->json->{csrf_token} // '';
 

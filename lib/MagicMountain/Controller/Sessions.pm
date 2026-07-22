@@ -58,7 +58,14 @@ sub create ($self) {
                 my $existing_acct = $self->app->accounts->get($player_id);
                 if ($existing_acct && $existing_acct->getCol('username') eq $name) {
                     $sess->touch;
-                    return $self->render(json => { ok => 1, csrf_token => $self->csrf_token, player => { id => $player_id, displayName => $name } });
+                    my %vars = (
+                        csrf_token => $self->csrf_token,
+                        player     => { id => $player_id, displayName => $name },
+                        game_url   => $self->url_for('game'),
+                    );
+                    return $self->respond_to(
+                        json => sub { $self->render(json => { ok => 1, %vars }) },
+                    );
                 }
             }
         }
@@ -130,9 +137,19 @@ sub create ($self) {
                 $rl->record_name_success(lc $name);
 
             } else {
-                return $self->render(json => {
-                    ok => 0, need_token => 1, display_name => $name,
-                });
+                my %vars = (
+                    need_token => 1,
+                    display_name => $name,
+                    token_prompt_url  => $self->url_for('token_prompt')
+                        ->query(display_name => $name, _format => 'fragment'),
+                    recovery_form_url => $self->url_for('recovery_form')
+                        ->query(display_name => $name, _format => 'fragment'),
+                    login_url => $self->url_for('login'),
+                    game_url  => $self->url_for('game'),
+                );
+                return $self->respond_to(
+                    json => sub { $self->render(json => { ok => 0, %vars }) },
+                );
             }
         }
     }
@@ -144,7 +161,9 @@ sub create ($self) {
         $resp->{show_credentials} = 1;
     }
 
-    return $self->render(json => $resp);
+    return $self->respond_to(
+        json => sub { $self->render(json => $resp) },
+    );
 }
 
 sub recover ($self) {
@@ -192,7 +211,9 @@ sub recover ($self) {
         recovery_code => $result->{recovery_code},
     });
     $resp->{show_credentials} = 1;
-    return $self->render(json => $resp);
+    return $self->respond_to(
+        json => sub { $self->render(json => $resp) },
+    );
 }
 
 sub _build_session ($self, $account, $ip, @rest) {
@@ -267,7 +288,9 @@ sub _build_session ($self, $account, $ip, @rest) {
         player => {
             id          => $player_id,
             displayName => $account->getCol('username'),
-        }
+        },
+        game_url            => $self->url_for('game'),
+        new_credentials_url => $self->url_for('new_credentials')->query(_format => 'fragment'),
     };
 }
 

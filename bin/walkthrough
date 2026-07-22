@@ -46,6 +46,7 @@ sub do_req {
     }
     if (defined $body) {
         $tx->req->headers->content_type('application/json');
+        $tx->req->headers->accept('application/json');
         $tx->req->body(encode_json($body));
     }
     if (my @ck = map { "$_=$COOKIE{$_}" } keys %COOKIE) {

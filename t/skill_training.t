@@ -13,7 +13,7 @@ sub _build_app {
     my $dataDir = tempdir(CLEANUP => 1);
     $ENV{MM_DATA_DIR} = $dataDir;
     local $ENV{MOJO_MODE} = 'test';
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     return $t->app;
 }
 

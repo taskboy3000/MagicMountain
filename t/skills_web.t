@@ -30,7 +30,7 @@ sub setup {
         score => 0, scrap => 2000, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     return $t;
 }
@@ -94,7 +94,7 @@ subtest 'purchase — insufficient scrap dies' => sub {
         score => 0, scrap => 0, action_points => 15, action_points_max => 15,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
@@ -117,7 +117,7 @@ subtest 'purchase — already at max dies' => sub {
         skill_prospecting => 4,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
     $t->post_ok('/skills/purchase' => {'X-CSRF-Token' => $csrf} => json => { skill_id => 'prospecting' })
@@ -140,7 +140,7 @@ subtest 'index — max-level skill has no upgrade action' => sub {
         skill_prospecting => 4,
     )->save;
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'master' })->status_is(200);
     $t->get_ok('/skills')
       ->status_is(200)
@@ -181,7 +181,7 @@ subtest 'purchase — success deducts scrap and increases level' => sub {
     my $char = $chars->find(sub { 1 })->[0];
     my $prev_scrap = $char->getCol('scrap');
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'player' })->status_is(200);
     my $csrf = _csrf($t);
 

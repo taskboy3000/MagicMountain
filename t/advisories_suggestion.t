@@ -69,7 +69,7 @@ subtest 'climate_finds — appears when has_meaningful_finds and AP available' =
         market => { market_summary => 'Neutral' },
     });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};
@@ -88,7 +88,7 @@ subtest 'climate_finds — absent when has_meaningful_finds is false' => sub {
         market => { market_summary => 'Neutral' },
     });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};
@@ -106,7 +106,7 @@ subtest 'climate_finds — absent when AP insufficient' => sub {
         market => { market_summary => 'Neutral' },
     });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};
@@ -128,7 +128,7 @@ subtest 'banned_trait — appears when shed items have banned behaviors' => sub 
         market => { market_summary => 'Neutral' },
     });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};
@@ -151,7 +151,7 @@ subtest 'banned_trait — absent when no banned traits match' => sub {
         market => { market_summary => 'Neutral' },
     });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};
@@ -163,7 +163,7 @@ subtest 'scrap_low — appears when scrap < 5' => sub {
     my $dataDir = tempdir(CLEANUP => 1);
     my $a = setup_player($dataDir, { ap => 15, scrap => 3 });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};
@@ -175,7 +175,7 @@ subtest 'scrap_low — absent when scrap >= 5' => sub {
     my $dataDir = tempdir(CLEANUP => 1);
     my $a = setup_player($dataDir, { ap => 15, scrap => 5 });
 
-    my $t = Test::Mojo->new('MagicMountain');
+    my $t = TestEnv->create_app;
     $t->post_ok('/sessions', json => { displayName => 'tester' })->status_is(200);
     $t->get_ok('/home')->status_is(200);
     my $suggestions = $t->tx->res->json->{suggestions};

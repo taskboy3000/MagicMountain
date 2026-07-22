@@ -35,7 +35,7 @@ sub audit_has {
 my $dataDir = tempdir(CLEANUP => 1);
 $ENV{MM_DATA_DIR} = $dataDir;
 
-my $t = Test::Mojo->new('MagicMountain');
+my $t = TestEnv->create_app;
 my $auth_service = $t->app->auth_service;
 
 # Store token across subtests
