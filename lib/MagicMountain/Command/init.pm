@@ -9,12 +9,45 @@ use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::ArtifactDisposition;
 use MagicMountain::Model::FactionSnapshot;
 use MagicMountain::Model::SeasonRecord;
+use File::Path qw(remove_tree);
+use YAML::XS;
 
-has description => 'Reset all game data and create a fresh season. Wipes accounts, characters, seasons, and all state.';
-has usage       => "Usage: $0 init [--label 'Season 1'] [--length 30] [--end-of-day-hour 0] [--force]\n";
+has description => 'Reset all game data and create a fresh season. Wipes accounts, characters, seasons, and all state. Optionally regenerates config.';
+has usage       => "Usage: $0 init [--label 'Season 1'] [--length 30] [--end-of-day-hour 0] [--force] [--with-config]\n";
+
+sub _random_hex ($self, $bytes) {
+    open my $fh, '<:raw', '/dev/urandom' or die "Cannot open /dev/urandom: $!";
+    my $buf;
+    read $fh, $buf, $bytes;
+    close $fh;
+    return unpack('H*', $buf);
+}
+
+sub _write_default_config ($self, $path, $app) {
+    my $cfg = $app->defaultConfig;
+    my $defaults = {
+        secrets        => [$self->_random_hex(32)],
+        admin_secret   => $self->_random_hex(32),
+        end_of_day_hour    => $cfg->{end_of_day_hour} // 0,
+        admin_email        => 'root@localhost',
+        bcrypt_cost        => 10,
+        bots => {
+            count    => 5,
+            profiles => [
+                { id => 'stage_guard_opportunist' },
+                { id => 'greed_desperate' },
+                { id => 'value_hoarder' },
+                { id => 'fixed_highest' },
+                { id => 'instability_loyalist' },
+            ],
+        },
+    };
+    YAML::XS::DumpFile($path, $defaults);
+    say "  wrote $path";
+}
 
 sub run ($self, @args) {
-    my ($label, $length, $end_of_day_hour, $force);
+    my ($label, $length, $end_of_day_hour, $force, $with_config);
     while (@args) {
         my $arg = shift @args;
         if ($arg eq '--label' && @args) {
@@ -25,6 +58,8 @@ sub run ($self, @args) {
             $end_of_day_hour = shift @args;
         } elsif ($arg eq '--force') {
             $force = 1;
+        } elsif ($arg eq '--with-config') {
+            $with_config = 1;
         }
     }
 
@@ -42,33 +77,24 @@ sub run ($self, @args) {
         }
     }
 
-    # Wipe all data files through Model API
-    my @models = (
-        ['accounts.json',        'MagicMountain::Model::Account'],
-        ['characters.json',      'MagicMountain::Model::Character'],
-        ['sessions.json',        'MagicMountain::Model::Session'],
-        ['seasons.json',         'MagicMountain::Model::Season'],
-        ['shed.json',            'MagicMountain::Model::ShedItem'],
-        ['activities.json',      'MagicMountain::Model'],
-        ['dispositions.json',    'MagicMountain::Model::ArtifactDisposition'],
-        ['faction_snapshots.json','MagicMountain::Model::FactionSnapshot'],
-        ['season_records.json',  'MagicMountain::Model::SeasonRecord'],
-    );
-    for my $entry (@models) {
-        my ($filename, $class) = @$entry;
-        my $path = "$dir/$filename";
-        $class->new(file => $path)->save;
-        say -e $path ? "  wiped $filename" : "  created $filename";
+    # Wipe entire data directory
+    if (-e $dir) {
+        remove_tree($dir, { safe => 0 });
+        say "  wiped data directory";
+    }
+    mkdir $dir or die "Cannot create data directory $dir: $!";
+    say "  created data directory";
+
+    # Regenerate config if requested
+    if ($with_config) {
+        my $cfg_path = $app->configFile;
+        $self->_write_default_config($cfg_path, $app);
+        my $local_path = $app->home . '/magic_mountain.local.yml';
+        unlink $local_path if -e $local_path;
+        say "  removed $local_path (will be auto-generated on next start)";
     }
 
-    for my $f (qw(audit.jsonl transcript.jsonl)) {
-        my $path = "$dir/$f";
-        my $existed = -e $path;
-        unlink $path;
-        say $existed ? "  wiped $f" : "  created $f";
-    }
-
-    # Bust lazy model caches so they reload from empty files
+    # Bust lazy model caches so they reload
     delete $app->{$_} for qw(accounts characters seasons shed session_store transcript prospecting market audit_log disposition faction_snapshots season_records);
 
     # Create fresh season
