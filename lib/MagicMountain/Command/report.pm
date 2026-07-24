@@ -257,15 +257,15 @@ sub _llm_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids, $is_bot) {
             my $cnt = $m->{$bucket}{counters} || 0;
             my $sp  = $m->{$bucket}{stand_pats} || 0;
             my $col = $bucket eq 'total' ? 'all' : $bucket;
-            push @lines, sprintf('  %-6s visits=%d offers=%d offers_per_visit=%.2f sales=%d mismatches=%d send_aways=%d counters=%d(%s) stand_pats=%d(%s) sale_maxed=%d over_budget=%d snubs=%d',
+            push @lines, sprintf('  %-6s visits=%d offers=%d offers_per_visit=%.2f sales=%d mismatches=%d send_aways=%d counters_accepted=%s stand_pats_success=%s sale_maxed=%d over_budget=%d snubs=%d',
                 $col,
                 $vis, $off,
                 $vis ? $off / $vis : 0,
                 $m->{$bucket}{sales} || 0,
                 $m->{$bucket}{mismatches} || 0,
                 $m->{$bucket}{send_aways} || 0,
-                $cnt, _pct_str($m->{$bucket}{counters_accepted} || 0, $cnt),
-                $sp, _pct_str($m->{$bucket}{stand_pat_successes} || 0, $sp),
+                _pct_str($m->{$bucket}{counters_accepted} || 0, $cnt),
+                _pct_str($m->{$bucket}{stand_pat_successes} || 0, $sp),
                 $m->{$bucket}{sale_maxed} || 0,
                 $m->{$bucket}{over_budget} || 0,
                 $m->{$bucket}{influence_snubs} || 0,
