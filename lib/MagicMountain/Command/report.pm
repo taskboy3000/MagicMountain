@@ -56,7 +56,7 @@ sub run ($self, @args) {
         next if $e->{type} =~ /^policy_|^sim_|decay_tick|faction_snapshot/;
 
         my $char_id = $e->{char_id} // next;
-        my $bot = $is_bot{$char_id} // 0;
+        my $bot = defined($e->{is_bot}) ? $e->{is_bot} : ($is_bot{$char_id} // 0);
 
         if ($e->{type} eq 'artifact_start') {
             $art_idx_of{$char_id} = $#artifacts + 1;

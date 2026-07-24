@@ -71,6 +71,7 @@ sub customer {
 
 sub _log_event ($self, $char, $event) {
     $event->{char_id} = $char->getCol('id');
+    $event->{is_bot}  = $char->getCol('is_bot') // 0;
     $event->{action_points} = $char->getCol('action_points');
     $self->app->transcript->log_event($event);
 }
