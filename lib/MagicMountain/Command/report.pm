@@ -385,4 +385,140 @@ sub _human_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids) {
     }
 }
 
+__END__
+
+=pod
+
+=head1 NAME
+
+report - Aggregate transcript stats for tuning analysis
+
+=head1 SYNOPSIS
+
+  script/mountain report
+  script/mountain report --for-llm
+  script/mountain report --player Alice
+  script/mountain report --player bot-001 --for-llm
+  script/mountain report --transcript /path/to/transcript.jsonl
+
+=head1 DESCRIPTION
+
+Reads the game transcript (JSONL event log) and produces aggregate statistics
+about player and bot activity, including prospecting outcomes, market behavior,
+sale prices, and PVP pressure actions.
+
+Results are split into B<total>, B<bot>, and B<human> buckets wherever
+characters have the C<is_bot> flag set.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--transcript FILE>
+
+Path to the transcript JSONL file. Defaults to C<data/transcript.jsonl>.
+
+=item B<--player ID|NAME>
+
+Filter results to a single character, specified by UUID or display name.
+Useful for drilling into a specific player or bot's activity.
+
+=item B<--for-llm>
+
+Output a compact key=value digest suitable for LLM analysis prompts. Each
+section (PROSPECTING, MARKET, SALE PRICES, PVP) is labeled with C<=SECTION=>
+headers. The character count line serves as a summary header.
+
+=back
+
+=head1 SECTIONS
+
+=head2 Prospecting
+
+Tracks artifact_start, push, collapse, breakthrough, stop, and
+budget_exhausted events. Reports expedition count, average pushes per
+expedition, and outcome rates (collapse, breakthrough, stop percentages).
+
+=head2 Market
+
+Tracks market_visit, offer, sale, send_away, stand_pat, stand_pat_fail,
+counter_offer, accept_counter, sale_maxed, over_budget, and influence_snub
+events. Reports visit count, offers per visit, sales, mismatches, and
+negotiation outcomes.
+
+=head2 Sale Prices
+
+Breaks down sale values by C<sale_type> (direct, corner, loyalty, etc.)
+with count, average, minimum, and maximum values. Split by bot/human.
+
+=head2 PVP
+
+Reads the C<Pressure> model to report PVP actions by C<effect_type>
+(corner_market, spoil_lead, outbid). Shows counts per type, bot-attacker
+breakdown, and estimated scrap costs computed from current config values.
+
+B<Warning:> Pressure records are cleaned up during gameplay when fully
+consumed or past the max age. PVP counts reflect B<currently stored>
+records only and may undercount.
+
+=head1 OUTPUT FORMATS
+
+=head2 Default (human-readable)
+
+Tabular format with labeled sections. Example:
+
+  Characters: 5
+
+  -- Prospecting ------------------------------
+    All:
+      Expeditions:      14
+      Avg pushes/exp:   3.1
+      ...
+
+=head2 --for-llm (compact)
+
+Key=value lines per bucket. Example:
+
+  characters: 5 (human: 2, bot: 3)
+  =PROSPECTING=
+    all    expeditions=14 pushes=44 avg_push=3.1 collapsed=2(14.3%) ...
+
+=head1 DATA SOURCES
+
+=over
+
+=item B<Transcript> (C<data/transcript.jsonl>)
+
+The primary event log. Written by C<Activity::Prospecting>,
+C<Activity::MarketVisit>, and C<Activity::Pawn> during gameplay.
+
+=item B<Character model> (C<data/characters.json>)
+
+Loaded to determine C<is_bot> status for each character referenced in the
+transcript.
+
+=item B<Pressure model> (C<data/pressures.json>)
+
+Loaded for PVP analysis. Contains per-attempt records with effect_type,
+attacker_id, target_id, and consumption flags.
+
+=back
+
+=head1 LIMITATIONS
+
+=over
+
+=item PVP costs are estimated from current config (C<pvp_cost_corner_market>,
+C<pvp_cost_spoil_lead>, C<pvp_cost_outbid>). Actual per-action costs are
+not persisted on Pressure records.
+
+=item Pressure records may be purged during gameplay (see L</PVP> section).
+The report reads only surviving rows.
+
+=item The report is a snapshot analysis tool, not a live monitoring system.
+
+=back
+
+=cut
+
 1;

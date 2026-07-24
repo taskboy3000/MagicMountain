@@ -318,7 +318,7 @@ The game includes a command-line interface via `script/mountain`:
 | `init` | Reset all game data and create a fresh season |
 | `simulate --days N --bots N` | Run a bot simulation for testing |
 | `activity --lines N` | Show recent player activity from the transcript |
-| `report` | Aggregate transcript stats for tuning analysis |
+| `report` | Aggregate transcript stats [--for-llm] [--player NAME] |
 
 ### Maintenance
 
