@@ -385,6 +385,8 @@ sub _human_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids) {
     }
 }
 
+1;
+
 __END__
 
 =pod
@@ -520,5 +522,3 @@ The report reads only surviving rows.
 =back
 
 =cut
-
-1;
