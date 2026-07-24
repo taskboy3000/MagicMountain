@@ -138,6 +138,7 @@
 ./lib/MagicMountain/Command/advance_day.pm
 ./lib/MagicMountain/Command/disable_account.pm
 ./lib/MagicMountain/Command/init.pm
+./lib/MagicMountain/Command/add_bot.pm
 ./lib/MagicMountain/Command/create_account.pm
 ./lib/MagicMountain/Command/delete_account.pm
 ./lib/MagicMountain/Command/migrate_tokens.pm

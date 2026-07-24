@@ -319,6 +319,7 @@ The game includes a command-line interface via `script/mountain`:
 | `simulate --days N --bots N` | Run a bot simulation for testing |
 | `activity --lines N` | Show recent player activity from the transcript |
 | `report` | Aggregate transcript stats [--for-llm] [--player NAME] |
+| `add-bot [--profile ID] [--name NAME] [--count N]` | Add one or more bot NPCs mid-season |
 
 ### Maintenance
 
