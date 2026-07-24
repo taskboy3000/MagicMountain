@@ -38,7 +38,7 @@ sub _make_season_and_char ($) {
 
     $t->app->seasons->load;
     my $season = $t->app->active_season;
-    unless ($season) {
+    if (!$season) {
         $season = $t->app->seasons->create(
             label         => 'Test',
             status        => 'active',

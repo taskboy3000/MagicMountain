@@ -128,7 +128,7 @@ sub _market_phase ($self, $profile, $sell_pol) {
         # Decide whether to accept the customer
         my $mkt = $self->agent->market;
         my $customer = $mkt->{market_visit};
-        unless (MagicMountain::Bot::SellPolicy::accept_customer($customer, $sell_pol)) {
+        if (!MagicMountain::Bot::SellPolicy::accept_customer($customer, $sell_pol)) {
             $self->agent->send_away;
             $actions++;
             $self->_log('send_away', { reason => $sell_pol->{name} });
