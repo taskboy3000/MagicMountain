@@ -48,7 +48,7 @@ sub offer ($self, $char, %params) {
 
     $self->save;
     my $id = $self->getCol('id');
-    my $newActionPoints = $char->getCol('action_points') - 1;
+    my $newActionPoints = $char->getCol('action_points') - $self->{_current_action}->ap_cost;
     $char->setCol('action_points', $newActionPoints);
     $char->setCol('pending_activity_id', $id);
 

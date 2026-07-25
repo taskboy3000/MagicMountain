@@ -328,7 +328,7 @@ sub begin ($self, $char, %params) {
     }
     # ────────────────────────────────────────────────────────────────
 
-    $char->setCol('action_points', $char->getCol('action_points') - 1);
+    $char->setCol('action_points', $char->getCol('action_points') - $self->{_current_action}->ap_cost);
     $self->customer($customer);
     $self->phase('negotiating');
     $self->save;

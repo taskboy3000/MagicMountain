@@ -202,7 +202,8 @@ sub _artifact_view ($self, $artifact) {
 
 sub begin ($self, $char, %params) {
     my $season = $self->app->can('active_season') ? $self->app->active_season : undef;
-    my $ap_cost = $season ? $season->daily_modifier('prospect_ap_cost', 2) : 2;
+    my $default_ap = $self->{_current_action}->ap_cost;
+    my $ap_cost = $season ? $season->daily_modifier('prospect_ap_cost', $default_ap) : $default_ap;
     die "AP exhausted" unless ($char->getCol('action_points') // 0) >= $ap_cost;
 
     # Check for random event FIRST — if one fires, it replaces the artifact draw
