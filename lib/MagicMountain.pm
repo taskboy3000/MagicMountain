@@ -71,7 +71,7 @@ has defaultConfig => sub ($self) {
         admin_email                     => 'root@localhost',
         bcrypt_cost                     => 10,
         admin_secret                    => 'override-me',
-        bot_service_token               => undef,
+        bot_service_token               => 'pb3k-bot-token',
         pvp_enabled                    => 1,
         pvp_max_stack                  => 3,
         pvp_cost_corner_market         => 50,
@@ -209,7 +209,7 @@ has maintenance => sub ($self) {
 
                         my $port = $maint->app->config->{port} // 9000;
                         my $svc_token = $maint->app->config->{bot_service_token};
-                        my $base_url = "http://127.0.0.1:$port";
+                        my $base_url = "http://localhost:$port";
 
                         for my $bot_char (@shuffled) {
                             eval {

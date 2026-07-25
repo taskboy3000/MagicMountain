@@ -107,7 +107,7 @@ sub create ($self) {
             my $token_hash = $row->getCol('token_hash');
 
             if (!(defined $token_hash && length $token_hash > 0)) {
-                if (($ENV{MOJO_MODE} // '') eq 'test') {
+                if ($is_bot_svc || ($ENV{MOJO_MODE} // '') eq 'test') {
                     my $token = $auth->generate_token;
                     $row->setCol('token_hash', $auth->hash_token($token));
                     $row->save;
@@ -120,19 +120,24 @@ sub create ($self) {
                     }, status => 400);
                 }
 
-            } elsif ($submitted_token) {
-                my $verify = $auth->verify_login($row, $submitted_token);
-                if ($verify->{error}) {
-                    $rl->record_failure($ip);
-                    $rl->record_name_failure(lc $name);
-                    $self->app->audit_log->log('token_verify_failed',
-                        player_id   => $row->getCol('id'),
-                        player_name => $name,
-                    );
-                    return $self->render(json => { ok => 0, error => $verify->{error} }, status => 403);
+            } elsif ($submitted_token || $is_bot_svc) {
+                if ($is_bot_svc && !$submitted_token) {
+                    $account = $row;
+                    $auto_authenticated = 1;
+                } else {
+                    my $verify = $auth->verify_login($row, $submitted_token);
+                    if ($verify->{error}) {
+                        $rl->record_failure($ip);
+                        $rl->record_name_failure(lc $name);
+                        $self->app->audit_log->log('token_verify_failed',
+                            player_id   => $row->getCol('id'),
+                            player_name => $name,
+                        );
+                        return $self->render(json => { ok => 0, error => $verify->{error} }, status => 403);
+                    }
+                    $account = $row;
+                    $auto_authenticated = 1;
                 }
-                $account = $row;
-                $auto_authenticated = 1;
                 $rl->record_success($ip);
                 $rl->record_name_success(lc $name);
 

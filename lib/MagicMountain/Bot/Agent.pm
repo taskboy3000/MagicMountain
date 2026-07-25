@@ -1,7 +1,7 @@
 package MagicMountain::Bot::Agent;
 use Mojo::Base -base, -signatures;
 
-has base_url   => 'http://127.0.0.1:9000';
+has base_url   => 'http://localhost:9000';
 has ua         => sub { Mojo::UserAgent->new };
 has csrf_token => undef;
 has svc_token  => undef;
@@ -10,7 +10,10 @@ sub login ($self, $name) {
     my $body = { displayName => $name };
     my $tx = $self->_req(POST => '/sessions', $body);
     my $json = $tx->res->json;
-    die "Login failed: " . ($json->{error} // 'unknown') unless $json && $json->{ok};
+    unless ($json && $json->{ok}) {
+        my $detail = $json ? Mojo::JSON::encode_json($json) : $tx->res->body // 'no response';
+        die "Login failed for $name — $detail";
+    }
     $self->csrf_token($json->{csrf_token});
     return $json;
 }
@@ -22,8 +25,10 @@ sub logout ($self) {
 sub req ($self, $method, $path, $body = undef) {
     my $tx = $self->_req($method, $path, $body);
     my $json = $tx->res->json;
-    die "$method $path failed: " . ($json->{error} // $tx->res->code // 'unknown')
-        unless $json && (ref $json eq 'HASH') && $json->{ok};
+    unless ($json && (ref $json eq 'HASH') && $json->{ok}) {
+        my $detail = $json ? encode_json($json) : ($tx->res->code . ' ' . $tx->res->body // 'no response');
+        die "$method $path failed — $detail";
+    }
     return $json;
 }
 
