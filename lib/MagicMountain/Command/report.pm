@@ -52,6 +52,7 @@ sub run ($self, @args) {
     my %sale_val;  # { bucket => { sale_type => { n, sum, min, max } } }
     my %scrap_in;  # { bucket => { source => total } }
     my %scrap_out; # { bucket => { source => total } }
+    my %ap_spend;  # { bucket => { category => total } }
     for my $bucket (qw(total bot human)) {
         $scrap_in{$bucket} = { sales => 0, breakthroughs => 0, pawn => 0 };
         $scrap_out{$bucket} = { skills => 0 };
@@ -63,6 +64,12 @@ sub run ($self, @args) {
 
         my $char_id = $e->{char_id} // next;
         my $bot = defined($e->{is_bot}) ? $e->{is_bot} : ($is_bot{$char_id} // 0);
+
+        if (my $cost = $e->{ap_cost}) {
+            my $cat = $e->{ap_category} // 'other';
+            $ap_spend{total}{$cat} += $cost;
+            $ap_spend{$bot ? 'bot' : 'human'}{$cat} += $cost;
+        }
 
         if ($e->{type} eq 'artifact_start') {
             $art_idx_of{$char_id} = $#artifacts + 1;
@@ -230,9 +237,9 @@ sub run ($self, @args) {
     my $market  = $self->_aggregate_market(\@visits);
 
     if ($for_llm) {
-        $self->_llm_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
+        $self->_llm_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%ap_spend, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
     } else {
-        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts, \@visits);
+        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%ap_spend, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts, \@visits);
     }
 }
 
@@ -266,7 +273,7 @@ sub _aggregate_market ($self, $visits) {
     return \%m;
 }
 
-sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $is_bot) {
+sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $ap_spend, $pvp, $pvp_cost, $char_ids, $is_bot) {
     my $n = scalar @$char_ids;
     my $n_bot   = scalar grep { $is_bot->{$_} } @$char_ids;
     my $n_human = $n - $n_bot;
@@ -385,6 +392,19 @@ sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth,
         push @section, join("\n", @lines);
     }
 
+    # AP spend section
+    my @ap_buckets = grep { $ap_spend->{$_} && keys %{ $ap_spend->{$_} } } qw(total bot human);
+    if (@ap_buckets) {
+        my @lines = ('=AP SPEND=');
+        for my $bucket (@ap_buckets) {
+            my $total = 0;
+            $total += $_ for values %{ $ap_spend->{$bucket} };
+            my $col = $bucket eq 'total' ? 'all' : $bucket;
+            push @lines, sprintf('  %-6s ap_spent=%d', $col, $total);
+        }
+        push @section, join("\n", @lines);
+    }
+
     # PVP section
     if (keys %{ $pvp->{total} // {} }) {
         my @lines = ('=PVP=');
@@ -410,7 +430,7 @@ sub _pct_str ($n, $total) {
     return sprintf('%d(%.1f%%)', $n, $n / $total * 100);
 }
 
-sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $artifacts, $visits) {
+sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $ap_spend, $pvp, $pvp_cost, $char_ids, $artifacts, $visits) {
     my $n = scalar @$char_ids;
     printf "Season Summary\n";
     printf "--------------\n";
@@ -583,6 +603,23 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
                 $started, $sold, $coll, $brk, $inshed;
             printf "  %-12s %6s\n", '', sprintf('Held: %d', $held) if $bucket eq 'total' && $held;
+        }
+    }
+
+    # ── AP Usage section ──────────────────────────────────────────
+    my @ap_buckets = grep { $ap_spend->{$_} && keys %{ $ap_spend->{$_} } } qw(total bot human);
+    if (@ap_buckets) {
+        printf "\n-- How are action points spent? ------------------\n";
+        printf "  %-12s %8s %8s %8s\n", '', 'All', 'Bot', 'Human';
+        for my $bucket (@ap_buckets) {
+            next unless $ap_spend->{$bucket};
+            my $total = 0;
+            $total += $_ for values %{ $ap_spend->{$bucket} };
+            printf "  %-12s %8d %8s %8s\n",
+                $bucket eq 'total' ? 'All' : ucfirst($bucket),
+                $total,
+                $bucket eq 'total' ? '' : '',
+                $bucket eq 'total' ? '' : '',
         }
     }
 
