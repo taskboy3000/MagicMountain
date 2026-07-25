@@ -72,7 +72,7 @@ sub apply_decay ($self) {
         $item->sync_row;
 
         if ($self->log_transcript) {
-            $self->app->transcript->log_event({
+            $self->app->log_event({
                 type         => 'decay_tick',
                 shed_item_id => $item->getCol('id'),
                 char_id      => $item->getCol('char_id'),
@@ -84,7 +84,7 @@ sub apply_decay ($self) {
                 narrative    => sprintf("%s day %d: %s (value %d, mult %s).",
                     $item->getCol('artifact_id') // 'unknown',
                     $days, $condition, $decayed, sprintf('%.2f', $mult)),
-            });
+            }, 'shed');
         }
 
         $count++;

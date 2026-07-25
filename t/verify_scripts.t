@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Test2::V0;
 use File::Spec;
+use File::Find;
 use Cwd 'abs_path';
 use FindBin '$RealBin';
 
@@ -42,6 +43,31 @@ subtest 'check_unintended_files on current codebase' => sub {
 subtest 'check_doc_consistency on current codebase' => sub {
     my $result = run_script($CHECK_TUNING);
     is($result->{exit}, 0, 'exits 0 — all TUNING.md keys are current');
+};
+
+subtest 'app->log_event calls include category' => sub {
+    my @files;
+    find(sub { push @files, $File::Find::name if /\.pm$/ }, "$ROOT/lib");
+    my @violations;
+    for my $file (@files) {
+        open my $fh, '<', $file or next;
+        my @lines = <$fh>;
+        close $fh;
+        for (my $i = 0; $i < @lines; $i++) {
+            next unless $lines[$i] =~ /->app->log_event\(/;
+            my $found;
+            my $end = $i + 10 < $#lines ? $i + 10 : $#lines;
+            for my $j ($i .. $end) {
+                if ($lines[$j] =~ /,\s*(?:\$|')/) {
+                    $found = 1;
+                    last;
+                }
+            }
+            push @violations, "$file:" . ($i + 1) unless $found;
+        }
+    }
+    ok !@violations, 'all app->log_event calls include a category string'
+        or diag(join "\n", @violations);
 };
 
 subtest 'pattern detection' => sub {

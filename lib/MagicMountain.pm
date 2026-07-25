@@ -2,6 +2,7 @@ package MagicMountain;
 
 use File::Basename;
 use File::Find;
+use Carp 'carp';
 use Mojo::Base 'Mojolicious', -signatures;
 use Mojo::Home;
 use Mojo::IOLoop;
@@ -143,6 +144,14 @@ has transcript => sub ($self) {
         file => $self->dataDir . '/transcript.jsonl',
     );
 };
+
+sub log_event ($self, $event, $category) {
+    carp('log_event called without type field') unless $event->{type};
+    $event->{ap_category} = $category;
+    $self->transcript->log_event($event);
+}
+
+
 
 has activities => sub ($self) {
     MagicMountain::Model::Activity->new(
@@ -313,13 +322,13 @@ has maintenance => sub ($self) {
 
             $season->setCol('faction_state', $fs);
 
-            $maint->app->transcript->log_event({
+            $maint->app->log_event({
                 type     => 'faction_snapshot',
                 day      => $day,
                 factions => $season->getCol('faction_state') // {},
                 narrative => sprintf("Day %d faction snapshot: %s",
                     $day, $msg // 'no message'),
-            }) if $maint->app->can('transcript') && $maint->app->transcript;
+            }, 'season');
 
             $season->setCol('last_maintenance', CORE::time);
             $season->save;

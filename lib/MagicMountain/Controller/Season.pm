@@ -41,7 +41,7 @@ sub recap ($self) {
         highlights   => $highlights,
         season_label => $season->getCol('label'),
         factions     => $factions,
-        log          => sub ($event) { $self->app->transcript->log_event($event) },
+        log          => sub ($event) { $self->app->log_event($event, 'season') },
     );
     my $sections = $report->build;
     my $standing_rows = $report->build_standing_rows;
