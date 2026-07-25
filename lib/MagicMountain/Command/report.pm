@@ -213,13 +213,26 @@ sub run ($self, @args) {
     }
     $avg_wealth = $human_count ? int(0.5 + $avg_wealth / $human_count) : 0;
 
+    # Remaining artifacts in shed (by bucket)
+    my %shed_by_bucket = (total => 0, bot => 0, human => 0);
+    eval { $self->app->shed->load };
+    if ($self->app->shed->table) {
+        for my $sid (keys %{ $self->app->shed->table }) {
+            next if $sid eq '_version';
+            my $item = $self->app->shed->get($sid) or next;
+            my $cid  = $item->getCol('char_id') or next;
+            $shed_by_bucket{total}++;
+            $shed_by_bucket{ $is_bot{$cid} ? 'bot' : 'human' }++;
+        }
+    }
+
     my $risk    = $self->_aggregate_risk(\@artifacts);
     my $market  = $self->_aggregate_market(\@visits);
 
     if ($for_llm) {
-        $self->_llm_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
+        $self->_llm_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
     } else {
-        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts);
+        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts);
     }
 }
 
@@ -253,7 +266,7 @@ sub _aggregate_market ($self, $visits) {
     return \%m;
 }
 
-sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $pvp, $pvp_cost, $char_ids, $is_bot) {
+sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $is_bot) {
     my $n = scalar @$char_ids;
     my $n_bot   = scalar grep { $is_bot->{$_} } @$char_ids;
     my $n_human = $n - $n_bot;
@@ -334,6 +347,24 @@ sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth,
         push @section, join("\n", @lines);
     }
 
+    # Lifecycle section
+    if ($risk->{total}{expeditions}) {
+        my @lines = ('=LIFECYCLE=');
+        for my $bucket ('total', 'bot', 'human') {
+            next unless $risk->{$bucket}{expeditions};
+            my $col = $bucket eq 'total' ? 'all' : $bucket;
+                push @lines, sprintf('  %-6s started=%d sold=%d collapsed=%d breakthrough=%d in_shed=%d',
+                $col,
+                $risk->{$bucket}{expeditions},
+                $market->{$bucket}{sales} || 0,
+                $risk->{$bucket}{collapsed} || 0,
+                $risk->{$bucket}{breakthrough} || 0,
+                $shed->{$bucket} || 0,
+            );
+        }
+        push @section, join("\n", @lines);
+    }
+
     # Economy section
     if ($scrap_in->{total}{sales} || $scrap_in->{total}{breakthroughs} || $scrap_in->{total}{pawn}) {
         my @lines = ('=ECONOMY=');
@@ -379,7 +410,7 @@ sub _pct_str ($n, $total) {
     return sprintf('%d(%.1f%%)', $n, $n / $total * 100);
 }
 
-sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $pvp, $pvp_cost, $char_ids, $artifacts) {
+sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $artifacts) {
     my $n = scalar @$char_ids;
     printf "Characters: %d\n", $n;
 
@@ -508,6 +539,22 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
             $scrap_out->{human}{skills}//0;
         if ($human_count > 0) {
             printf "  Average player wealth: %d scrap (%d players)\n", $avg_wealth, $human_count;
+        }
+    }
+
+    # ── Artifact lifecycle section ──────────────────────────
+    if ($risk->{total}{expeditions}) {
+        printf "\n-- Artifact Lifecycle --------------------------\n";
+        printf "  %-12s %6s %6s %6s %6s %6s\n", '', 'Started', 'Sold', 'Collaps', 'Brkthr', 'InShed';
+        for my $bucket ('total', 'bot', 'human') {
+            next unless $risk->{$bucket}{expeditions};
+            printf "  %-12s %6d %6d %6d %6d %6d\n",
+                $bucket eq 'total' ? 'All' : ucfirst($bucket),
+                $risk->{$bucket}{expeditions},
+                $market->{$bucket}{sales} || 0,
+                $risk->{$bucket}{collapsed} || 0,
+                $risk->{$bucket}{breakthrough} || 0,
+                $shed->{$bucket} || 0,
         }
     }
 
