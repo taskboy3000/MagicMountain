@@ -2,11 +2,16 @@ package MagicMountain::Activity::MarketVisit;
 use Modern::Perl;
 use Mojo::Base 'MagicMountain::Activity', '-signatures';
 
+use MagicMountain::Action;
 
 # ── Transition table ────────────────────────────────────────────────
 
 has transitions => sub {
-    { idle => ['begin'], negotiating => ['offer', 'send_away', 'accept_counter', 'stand_pat'] }
+    { idle        => [MagicMountain::Action->new(id => 'begin',          ap_cost => 1)],
+      negotiating => [MagicMountain::Action->new(id => 'offer',          ap_cost => 0),
+                      MagicMountain::Action->new(id => 'send_away',      ap_cost => 0),
+                      MagicMountain::Action->new(id => 'accept_counter', ap_cost => 0),
+                      MagicMountain::Action->new(id => 'stand_pat',       ap_cost => 0)] }
 };
 
 has _activity_type => sub { 'market_visit' };

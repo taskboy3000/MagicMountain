@@ -2,12 +2,16 @@ package MagicMountain::Activity::Prospecting;
 use Modern::Perl;
 use Mojo::Base 'MagicMountain::Activity', '-signatures';
 
+use MagicMountain::Action;
+
 # ── Transition table ────────────────────────────────────────────────
 
 has transitions => sub {
     {
-        idle           => ['begin'],
-        processing     => ['push', 'stop', 'resolve_event'],
+        idle       => [MagicMountain::Action->new(id => 'begin',         ap_cost => 2)],
+        processing => [MagicMountain::Action->new(id => 'push',          ap_cost => 0),
+                       MagicMountain::Action->new(id => 'stop',          ap_cost => 0),
+                       MagicMountain::Action->new(id => 'resolve_event', ap_cost => 0)],
     }
 };
 

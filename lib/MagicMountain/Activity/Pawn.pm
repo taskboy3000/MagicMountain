@@ -2,8 +2,13 @@ package MagicMountain::Activity::Pawn;
 use Modern::Perl;
 use Mojo::Base 'MagicMountain::Activity', '-signatures';
 
+use MagicMountain::Action;
+
 has transitions => sub {
-    { idle => ['offer', 'dismiss'], result => ['dismiss', 'offer_next'] }
+    { idle   => [MagicMountain::Action->new(id => 'offer',   ap_cost => 1),
+                 MagicMountain::Action->new(id => 'dismiss', ap_cost => 0)],
+      result => [MagicMountain::Action->new(id => 'dismiss',    ap_cost => 0),
+                 MagicMountain::Action->new(id => 'offer_next', ap_cost => 0)] }
 };
 
 has _activity_type => sub { 'pawn' };

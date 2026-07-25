@@ -7,6 +7,7 @@ use TestEnv;
 use Test::More;
 use File::Temp qw(tempfile);
 use Mojo::JSON qw(encode_json);
+use MagicMountain::Action;
 
 use_ok('MagicMountain::Activity');
 
@@ -37,7 +38,9 @@ sub _new_activity {
         file        => $file,
         app         => $MOCK_APP,
         content_filename => '/tmp/test_content.yml',
-        transitions => { idle => ['begin'], processing => ['push', 'stop'] },
+        transitions => { idle       => [MagicMountain::Action->new(id => 'begin', ap_cost => 1)],
+                         processing => [MagicMountain::Action->new(id => 'push',  ap_cost => 0),
+                                        MagicMountain::Action->new(id => 'stop',  ap_cost => 0)] },
     );
 }
 
@@ -118,8 +121,11 @@ subtest 'customer accessor round-trip' => sub {
 
 subtest 'transitions, app, content_filename are Mojo has attributes' => sub {
     my $a = _new_activity();
-    is_deeply($a->transitions, { idle => ['begin'], processing => ['push', 'stop'] },
-        'transitions attribute');
+    my $t = $a->transitions;
+    is(ref $t->{idle}[0], 'MagicMountain::Action', 'idle[0] is an Action object');
+    is("$t->{idle}[0]", 'begin', 'idle[0] stringifies to begin');
+    is(ref $t->{processing}[0], 'MagicMountain::Action', 'processing[0] is an Action object');
+    is("$t->{processing}[1]", 'stop', 'processing[1] stringifies to stop');
     is($a->app, $MOCK_APP, 'app attribute');
     is($a->content_filename, '/tmp/test_content.yml', 'content_filename attribute');
     is($a->content_data, undef, 'content_data defaults to undef');

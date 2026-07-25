@@ -2,7 +2,9 @@ package MagicMountain::Activity;
 use Modern::Perl;
 use Mojo::Base 'MagicMountain::Model', '-signatures';
 
+use Carp 'carp';
 use YAML::XS qw(LoadFile);
+use MagicMountain::Action;
 
 # ── Persisted columns ──────────────────────────────────────────────
 # id, createdAt, updatedAt come from Model::defaultColumns
@@ -73,6 +75,12 @@ sub _log_event ($self, $char, $event) {
     $event->{char_id} = $char->getCol('id');
     $event->{is_bot}  = $char->getCol('is_bot') // 0;
     $event->{action_points} = $char->getCol('action_points');
+    if (my $a = $self->{_current_action}) {
+        $event->{ap_cost} = $a->ap_cost;
+    } else {
+        carp(sprintf("_log_event outside dispatch in %s: %s", ref($self), $event->{type} // '?'));
+        $event->{ap_cost} = 0;
+    }
     return unless $self->app->can('log_event');
     $self->app->log_event($event, $self->_activity_type);
 }
@@ -83,16 +91,22 @@ sub begin_activity ($self, $char, %params) {
     return $activity->dispatch($char, 'begin', %params);
 }
 
-sub dispatch ($self, $char, $action, %params) {
+sub dispatch ($self, $char, $action_name, %params) {
     my $phase = $self->phase;
 
-    die sprintf("illegal transition: %s -> %s", $phase, $action)
-        unless grep { $_ eq $action } @{ $self->transitions->{$phase} // [] };
+    my $action;
+    for my $a (@{ $self->transitions->{$phase} // [] }) {
+        $action = $a, last if $a eq $action_name;
+    }
 
-    die "no handler for action: $action"
-        unless $self->can($action);
+    die sprintf("illegal transition: %s -> %s", $phase, $action_name)
+        unless $action;
 
-    return $self->$action($char, %params);
+    die "no handler for action: $action_name"
+        unless $self->can($action_name);
+
+    $self->{_current_action} = $action;
+    return $self->$action_name($char, %params);
 }
 
 # ── Persistence delegation ──────────────────────────────────────────
