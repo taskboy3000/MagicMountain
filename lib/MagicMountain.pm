@@ -28,6 +28,8 @@ use MagicMountain::Crier;
 use MagicMountain::Service::Authentication;
 use MagicMountain::RateLimiter;
 use MagicMountain::Service::RandomEvents;
+use MagicMountain::Bot::Agent;
+use MagicMountain::Bot::Routine;
 
 use MagicMountain::Service::PvP;
 use MagicMountain::Service::Dominance;
