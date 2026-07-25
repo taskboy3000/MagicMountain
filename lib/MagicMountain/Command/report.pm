@@ -50,6 +50,12 @@ sub run ($self, @args) {
     my @visits;
     my %visit_idx_of;
     my %sale_val;  # { bucket => { sale_type => { n, sum, min, max } } }
+    my %scrap_in;  # { bucket => { source => total } }
+    my %scrap_out; # { bucket => { source => total } }
+    for my $bucket (qw(total bot human)) {
+        $scrap_in{$bucket} = { sales => 0, breakthroughs => 0, pawn => 0 };
+        $scrap_out{$bucket} = { skills => 0 };
+    }
 
     for my $e (@events) {
         next if $player_char_id && $e->{char_id} ne $player_char_id;
@@ -78,6 +84,8 @@ sub run ($self, @args) {
                 $artifacts[$idx]{breakthrough} = 1;
                 delete $art_idx_of{$char_id};
             }
+            $scrap_in{total}{breakthroughs} += $e->{reward} // 0;
+            $scrap_in{$bot ? 'bot' : 'human'}{breakthroughs} += $e->{reward} // 0;
         }
         elsif ($e->{type} eq 'stop') {
             if (defined(my $idx = $art_idx_of{$char_id})) {
@@ -123,6 +131,8 @@ sub run ($self, @args) {
                     $sale_val{$bucket}{$st}{max} = $v if !defined($sale_val{$bucket}{$st}{max}) || $v > $sale_val{$bucket}{$st}{max};
                 }
             }
+            $scrap_in{total}{sales} += $e->{value} // 0;
+            $scrap_in{$bot ? 'bot' : 'human'}{sales} += $e->{value} // 0;
         }
         elsif ($e->{type} eq 'send_away') {
             if (defined(my $idx = $visit_idx_of{$char_id})) {
@@ -155,6 +165,14 @@ sub run ($self, @args) {
                 $visits[$idx]{influence_snubs}++;
             }
         }
+        elsif ($e->{type} eq 'pawn_sale') {
+            $scrap_in{total}{pawn} += $e->{value} // 0;
+            $scrap_in{$bot ? 'bot' : 'human'}{pawn} += $e->{value} // 0;
+        }
+        elsif ($e->{type} eq 'skill_purchase') {
+            $scrap_out{total}{skills} += $e->{cost} // 0;
+            $scrap_out{$bot ? 'bot' : 'human'}{skills} += $e->{cost} // 0;
+        }
     }
 
     # Deduplicate players in artifacts/visits
@@ -183,13 +201,25 @@ sub run ($self, @args) {
         }
     }
 
+    # Average human wealth
+    my $avg_wealth = 0;
+    my $human_count = 0;
+    for my $cid (@char_ids) {
+        next if $is_bot{$cid};
+        my $char = eval { $self->app->characters->get($cid) };
+        next unless $char;
+        $avg_wealth += $char->getCol('scrap') // 0;
+        $human_count++;
+    }
+    $avg_wealth = $human_count ? int(0.5 + $avg_wealth / $human_count) : 0;
+
     my $risk    = $self->_aggregate_risk(\@artifacts);
     my $market  = $self->_aggregate_market(\@visits);
 
     if ($for_llm) {
-        $self->_llm_output($risk, $market, \%sale_val, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
+        $self->_llm_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
     } else {
-        $self->_human_output($risk, $market, \%sale_val, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts);
+        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts);
     }
 }
 
@@ -223,7 +253,7 @@ sub _aggregate_market ($self, $visits) {
     return \%m;
 }
 
-sub _llm_output ($self, $risk, $market, $sv, $pvp, $pvp_cost, $char_ids, $is_bot) {
+sub _llm_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $pvp, $pvp_cost, $char_ids, $is_bot) {
     my $n = scalar @$char_ids;
     my $n_bot   = scalar grep { $is_bot->{$_} } @$char_ids;
     my $n_human = $n - $n_bot;
@@ -304,6 +334,26 @@ sub _llm_output ($self, $risk, $market, $sv, $pvp, $pvp_cost, $char_ids, $is_bot
         push @section, join("\n", @lines);
     }
 
+    # Economy section
+    if ($scrap_in->{total}{sales} || $scrap_in->{total}{breakthroughs} || $scrap_in->{total}{pawn}) {
+        my @lines = ('=ECONOMY=');
+        for my $bucket ('total', 'bot', 'human') {
+            my $s  = $scrap_in->{$bucket}{sales} // 0;
+            my $br = $scrap_in->{$bucket}{breakthroughs} // 0;
+            my $p  = $scrap_in->{$bucket}{pawn} // 0;
+            my $sk = $scrap_out->{$bucket}{skills} // 0;
+            next unless $s || $br || $p || $sk;
+            my $col = $bucket eq 'total' ? 'all' : $bucket;
+            my $total_in = $s + $br + $p;
+            push @lines, sprintf('  %-6s scrap_created=%d scrap_sales=%d scrap_breakthroughs=%d scrap_pawn=%d scrap_skill_buys=%d',
+                $col, $total_in, $s, $br, $p, $sk);
+        }
+        if ($avg_wealth) {
+            push @lines, sprintf('  avg_wealth=%d players=%d', $avg_wealth, $human_count);
+        }
+        push @section, join("\n", @lines);
+    }
+
     # PVP section
     if (keys %{ $pvp->{total} // {} }) {
         my @lines = ('=PVP=');
@@ -329,7 +379,7 @@ sub _pct_str ($n, $total) {
     return sprintf('%d(%.1f%%)', $n, $n / $total * 100);
 }
 
-sub _human_output ($self, $risk, $market, $sv, $pvp, $pvp_cost, $char_ids, $artifacts) {
+sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $pvp, $pvp_cost, $char_ids, $artifacts) {
     my $n = scalar @$char_ids;
     printf "Characters: %d\n", $n;
 
@@ -434,6 +484,30 @@ sub _human_output ($self, $risk, $market, $sv, $pvp, $pvp_cost, $char_ids, $arti
                         $st, "($bucket)", $d->{n}, $avg, $d->{min} // 0, $d->{max} // 0;
                 }
             }
+        }
+    }
+
+    # ── Economy section ───────────────────────────────────────
+    if ($scrap_in->{total}{sales} || $scrap_in->{total}{breakthroughs} || $scrap_in->{total}{pawn}) {
+        printf "\n-- Is the economy healthy? ----------------------\n";
+        printf "  %-20s %8s %8s %8s\n", '', 'All', 'Bot', 'Human';
+        my $s_total  = $scrap_in->{total}{sales} // 0;
+        my $br_total = $scrap_in->{total}{breakthroughs} // 0;
+        my $p_total  = $scrap_in->{total}{pawn} // 0;
+        my $sk_total = $scrap_out->{total}{skills} // 0;
+        printf "  %-20s %8d %8d %8d\n", 'Scrap created',
+            $s_total + $br_total + $p_total,
+            ($scrap_in->{bot}{sales}//0)+($scrap_in->{bot}{breakthroughs}//0)+($scrap_in->{bot}{pawn}//0),
+            ($scrap_in->{human}{sales}//0)+($scrap_in->{human}{breakthroughs}//0)+($scrap_in->{human}{pawn}//0);
+        printf "    %-18s %8d %8d %8d\n", 'Sales', $s_total, $scrap_in->{bot}{sales}//0, $scrap_in->{human}{sales}//0;
+        printf "    %-18s %8d %8d %8d\n", 'Breakthroughs', $br_total, $scrap_in->{bot}{breakthroughs}//0, $scrap_in->{human}{breakthroughs}//0;
+        printf "    %-18s %8d %8d %8d\n", 'Pawn', $p_total, $scrap_in->{bot}{pawn}//0, $scrap_in->{human}{pawn}//0;
+        printf "  %-20s %8d %8d %8d\n", 'Scrap spent',
+            $sk_total,
+            $scrap_out->{bot}{skills}//0,
+            $scrap_out->{human}{skills}//0;
+        if ($human_count > 0) {
+            printf "  Average player wealth: %d scrap (%d players)\n", $avg_wealth, $human_count;
         }
     }
 
