@@ -10,7 +10,7 @@ sub login ($self, $name) {
     my $body = { displayName => $name };
     my $tx = $self->_req(POST => '/sessions', $body);
     my $json = $tx->res->json;
-    unless ($json && $json->{ok}) {
+    if (!$json || !$json->{ok}) {
         my $detail = $json ? Mojo::JSON::encode_json($json) : $tx->res->body // 'no response';
         die "Login failed for $name — $detail";
     }
@@ -25,7 +25,7 @@ sub logout ($self) {
 sub req ($self, $method, $path, $body = undef) {
     my $tx = $self->_req($method, $path, $body);
     my $json = $tx->res->json;
-    unless ($json && (ref $json eq 'HASH') && $json->{ok}) {
+    if (!$json || ref $json ne 'HASH' || !$json->{ok}) {
         my $detail = $json ? encode_json($json) : ($tx->res->code . ' ' . $tx->res->body // 'no response');
         die "$method $path failed — $detail";
     }
