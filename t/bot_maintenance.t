@@ -86,4 +86,21 @@ subtest 'bot runs during maintenance, AP consumed, then reset' => sub {
     is $season->getCol('day'), 4, 'day advanced';
 };
 
+subtest 'default config provides a usable bot_service_token' => sub {
+    my $t   = TestEnv->create_app;
+    my $app = $t->app;
+    my $token = $app->config->{bot_service_token};
+    ok defined $token && length $token > 0, 'bot_service_token is set by default';
+    like $token, qr/^\S+$/, 'bot_service_token is a non-whitespace string';
+
+    # Verify the server accepts it via the sessions controller check
+    my $mech = $t->ua;
+    my $tx = $mech->build_tx(POST => '/sessions' => json => { displayName => 'bot-test' });
+    $tx->req->headers->header('X-Bot-Service-Token' => $token);
+    $tx = $mech->start($tx);
+    my $json = $tx->res->json;
+    ok $json && $json->{ok}, 'bot login succeeds with default token'
+        or diag explain $json;
+};
+
 done_testing;
