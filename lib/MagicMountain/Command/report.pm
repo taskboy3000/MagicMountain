@@ -162,32 +162,6 @@ sub run ($self, @args) {
     for (@artifacts, @visits) { $seen_char{ $_->{char_id} } = 1 }
     my @char_ids = sort keys %seen_char;
 
-    # Aggregate prospecting counters
-    my %p = (total => {}, bot => {}, human => {});
-    for my $a (@artifacts) {
-        my $b = $a->{bot} ? 'bot' : 'human';
-        for my $bucket ('total', $b) {
-            $p{$bucket}{expeditions}++;
-            $p{$bucket}{pushes} += $a->{pushes};
-            $p{$bucket}{collapsed}++ if $a->{collapsed};
-            $p{$bucket}{breakthrough}++ if $a->{breakthrough};
-            $p{$bucket}{stopped}++ if $a->{stopped};
-            $p{$bucket}{budget_exhausted} += $a->{budget_exhausted};
-        }
-    }
-
-    # Aggregate market counters
-    my %m = (total => {}, bot => {}, human => {});
-    for my $v (@visits) {
-        my $b = $v->{bot} ? 'bot' : 'human';
-        for my $bucket ('total', $b) {
-            $m{$bucket}{visits}++;
-            for my $k (qw(offers mismatches counters counters_accepted sales send_aways stand_pats stand_pat_successes sale_maxed over_budget influence_snubs)) {
-                $m{$bucket}{$k} += $v->{$k};
-            }
-        }
-    }
-
     # PVP analysis
     my %pvp;  # { total|bot|human => { effect_type => count } }
     my $pvp_cost_total = 0;
@@ -209,15 +183,47 @@ sub run ($self, @args) {
         }
     }
 
-    # Build output
+    my $risk    = $self->_aggregate_risk(\@artifacts);
+    my $market  = $self->_aggregate_market(\@visits);
+
     if ($for_llm) {
-        $self->_llm_output(\%p, \%m, \%sale_val, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
+        $self->_llm_output($risk, $market, \%sale_val, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
     } else {
-        $self->_human_output(\%p, \%m, \%sale_val, \%pvp, $pvp_cost_total, \@char_ids);
+        $self->_human_output($risk, $market, \%sale_val, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts);
     }
 }
 
-sub _llm_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids, $is_bot) {
+sub _aggregate_risk ($self, $artifacts) {
+    my %p = (total => {}, bot => {}, human => {});
+    for my $a (@$artifacts) {
+        my $b = $a->{bot} ? 'bot' : 'human';
+        for my $bucket ('total', $b) {
+            $p{$bucket}{expeditions}++;
+            $p{$bucket}{pushes} += $a->{pushes};
+            $p{$bucket}{collapsed}++ if $a->{collapsed};
+            $p{$bucket}{breakthrough}++ if $a->{breakthrough};
+            $p{$bucket}{stopped}++ if $a->{stopped};
+            $p{$bucket}{budget_exhausted} += $a->{budget_exhausted};
+        }
+    }
+    return \%p;
+}
+
+sub _aggregate_market ($self, $visits) {
+    my %m = (total => {}, bot => {}, human => {});
+    for my $v (@$visits) {
+        my $b = $v->{bot} ? 'bot' : 'human';
+        for my $bucket ('total', $b) {
+            $m{$bucket}{visits}++;
+            for my $k (qw(offers mismatches counters counters_accepted sales send_aways stand_pats stand_pat_successes sale_maxed over_budget influence_snubs)) {
+                $m{$bucket}{$k} += $v->{$k};
+            }
+        }
+    }
+    return \%m;
+}
+
+sub _llm_output ($self, $risk, $market, $sv, $pvp, $pvp_cost, $char_ids, $is_bot) {
     my $n = scalar @$char_ids;
     my $n_bot   = scalar grep { $is_bot->{$_} } @$char_ids;
     my $n_human = $n - $n_bot;
@@ -225,66 +231,75 @@ sub _llm_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids, $is_bot) {
 
     my @section;
 
-    # Prospecting section
-    if ($p->{total}{expeditions}) {
-        my @lines = ('=PROSPECTING=');
+    # Risk section
+    if ($risk->{total}{expeditions}) {
+        my @lines = ('=RISK=');
         for my $bucket ('total', 'bot', 'human') {
-            next unless $p->{$bucket}{expeditions};
-            my $exp = $p->{$bucket}{expeditions};
-            my $push = $p->{$bucket}{pushes};
+            next unless $risk->{$bucket}{expeditions};
+            my $exp = $risk->{$bucket}{expeditions};
+            my $push = $risk->{$bucket}{pushes};
             my $col = $bucket eq 'total' ? 'all' : $bucket;
             push @lines, sprintf('  %-6s expeditions=%d pushes=%d avg_push=%.1f collapsed=%s breakthrough=%s stopped=%s budget_exhausted=%d',
                 $col,
                 $exp,
                 $push,
                 $push / $exp,
-                _pct_str($p->{$bucket}{collapsed} || 0, $exp),
-                _pct_str($p->{$bucket}{breakthrough} || 0, $exp),
-                _pct_str($p->{$bucket}{stopped} || 0, $exp),
-                $p->{$bucket}{budget_exhausted} || 0,
+                _pct_str($risk->{$bucket}{collapsed} || 0, $exp),
+                _pct_str($risk->{$bucket}{breakthrough} || 0, $exp),
+                _pct_str($risk->{$bucket}{stopped} || 0, $exp),
+                $risk->{$bucket}{budget_exhausted} || 0,
             );
         }
         push @section, join("\n", @lines);
     }
 
-    # Market section
-    if ($m->{total}{visits}) {
+    # Market function section
+    if ($market->{total}{visits}) {
         my @lines = ('=MARKET=');
         for my $bucket ('total', 'bot', 'human') {
-            next unless $m->{$bucket}{visits};
-            my $vis = $m->{$bucket}{visits};
-            my $off = $m->{$bucket}{offers} || 0;
-            my $cnt = $m->{$bucket}{counters} || 0;
-            my $sp  = $m->{$bucket}{stand_pats} || 0;
+            next unless $market->{$bucket}{visits};
+            my $vis = $market->{$bucket}{visits};
+            my $off = $market->{$bucket}{offers} || 0;
             my $col = $bucket eq 'total' ? 'all' : $bucket;
-            push @lines, sprintf('  %-6s visits=%d offers=%d offers_per_visit=%.2f sales=%d mismatches=%d send_aways=%d counters_accepted=%s stand_pats_success=%s sale_maxed=%d over_budget=%d snubs=%d',
+            push @lines, sprintf('  %-6s visits=%d offers=%d offers_per_visit=%.2f sales=%d mismatches=%d send_aways=%d',
                 $col,
                 $vis, $off,
                 $vis ? $off / $vis : 0,
-                $m->{$bucket}{sales} || 0,
-                $m->{$bucket}{mismatches} || 0,
-                $m->{$bucket}{send_aways} || 0,
-                _pct_str($m->{$bucket}{counters_accepted} || 0, $cnt),
-                _pct_str($m->{$bucket}{stand_pat_successes} || 0, $sp),
-                $m->{$bucket}{sale_maxed} || 0,
-                $m->{$bucket}{over_budget} || 0,
-                $m->{$bucket}{influence_snubs} || 0,
+                $market->{$bucket}{sales} || 0,
+                $market->{$bucket}{mismatches} || 0,
+                $market->{$bucket}{send_aways} || 0,
             );
         }
         push @section, join("\n", @lines);
     }
 
-    # Sale prices section
-    if (keys %{ $sv->{total} // {} }) {
-        my @lines = ('=SALE PRICES=');
-        my @stypes = sort keys %{ $sv->{total} };
-        for my $st (@stypes) {
-            my $info = sub {
+    # Negotiation section
+    if ($market->{total}{visits}) {
+        my @lines = ('=NEGOTIATION=');
+        for my $bucket ('total', 'bot', 'human') {
+            next unless $market->{$bucket}{visits};
+            my $cnt = $market->{$bucket}{counters} || 0;
+            my $sp  = $market->{$bucket}{stand_pats} || 0;
+            my $col = $bucket eq 'total' ? 'all' : $bucket;
+            push @lines, sprintf('  %-6s counters=%d counters_accepted=%s stand_pats=%d stand_pats_success=%s sale_maxed=%d over_budget=%d snubs=%d',
+                $col,
+                $cnt,
+                _pct_str($market->{$bucket}{counters_accepted} || 0, $cnt),
+                $sp,
+                _pct_str($market->{$bucket}{stand_pat_successes} || 0, $sp),
+                $market->{$bucket}{sale_maxed} || 0,
+                $market->{$bucket}{over_budget} || 0,
+                $market->{$bucket}{influence_snubs} || 0,
+            );
+        }
+
+        if (keys %{ $sv->{total} // {} }) {
+            push @lines, '  sale_prices:';
+            for my $st (sort keys %{ $sv->{total} }) {
                 my $d = $sv->{total}{$st};
                 my $avg = int($d->{sum} / $d->{n});
-                return sprintf('n=%d avg=%d min=%d max=%d', $d->{n}, $avg, $d->{min}, $d->{max});
-            };
-            push @lines, sprintf('  %-15s %s', $st, $info->());
+                push @lines, sprintf('    %s n=%d avg=%d min=%d max=%d', $st, $d->{n}, $avg, $d->{min}, $d->{max});
+            }
         }
         push @section, join("\n", @lines);
     }
@@ -314,48 +329,100 @@ sub _pct_str ($n, $total) {
     return sprintf('%d(%.1f%%)', $n, $n / $total * 100);
 }
 
-sub _human_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids) {
+sub _human_output ($self, $risk, $market, $sv, $pvp, $pvp_cost, $char_ids, $artifacts) {
     my $n = scalar @$char_ids;
     printf "Characters: %d\n", $n;
 
-    if ($p->{total}{expeditions}) {
-        printf "\n-- Prospecting ------------------------------\n";
+    # ── Risk section ──────────────────────────────────────────
+    if ($risk->{total}{expeditions}) {
+        printf "\n-- Are players taking risks? --------------------\n";
+        $self->_risk_header();
         for my $bucket ('total', 'bot', 'human') {
-            next unless $p->{$bucket}{expeditions};
-            my $exp = $p->{$bucket}{expeditions};
-            my $push = $p->{$bucket}{pushes};
-            printf "  %s:\n", $bucket eq 'total' ? 'All' : ucfirst($bucket);
-            printf "    Expeditions:      %d\n", $exp;
-            printf "    Avg pushes/exp:   %.1f\n", $exp ? $push / $exp : 0;
-            printf "    Collapse rate:    %.1f%%\n", $exp ? ($p->{$bucket}{collapsed} || 0) / $exp * 100 : 0;
-            printf "    Breakthrough rate: %.1f%%\n", $exp ? ($p->{$bucket}{breakthrough} || 0) / $exp * 100 : 0;
-            printf "    Stop rate:        %.1f%%\n", $exp ? ($p->{$bucket}{stopped} || 0) / $exp * 100 : 0;
-            printf "    Budget exhausted: %d\n", $p->{$bucket}{budget_exhausted} || 0;
+            next unless $risk->{$bucket}{expeditions};
+            my $exp  = $risk->{$bucket}{expeditions};
+            printf "  %-6s %10d %8d %8d\n",
+                $bucket eq 'total' ? 'All' : ucfirst($bucket),
+                $exp,
+                $risk->{$bucket}{collapsed} || 0,
+                $risk->{$bucket}{breakthrough} || 0;
+        }
+
+        # Push histogram
+        my %hist;
+        for my $a (@$artifacts) {
+            $hist{ $a->{pushes} }++;
+        }
+        if (keys %hist) {
+            my $max_count = 0;
+            $max_count = $_ > $max_count ? $_ : $max_count for values %hist;
+            $max_count ||= 1;
+            my $max_bar = 30;
+            printf "\n  Push distribution:\n";
+            for my $n (sort { $a <=> $b } keys %hist) {
+                my $bar_len = int($hist{$n} / $max_count * $max_bar);
+                $bar_len = 1 if $hist{$n} > 0 && $bar_len < 1;
+                printf "    %2d  %s  (%d)\n", $n, '#' x $bar_len, $hist{$n};
+            }
+        }
+
+        # Per-bucket detail for risk
+        printf "\n  Expeditions     Collapse   Brkthr    Stop   AvgPush  BudgetEx\n";
+        for my $bucket ('total', 'bot', 'human') {
+            next unless $risk->{$bucket}{expeditions};
+            my $exp  = $risk->{$bucket}{expeditions};
+            my $push = $risk->{$bucket}{pushes};
+            printf "  %-6s %5d %7.1f%% %6.1f%% %6.1f%% %8.1f %6d\n",
+                $bucket eq 'total' ? 'All' : ucfirst($bucket),
+                $exp,
+                $exp ? ($risk->{$bucket}{collapsed} || 0) / $exp * 100 : 0,
+                $exp ? ($risk->{$bucket}{breakthrough} || 0) / $exp * 100 : 0,
+                $exp ? ($risk->{$bucket}{stopped} || 0) / $exp * 100 : 0,
+                $exp ? $push / $exp : 0,
+                $risk->{$bucket}{budget_exhausted} || 0,
         }
     }
 
-    if ($m->{total}{visits}) {
-        printf "\n-- Market -----------------------------------\n";
+    # ── Market section ────────────────────────────────────────
+    if ($market->{total}{visits}) {
+        printf "\n-- Is the market functioning? -------------------\n";
+        printf "  %-12s %5s %6s %6s %6s %6s %8s\n", '', 'Visits', 'Offers', 'O/V', 'Sales', 'Mismat', 'SndAwy';
         for my $bucket ('total', 'bot', 'human') {
-            next unless $m->{$bucket}{visits};
-            my $vis = $m->{$bucket}{visits};
-            my $off = $m->{$bucket}{offers} || 0;
-            my $cnt = $m->{$bucket}{counters} || 0;
-            my $sp  = $m->{$bucket}{stand_pats} || 0;
-            printf "  %s:\n", $bucket eq 'total' ? 'All' : ucfirst($bucket);
-            printf "    Visits:           %d\n", $vis;
-            printf "    Avg offers/visit: %.1f\n", $vis ? $off / $vis : 0;
-            printf "    Counter-offers:   %d (%.1f%% accepted)\n", $cnt, $cnt ? ($m->{$bucket}{counters_accepted} || 0) / $cnt * 100 : 0;
-            printf "    Send-aways:       %d\n", $m->{$bucket}{send_aways} || 0;
-            printf "    Stand-pats:       %d (%.1f%% success)\n", $sp, $sp ? ($m->{$bucket}{stand_pat_successes} || 0) / $sp * 100 : 0;
-            printf "    Sales:            %d\n", $m->{$bucket}{sales} || 0;
-            printf "    Mismatches:       %d\n", $m->{$bucket}{mismatches} || 0;
-            printf "    Sale maxed:       %d\n", $m->{$bucket}{sale_maxed} || 0;
-            printf "    Over budget:      %d\n", $m->{$bucket}{over_budget} || 0;
-            printf "    Influence snubs:  %d\n", $m->{$bucket}{influence_snubs} || 0;
+            next unless $market->{$bucket}{visits};
+            my $vis = $market->{$bucket}{visits};
+            my $off = $market->{$bucket}{offers} || 0;
+            printf "  %-12s %5d %6d %5.1f %6d %6d %8d\n",
+                $bucket eq 'total' ? 'All' : ucfirst($bucket),
+                $vis, $off,
+                $vis ? $off / $vis : 0,
+                $market->{$bucket}{sales} || 0,
+                $market->{$bucket}{mismatches} || 0,
+                $market->{$bucket}{send_aways} || 0,
+        }
+    }
+
+    # ── Negotiation section ───────────────────────────────────
+    if ($market->{total}{visits}) {
+        printf "\n-- Is negotiation interesting? ------------------\n";
+        printf "  %-18s %5s %6s %9s %6s %6s %7s %6s\n",
+            '', 'Countr', 'Accptd', 'StnPat', 'Succs', 'Maxed', 'OvrBdg', 'Snubs';
+        for my $bucket ('total', 'bot', 'human') {
+            next unless $market->{$bucket}{visits};
+            my $cnt  = $market->{$bucket}{counters} || 0;
+            my $sp   = $market->{$bucket}{stand_pats} || 0;
+            my $ca   = $market->{$bucket}{counters_accepted} || 0;
+            my $sps  = $market->{$bucket}{stand_pat_successes} || 0;
+            printf "  %-18s %5d %s %5d %s %6d %7d %6d\n",
+                $bucket eq 'total' ? 'All' : ucfirst($bucket),
+                $cnt,
+                $cnt ? sprintf('%d(%d%%)', $ca, $ca / $cnt * 100) : '0',
+                $sp,
+                $sp ? sprintf('%d(%d%%)', $sps, $sps / $sp * 100) : '0',
+                $market->{$bucket}{sale_maxed} || 0,
+                $market->{$bucket}{over_budget} || 0,
+                $market->{$bucket}{influence_snubs} || 0,
         }
 
-        # Aggregate sale prices
+        # Sale prices
         if (keys %{ $sv->{total} // {} }) {
             printf "\n  Sale prices by type:\n";
             for my $st (sort keys %{ $sv->{total} }) {
@@ -370,8 +437,9 @@ sub _human_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids) {
         }
     }
 
+    # ── PVP section ───────────────────────────────────────────
     if (keys %{ $pvp->{total} // {} }) {
-        printf "\n-- PVP --------------------------------------\n";
+        printf "\n-- PVP ------------------------------------------\n";
         printf "  Effect         Total  Bot  Est Cost\n";
         for my $et (sort keys %{ $pvp->{total} }) {
             printf "  %-15s %5d %4d %8d\n",
@@ -383,6 +451,10 @@ sub _human_output ($self, $p, $m, $sv, $pvp, $pvp_cost, $char_ids) {
         printf "  %-15s %5s %4s %8d\n", 'total', '', '', $pvp_cost;
         printf "  (note: counts may undercount due to record cleanup during play)\n";
     }
+}
+
+sub _risk_header ($self) {
+    printf "  %-6s %10s %8s %8s\n", '', 'Exped.', 'Collapse', 'Brkthr';
 }
 
 1;

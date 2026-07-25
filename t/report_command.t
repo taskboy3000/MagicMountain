@@ -85,9 +85,8 @@ subtest 'prospecting events' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path);
     }
-    like $out, qr/Expeditions.*2/, 'two expeditions';
-    like $out, qr/Breakthrough.*50/, 'one breakthrough';
-    like $out, qr/Collapse.*50/, 'one collapse';
+    like $out, qr/All\s+2\b/, 'two expeditions';
+    like $out, qr/All\s+2\s+50\.0%\s+50\.0%/, 'one breakthrough and one collapse (50% each)';
 };
 
 subtest 'market events with new types' => sub {
@@ -122,12 +121,9 @@ subtest 'market events with new types' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path);
     }
-    like $out, qr/Visits.*5/, 'five visits';
-    like $out, qr/Sales.*2/, 'two sales';
-    like $out, qr/Sale maxed.*1/, 'one sale_maxed';
-    like $out, qr/Over budget.*1/, 'one over_budget';
-    like $out, qr/Influence snubs.*1/, 'one influence_snub';
-    like $out, qr/Send-aways.*2/, 'two send_aways';
+    like $out, qr/All\s+5\s+3/, 'five visits, three offers';
+    like $out, qr/All\s+5\s+3\s+0\.6\s+2\s+1\s+2/, 'two sales, one mismatch, two send-aways';
+    like $out, qr/All\s+1\s+1\(100%\)\s+1\s+1\(100%\)\s+1\s+1\s+1/, 'one counter/stand_pat/sale_maxed/over_budget/snub each';
 };
 
 subtest 'bot/human split' => sub {
@@ -153,9 +149,10 @@ subtest 'bot/human split' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path);
     }
-    like $out, qr/Expeditions:\s+1/s, 'bot+human each have 1 expedition';
-    like $out, qr/Bot:\n.*Avg pushes.*2\.0/s, 'bot avg 2 pushes';
-    like $out, qr/Human:\n.*Avg pushes.*1\.0/s, 'human avg 1 push';
+    like $out, qr/Human\s+1\b/, 'human has 1 expedition';
+    like $out, qr/Bot\s+1\b/, 'bot has 1 expedition';
+    like $out, qr/Human.*1\.0\b/, 'human avg 1 push';
+    like $out, qr/Bot.*2\.0\b/, 'bot avg 2 pushes';
 };
 
 subtest '--for-llm format' => sub {
@@ -179,11 +176,10 @@ subtest '--for-llm format' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path, '--for-llm');
     }
-    like $out, qr/=PROSPECTING=/, 'has prospecting section';
+    like $out, qr/=RISK=/, 'has risk section';
     like $out, qr/=MARKET=/, 'has market section';
-    like $out, qr/=SALE PRICES=/, 'has sale prices section';
+    like $out, qr/=NEGOTIATION=/, 'has negotiation section';
     like $out, qr/characters:/, 'has character summary';
-    unlike $out, qr/Expeditions:/, 'no human-table formatting';
 };
 
 subtest '--player filter by ID' => sub {
@@ -204,7 +200,7 @@ subtest '--player filter by ID' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path, '--player', $cid);
     }
-    like $out, qr/Expeditions.*1/, 'one expedition for player';
+    like $out, qr/All\s+1\b/, 'one expedition for player';
 };
 
 subtest '--player filter by name' => sub {
@@ -225,7 +221,7 @@ subtest '--player filter by name' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path, '--player', 'target_name');
     }
-    like $out, qr/Expeditions.*1/, 'filtered by name';
+    like $out, qr/All\s+1\b/, 'filtered by name';
 };
 
 subtest 'PVP section' => sub {
@@ -289,7 +285,8 @@ subtest 'sale prices with bot/human breakdown' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path, '--for-llm');
     }
-    like $out, qr/=SALE PRICES=/, 'has sale prices section in llm output';
+    like $out, qr/=NEGOTIATION=/, 'has negotiation section in llm output';
+    like $out, qr/sale_prices:/, 'has sale prices in llm output';
     like $out, qr/direct/, 'has direct sale type';
     like $out, qr/n=2/, 'two total sales';
 };
@@ -312,8 +309,8 @@ subtest 'regression: existing table format without --for-llm' => sub {
         $cmd->run('--transcript', $path);
     }
     like $out, qr/Characters:/, 'has Characters header';
-    like $out, qr/-- Prospecting/, 'has Prospecting header';
-    like $out, qr/Expeditions:/, 'keeps human table labels';
+    like $out, qr/Are players taking risks/, 'has risk header';
+    like $out, qr/Expeditions\s+Collapse/, 'keeps table column headers';
 };
 
 done_testing;
