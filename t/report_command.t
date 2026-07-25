@@ -61,7 +61,7 @@ subtest 'empty transcript' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path);
     }
-    like $out, qr/Characters:\s*\d+/, 'has character count';
+    like $out, qr/Characters\s+\d+/, 'has character count';
 };
 
 subtest 'prospecting events' => sub {
@@ -122,7 +122,7 @@ subtest 'market events with new types' => sub {
         $cmd->run('--transcript', $path);
     }
     like $out, qr/All\s+5\s+3/, 'five visits, three offers';
-    like $out, qr/All\s+5\s+3\s+0\.6\s+2\s+1\s+2/, 'two sales, one mismatch, two send-aways';
+    like $out, qr/All\s+5\s+3\s+0\.60\s+2\s+1\s+2/, 'two sales, one mismatch, two send-aways';
     like $out, qr/All\s+1\s+1\(100%\)\s+1\s+1\(100%\)\s+1\s+1\s+1/, 'one counter/stand_pat/sale_maxed/over_budget/snub each';
 };
 
@@ -308,7 +308,7 @@ subtest 'regression: existing table format without --for-llm' => sub {
         my $cmd = MagicMountain::Command::report->new(app => $app);
         $cmd->run('--transcript', $path);
     }
-    like $out, qr/Characters:/, 'has Characters header';
+    like $out, qr/Season Summary/, 'has Season Summary header';
     like $out, qr/Are players taking risks/, 'has risk header';
     like $out, qr/Expeditions\s+Collapse/, 'keeps table column headers';
 };

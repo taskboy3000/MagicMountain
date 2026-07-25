@@ -412,7 +412,11 @@ sub _pct_str ($n, $total) {
 
 sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $artifacts, $visits) {
     my $n = scalar @$char_ids;
-    printf "Characters: %d\n", $n;
+    printf "Season Summary\n";
+    printf "--------------\n";
+    printf "  Characters      %d\n", $n;
+    printf "  Humans          %d\n", $human_count;
+    printf "  Bots            %d\n", $n - $human_count;
 
     # ── Risk section ──────────────────────────────────────────
     if ($risk->{total}{expeditions}) {
@@ -466,12 +470,12 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
     # ── Market section ────────────────────────────────────────
     if ($market->{total}{visits}) {
         printf "\n-- Is the market functioning? -------------------\n";
-        printf "  %-12s %5s %9s %5s %6s %10s %8s\n", '', 'Visits', 'ItemsOff.', 'O/V', 'Sales', 'NoMatch', 'SentAway';
+        printf "  %-12s %5s %9s %7s %6s %10s %9s\n", '', 'Visits', 'ItemsOff.', 'OffRate', 'Sales', 'NoMatch', 'SentAway';
         for my $bucket ('total', 'bot', 'human') {
             next unless $market->{$bucket}{visits};
             my $vis = $market->{$bucket}{visits};
             my $off = $market->{$bucket}{offers} || 0;
-            printf "  %-12s %5d %9d %5.1f %6d %10d %8d\n",
+            printf "  %-12s %5d %9d %7.2f %6d %10d %9d\n",
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
                 $vis, $off,
                 $vis ? $off / $vis : 0,
@@ -502,15 +506,15 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
     # ── Negotiation section ───────────────────────────────────
     if ($market->{total}{visits}) {
         printf "\n-- Is negotiation interesting? ------------------\n";
-        printf "  %-18s %8s %9s %10s %8s %7s %9s %7s\n",
-            '', 'CtrOffer', 'Accptd', 'StandPat', 'Succs', 'MaxOff', 'OvrBudg', 'Snubbed';
+        printf "  %-18s %12s %10s %9s %13s %7s %10s %8s\n",
+            '', 'CtrOffers', 'Accepted', 'StandPat', 'SPSuccess', 'MaxOff', 'OverBudget', 'Snubbed';
         for my $bucket ('total', 'bot', 'human') {
             next unless $market->{$bucket}{visits};
             my $cnt  = $market->{$bucket}{counters} || 0;
             my $sp   = $market->{$bucket}{stand_pats} || 0;
             my $ca   = $market->{$bucket}{counters_accepted} || 0;
             my $sps  = $market->{$bucket}{stand_pat_successes} || 0;
-            printf "  %-18s %8d %9s %10d %8s %7d %9d %7d\n",
+            printf "  %-18s %12d %10s %9d %13s %7d %10d %8d\n",
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
                 $cnt,
                 $cnt ? sprintf('%d(%d%%)', $ca, $ca / $cnt * 100) : '0',
@@ -551,28 +555,34 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
         printf "    %-18s %8d %8d %8d\n", 'Sales', $s_total, $scrap_in->{bot}{sales}//0, $scrap_in->{human}{sales}//0;
         printf "    %-18s %8d %8d %8d\n", 'Breakthroughs', $br_total, $scrap_in->{bot}{breakthroughs}//0, $scrap_in->{human}{breakthroughs}//0;
         printf "    %-18s %8d %8d %8d\n", 'Pawn', $p_total, $scrap_in->{bot}{pawn}//0, $scrap_in->{human}{pawn}//0;
-        printf "  %-20s %8d %8d %8d\n", 'Scrap spent',
+        printf "  %-20s %8d %8d %8d\n", 'Scrap spent (skills)',
             $sk_total,
             $scrap_out->{bot}{skills}//0,
             $scrap_out->{human}{skills}//0;
+        my $net = ($s_total + $br_total + $p_total) - $sk_total;
+        printf "  %-20s %8s %8s %8s\n", 'Net scrap', $net > 0 ? "+$net" : $net, '', '';
         if ($human_count > 0) {
-            printf "  Average player wealth: %d scrap (%d players)\n", $avg_wealth, $human_count;
+            printf "  Avg wealth (human): %d scrap (%d player%s)\n", $avg_wealth, $human_count, $human_count == 1 ? '' : 's';
         }
     }
 
-    # ── Artifact lifecycle section ──────────────────────────
+    # ── Artifact outcomes section ──────────────────────────
     if ($risk->{total}{expeditions}) {
-        printf "\n-- Artifact Lifecycle --------------------------\n";
+        printf "\n-- Artifact Outcomes --------------------------\n";
         printf "  %-12s %6s %6s %6s %6s %6s\n", '', 'Started', 'Sold', 'Collaps', 'Brkthr', 'InShed';
         for my $bucket ('total', 'bot', 'human') {
             next unless $risk->{$bucket}{expeditions};
+            my $started = $risk->{$bucket}{expeditions};
+            my $sold    = $market->{$bucket}{sales} || 0;
+            my $coll    = $risk->{$bucket}{collapsed} || 0;
+            my $brk     = $risk->{$bucket}{breakthrough} || 0;
+            my $inshed  = $shed->{$bucket} || 0;
+            my $held    = $started - $sold - $coll - $inshed;
+            $held = 0 if $held < 0;
             printf "  %-12s %6d %6d %6d %6d %6d\n",
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
-                $risk->{$bucket}{expeditions},
-                $market->{$bucket}{sales} || 0,
-                $risk->{$bucket}{collapsed} || 0,
-                $risk->{$bucket}{breakthrough} || 0,
-                $shed->{$bucket} || 0,
+                $started, $sold, $coll, $brk, $inshed;
+            printf "  %-12s %6s\n", '', sprintf('Held: %d', $held) if $bucket eq 'total' && $held;
         }
     }
 
