@@ -73,6 +73,7 @@ sub _log_event ($self, $char, $event) {
     $event->{char_id} = $char->getCol('id');
     $event->{is_bot}  = $char->getCol('is_bot') // 0;
     $event->{action_points} = $char->getCol('action_points');
+    return if ! $self->app->can('transcript') || ! $self->app->transcript;
     $self->app->transcript->log_event($event);
 }
 

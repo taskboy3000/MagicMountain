@@ -202,8 +202,8 @@ has maintenance => sub ($self) {
                         my $bot_transcript = MagicMountain::Model::Transcript->new(
                             file => $maint->app->dataDir . '/transcript_bots.jsonl'
                         );
-                        my $saved_transcript = $maint->app->{transcript};
-                        $maint->app->{transcript} = $bot_transcript;
+                        my $saved_transcript = $maint->app->transcript;
+                        $maint->app->transcript($bot_transcript);
 
                         my $port = $maint->app->config->{port} // 9000;
                         my $svc_token = $maint->app->config->{bot_service_token};
@@ -233,7 +233,7 @@ has maintenance => sub ($self) {
                             }
                         }
 
-                        $maint->app->{transcript} = $saved_transcript;
+                        $maint->app->transcript($saved_transcript);
                     }
                 }
             }

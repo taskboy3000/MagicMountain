@@ -3,7 +3,7 @@ use Modern::Perl;
 use Mojo::Base 'MagicMountain::Activity', '-signatures';
 
 has transitions => sub {
-    { idle => ['offer'], result => ['dismiss', 'offer_next'] }
+    { idle => ['offer', 'dismiss'], result => ['dismiss', 'offer_next'] }
 };
 
 has _activity_type => sub { 'pawn' };
