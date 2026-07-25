@@ -232,7 +232,7 @@ sub run ($self, @args) {
     if ($for_llm) {
         $self->_llm_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \%is_bot);
     } else {
-        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts);
+        $self->_human_output($risk, $market, \%sale_val, \%scrap_in, \%scrap_out, $avg_wealth, $human_count, \%shed_by_bucket, \%pvp, $pvp_cost_total, \@char_ids, \@artifacts, \@visits);
     }
 }
 
@@ -410,7 +410,7 @@ sub _pct_str ($n, $total) {
     return sprintf('%d(%.1f%%)', $n, $n / $total * 100);
 }
 
-sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $artifacts) {
+sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealth, $human_count, $shed, $pvp, $pvp_cost, $char_ids, $artifacts, $visits) {
     my $n = scalar @$char_ids;
     printf "Characters: %d\n", $n;
 
@@ -466,12 +466,12 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
     # ── Market section ────────────────────────────────────────
     if ($market->{total}{visits}) {
         printf "\n-- Is the market functioning? -------------------\n";
-        printf "  %-12s %5s %6s %6s %6s %6s %8s\n", '', 'Visits', 'Offers', 'O/V', 'Sales', 'Mismat', 'SndAwy';
+        printf "  %-12s %5s %9s %5s %6s %10s %8s\n", '', 'Visits', 'ItemsOff.', 'O/V', 'Sales', 'NoMatch', 'SentAway';
         for my $bucket ('total', 'bot', 'human') {
             next unless $market->{$bucket}{visits};
             my $vis = $market->{$bucket}{visits};
             my $off = $market->{$bucket}{offers} || 0;
-            printf "  %-12s %5d %6d %5.1f %6d %6d %8d\n",
+            printf "  %-12s %5d %9d %5.1f %6d %10d %8d\n",
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
                 $vis, $off,
                 $vis ? $off / $vis : 0,
@@ -479,20 +479,38 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
                 $market->{$bucket}{mismatches} || 0,
                 $market->{$bucket}{send_aways} || 0,
         }
+
+        # Offer histogram
+        my %ohist;
+        for my $v (@$visits) {
+            $ohist{ $v->{offers} }++;
+        }
+        if (keys %ohist) {
+            my $max_count = 0;
+            $max_count = $_ > $max_count ? $_ : $max_count for values %ohist;
+            $max_count ||= 1;
+            my $max_bar = 30;
+            printf "\n  Items offered per visit:\n";
+            for my $n (sort { $a <=> $b } keys %ohist) {
+                my $bar_len = int($ohist{$n} / $max_count * $max_bar);
+                $bar_len = 1 if $ohist{$n} > 0 && $bar_len < 1;
+                printf "    %3d  %s  (%d)\n", $n, '#' x $bar_len, $ohist{$n};
+            }
+        }
     }
 
     # ── Negotiation section ───────────────────────────────────
     if ($market->{total}{visits}) {
         printf "\n-- Is negotiation interesting? ------------------\n";
-        printf "  %-18s %5s %6s %9s %6s %6s %7s %6s\n",
-            '', 'Countr', 'Accptd', 'StnPat', 'Succs', 'Maxed', 'OvrBdg', 'Snubs';
+        printf "  %-18s %8s %9s %10s %8s %7s %9s %7s\n",
+            '', 'CtrOffer', 'Accptd', 'StandPat', 'Succs', 'MaxOff', 'OvrBudg', 'Snubbed';
         for my $bucket ('total', 'bot', 'human') {
             next unless $market->{$bucket}{visits};
             my $cnt  = $market->{$bucket}{counters} || 0;
             my $sp   = $market->{$bucket}{stand_pats} || 0;
             my $ca   = $market->{$bucket}{counters_accepted} || 0;
             my $sps  = $market->{$bucket}{stand_pat_successes} || 0;
-            printf "  %-18s %5d %s %5d %s %6d %7d %6d\n",
+            printf "  %-18s %8d %9s %10d %8s %7d %9d %7d\n",
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
                 $cnt,
                 $cnt ? sprintf('%d(%d%%)', $ca, $ca / $cnt * 100) : '0',
@@ -621,30 +639,44 @@ Useful for drilling into a specific player or bot's activity.
 =item B<--for-llm>
 
 Output a compact key=value digest suitable for LLM analysis prompts. Each
-section (PROSPECTING, MARKET, SALE PRICES, PVP) is labeled with C<=SECTION=>
-headers. The character count line serves as a summary header.
+section (RISK, MARKET, NEGOTIATION, LIFECYCLE, ECONOMY, PVP) is labeled
+with C<=SECTION=> headers. The character count line serves as a summary
+header.
 
 =back
 
 =head1 SECTIONS
 
-=head2 Prospecting
+=head2 Risk (Are players taking risks?)
 
 Tracks artifact_start, push, collapse, breakthrough, stop, and
 budget_exhausted events. Reports expedition count, average pushes per
-expedition, and outcome rates (collapse, breakthrough, stop percentages).
+expedition, outcome rates (collapse, breakthrough, stop percentages),
+and a push-count histogram.
 
-=head2 Market
+=head2 Market (Is the market functioning?)
 
-Tracks market_visit, offer, sale, send_away, stand_pat, stand_pat_fail,
-counter_offer, accept_counter, sale_maxed, over_budget, and influence_snub
-events. Reports visit count, offers per visit, sales, mismatches, and
-negotiation outcomes.
+Tracks market_visit, offer, sale, and send_away events. Reports visit
+count, items offered per visit, sales completed, trait mismatches,
+and an items-offered-per-visit histogram.
 
-=head2 Sale Prices
+=head2 Negotiation (Is negotiation interesting?)
 
-Breaks down sale values by C<sale_type> (direct, corner, loyalty, etc.)
-with count, average, minimum, and maximum values. Split by bot/human.
+Tracks counter_offer, accept_counter, stand_pat, sale_maxed, over_budget,
+and influence_snub events. Reports counter-offer and stand-pat counts
+with acceptance/success rates, and sale price breakdowns by type
+(match, settle, counter, stand_pat, corner, loyalty, etc.).
+
+=head2 Economy (Is the economy healthy?)
+
+Sums scrap entering circulation (sales, breakthroughs, pawn) and scrap
+leaving circulation (skill purchases). Reports average player wealth
+from the character model.
+
+=head2 Artifact Lifecycle
+
+Pipeline view: artifacts started, sold, collapsed, breakthrough, and
+remaining in shed at report time.
 
 =head2 PVP
 
@@ -660,22 +692,20 @@ records only and may undercount.
 
 =head2 Default (human-readable)
 
-Tabular format with labeled sections. Example:
+Tabular format with design-question section headers. Each section shows
+All / Bot / Human breakdown. Example:
 
   Characters: 5
 
-  -- Prospecting ------------------------------
-    All:
-      Expeditions:      14
-      Avg pushes/exp:   3.1
-      ...
+  -- Are players taking risks? --------------------
+    ...
 
 =head2 --for-llm (compact)
 
-Key=value lines per bucket. Example:
+Key=value lines per bucket, with C<=SECTION=> headers. Example:
 
   characters: 5 (human: 2, bot: 3)
-  =PROSPECTING=
+  =RISK=
     all    expeditions=14 pushes=44 avg_push=3.1 collapsed=2(14.3%) ...
 
 =head1 DATA SOURCES
