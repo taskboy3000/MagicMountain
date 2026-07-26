@@ -610,16 +610,13 @@ sub _human_output ($self, $risk, $market, $sv, $scrap_in, $scrap_out, $avg_wealt
     my @ap_buckets = grep { $ap_spend->{$_} && keys %{ $ap_spend->{$_} } } qw(total bot human);
     if (@ap_buckets) {
         printf "\n-- How are action points spent? ------------------\n";
-        printf "  %-12s %8s %8s %8s\n", '', 'All', 'Bot', 'Human';
         for my $bucket (@ap_buckets) {
             next unless $ap_spend->{$bucket};
             my $total = 0;
             $total += $_ for values %{ $ap_spend->{$bucket} };
-            printf "  %-12s %8d %8s %8s\n",
+            printf "  %-12s %8d\n",
                 $bucket eq 'total' ? 'All' : ucfirst($bucket),
-                $total,
-                $bucket eq 'total' ? '' : '',
-                $bucket eq 'total' ? '' : '',
+                $total;
         }
     }
 
