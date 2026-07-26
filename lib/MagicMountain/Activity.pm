@@ -87,7 +87,16 @@ sub _log_event ($self, $char, $event) {
 
 sub begin_activity ($self, $char, %params) {
     my $id = $char->getCol('pending_activity_id');
-    my $activity = $id ? $self->get($id) : $self->create(char_id => $char->getCol('id'));
+    my $activity;
+    if ($id) {
+        $activity = $self->get($id);
+        if ($activity && $activity->phase ne 'idle') {
+            $activity->delete;
+            $activity = undef;
+            $char->setCol('pending_activity_id', undef);
+        }
+    }
+    $activity //= $self->create(char_id => $char->getCol('id'));
     return $activity->dispatch($char, 'begin', %params);
 }
 

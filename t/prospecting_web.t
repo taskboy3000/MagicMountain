@@ -57,13 +57,13 @@ subtest 'begin — starts a new artifact' => sub {
     ok($stage eq 'stable' || $stage eq 'strained', "artifact stage is $stage");
 };
 
-subtest 'begin while processing fails' => sub {
+subtest 'begin while processing cleans stale activity' => sub {
     my $t = setup;
     my $csrf = _csrf($t);
     $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})->status_is(200);
     $t->post_ok('/prospecting/begin' => {'X-CSRF-Token' => $csrf})
-      ->status_is(409)
-      ->json_is('/ok' => 0);
+      ->status_is(200)
+      ->json_is('/ok' => 1);
 };
 
 subtest 'push — advances artifact' => sub {

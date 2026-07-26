@@ -1,5 +1,6 @@
 package MagicMountain::Bot::Routine;
 use Mojo::Base -base, -signatures;
+use open ':std', ':encoding(UTF-8)';
 
 use YAML::XS qw(LoadFile);
 use MagicMountain::Bot::PushPolicy;
