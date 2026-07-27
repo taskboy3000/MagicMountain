@@ -83,7 +83,7 @@ it belongs.
 - **Plan before build**: When the user says "make a plan," produce only a plan — no code, no tests, no file edits. Wait for explicit approval (e.g. "implement it") before writing any code. Plans may be reviewed by other agents before approval.
 - **Completion checklist**: Route exercised, stash vars verified, new methods
   tested, no State internals accessed, transcript through `_log_event`,
-  tests pass reported.
+  boundary rules updated for new/changed responsibilities, tests pass reported.
 - **JavaScript: ES2015+**. `'use strict'` at file scope, no IIFE. `let`/`const`
   only, never `var`. Arrow functions for anonymous callbacks.
   `URLSearchParams` for dynamic query params, never string concatenation.
@@ -165,11 +165,46 @@ $model->save_table;          # one write for all changes
 
 ---
 
+## Module Boundary Rules (`.opencode/rules/`)
+
+Each `.opencode/rules/lib/MagicMountain/<Module>.pm.md` encodes architectural
+invariants for one source module: what it **must** do, what it **must not**
+do, and signs of drift. These are loaded automatically when editing the
+matching `.pm` file and are consumed by the `boundary-review` skill.
+
+**File format**: Standard markdown with sections:
+- `# Module.pm — Module Boundary Rules` title
+- `## Responsibilities` — what the module owns
+- `## Constraints (MUST NOT)` — forbidden dependencies and access patterns
+- `## Signs of a Violation` — concrete code patterns to flag in review
+
+**When to update**: Whenever a source module gains, loses, or changes a
+responsibility. Corollary: if you add a cross-module dependency in code,
+it must also appear in the rule file (as either a new allowed pattern or
+a clarified constraint). Run `/arch-review` after updating to verify
+consistency.
+
+### Global config (`~/.config/opencode/`)
+
+The global config directory holds shared definitions that apply across
+projects (not just this one):
+
+| Directory | Purpose |
+|-----------|---------|
+| `agents/` | Custom subagent types (arch-reviewer, completion-checker, impl-reviewer) |
+| `commands/` | Slash commands (e.g. `/implement`, `/arch-review`) |
+| `skills/` | Automated workflows (boundary-review, perl-check, planning, implement, plan-analyze) |
+
+These match the same named directories under this project's `.opencode/`,
+where project-specific overrides live (agents, skills).
+
+---
+
 ## Source of Truth
 
 | Concern | Authority |
 |---------|-----------|
 | Game design | `docs/` + `GAME_ARCHITECTURE.md` |
 | Codebase structure | `GAME_ARCHITECTURE.md` (directory layout) |
-| Module boundary rules | `.opencode/rules/` — loaded automatically per-file |
+| Module boundary rules | `.opencode/rules/` — see section above |
 | Conventions & standards | This file |

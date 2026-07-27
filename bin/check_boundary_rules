@@ -1,0 +1,75 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+
+use Cwd 'abs_path';
+use File::Spec;
+use FindBin '$RealBin';
+
+my $ROOT = abs_path(File::Spec->catdir($FindBin::RealBin, File::Spec->updir));
+my $RULE_DIR  = "$ROOT/.opencode/rules/lib/MagicMountain";
+my $SRC_DIR   = "$ROOT/lib/MagicMountain";
+
+my $warnings = 0;
+
+# Rule files -> source files — every rule should have a matching .pm
+find_rule_files:
+    my @rule_files;
+    find(sub {
+        my $path = shift;
+        return unless -f $path && $path =~ /\.pm\.md\z/;
+        push @rule_files, $path;
+    }, $RULE_DIR);
+
+    for my $rule (@rule_files) {
+        (my $rel = $rule) =~ s{^\Q$RULE_DIR\E/}{};
+        $rel =~ s/\.pm\.md\z/.pm/;
+        my $src = "$SRC_DIR/$rel";
+        unless (-f $src) {
+            say "WARN: Rule file $rule has no matching source $src";
+            $warnings++;
+        }
+    }
+
+# Source files -> rule files — warn about un-ruled source files
+find_source_files:
+    my @source_files;
+    find(sub {
+        my $path = shift;
+        return unless -f $path && $path =~ /\.pm\z/;
+        push @source_files, $path;
+    }, $SRC_DIR);
+
+    for my $src (@source_files) {
+        (my $rel = $src) =~ s{^\Q$SRC_DIR\E/}{};
+        $rel =~ s/\.pm\z/.pm.md/;
+        my $rule = "$RULE_DIR/$rel";
+        unless (-f $rule) {
+            (my $short = $src) =~ s{^\Q$ROOT\E/}{};
+            say "WARN: Source $short has no matching rule file (expected $rule)";
+            $warnings++;
+        }
+    }
+
+my $summary = $warnings
+    ? "WARNING: $warnings boundary rule mismatches found"
+    : "OK: All boundary rules match source files";
+say $summary;
+exit(0);    # warnings only — does not block verify
+
+sub find {
+    my $cb  = shift;
+    my $dir = shift;
+    opendir my $dh, $dir or return;
+    while (my $entry = readdir $dh) {
+        next if $entry =~ /^\.\.?$/;
+        my $path = "$dir/$entry";
+        if (-d $path) {
+            __SUB__->($cb, $path);
+        } else {
+            $cb->($path);
+        }
+    }
+    closedir $dh;
+}
