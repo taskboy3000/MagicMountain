@@ -136,6 +136,11 @@ subtest 'stale dominant_faction corrected when faction_state leader changes' => 
         'dominant_faction_name corrected');
     is($fc->{mountain_positions}[0]{faction_id}, 'syndicate',
         'mountain_positions leader corrected to real leader');
+    ok($fc->{town_crier}, 'town_crier set');
+    ok($fc->{crier_text}, 'crier_text set');
+    ok(exists $fc->{finds_summary}, 'finds_summary set');
+    ok(exists $fc->{has_meaningful_finds}, 'has_meaningful_finds set');
+    ok(exists $fc->{market}{market_summary}, 'market_summary set');
 };
 
 subtest 'contested tier still produces a mountain' => sub {

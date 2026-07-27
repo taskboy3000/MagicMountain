@@ -29,16 +29,27 @@ sub _scale_biases ($self, $biases, $factor) {
     return \%scaled;
 }
 
-sub _market_summary ($self, $profile, $factor) {
+sub _market_summary ($self, $vals) {
     my @parts;
-    push @parts, 'Richer buyers'   if ($profile->{budget_delta} // 0) * $factor > 0;
-    push @parts, 'Tighter budgets' if ($profile->{budget_delta} // 0) * $factor < 0;
-    push @parts, 'Shorter tempers' if ($profile->{patience_delta} // 0) * $factor < 0;
-    push @parts, 'More patient'    if ($profile->{patience_delta} // 0) * $factor > 0;
-    push @parts, 'Volatile moods'  if abs($profile->{mood_delta} // 0) * $factor >= 1;
-    push @parts, 'Faster sellout'  if ($profile->{appetite_delta} // 0) * $factor < 0;
-    push @parts, 'Slower sellout'  if ($profile->{appetite_delta} // 0) * $factor > 0;
+    push @parts, 'Richer buyers'   if ($vals->{budget_delta} // 0) > 0;
+    push @parts, 'Tighter budgets' if ($vals->{budget_delta} // 0) < 0;
+    push @parts, 'Shorter tempers' if ($vals->{patience_delta} // 0) < 0;
+    push @parts, 'More patient'    if ($vals->{patience_delta} // 0) > 0;
+    push @parts, 'Volatile moods'  if abs($vals->{mood_delta} // 0) >= 1;
+    push @parts, 'Faster sellout'  if ($vals->{appetite_delta} // 0) < 0;
+    push @parts, 'Slower sellout'  if ($vals->{appetite_delta} // 0) > 0;
     return @parts ? join(', ', @parts) : 'Neutral market';
+}
+
+sub _refresh_narrative ($self, $fc, $leader_id, $tier, $profile) {
+    $fc->{town_crier} = $self->_crier_message($leader_id, $tier);
+    $fc->{crier_text} = $self->_crier_text($leader_id, $tier, $profile);
+    $fc->{finds_summary} = $self->_finds_summary(
+        $fc->{prospecting}{draw_biases} // {},
+        $fc->{prospecting}{starting_instability_mod} // 0,
+    );
+    $fc->{has_meaningful_finds} = $fc->{finds_summary} ne 'No meaningful climate effect on prospecting today.';
+    $fc->{market}{market_summary} = $self->_market_summary($fc->{market});
 }
 
 sub _classify_trait_effects ($self, $biases) {
@@ -394,6 +405,7 @@ sub ensure_mountain_data ($self, $season) {
     $fc->{mountain_positions}   = $mountain->{mountain_positions};
     $fc->{mountain_height}      = $mountain->{mountain_height};
     $fc->{mountain_raster}      = $mountain->{mountain_raster};
+    $self->_refresh_narrative($fc, $leader_id, $tier, $profile);
     $season->setCol('faction_climate', $fc);
     $season->save;
 }
@@ -412,7 +424,6 @@ sub calculate_climate ($self, $season) {
     my $profile  = $self->_profile_for($leader_id);
     my $scaled_biases   = $self->_scale_biases($profile->{draw_biases}, $factor);
     my $scaled_inst_mod = int(($profile->{starting_instability_mod} // 0) * $factor);
-    my $finds_summary   = $self->_finds_summary($scaled_biases, $scaled_inst_mod);
 
     my $climate = {
         day                 => $season->getCol('day'),
@@ -434,13 +445,9 @@ sub calculate_climate ($self, $season) {
             appetite_delta      => int(($profile->{appetite_delta} // 0) * $factor),
             buyer_trait_biases  => $self->_scale_biases($profile->{buyer_trait_biases}, $factor),
             budget_label        => ($profile->{budget_delta} // 0) >= 0 ? 'Richer buyers' : 'Tighter budgets',
-            market_summary      => $self->_market_summary($profile, $factor),
         },
-        town_crier          => $self->_crier_message($leader_id, $tier),
-        crier_text          => $self->_crier_text($leader_id, $tier, $profile),
-        finds_summary       => $finds_summary,
-        has_meaningful_finds => $finds_summary ne 'No meaningful climate effect on prospecting today.',
     };
+    $self->_refresh_narrative($climate, $leader_id, $tier, $profile);
 
     my $mountain = $self->_build_mountain_data($season, $tier);
     $climate->{mountain_positions} = $mountain->{mountain_positions};
