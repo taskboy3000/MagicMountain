@@ -31,6 +31,18 @@ sub show ($self) {
         $deal = $activity ? $activity->customer : undef;
     }
 
+    # ── AP exhaustion (don't interrupt pending results) ────────
+    my $ap = $char->getCol('action_points') // 0;
+    if ($type && $type eq 'pawn' && !$deal && $ap <= 0) {
+        my $format = $self->param('_format');
+        if ($format && $format eq 'fragment') {
+            $self->stash(pawn_ap_exhausted => 1, layout => undef);
+            return $self->render('pawn/broker', layout => undef);
+        }
+        $self->render(json => { ok => 1, pawn_ap_exhausted => Mojo::JSON->true });
+        return;
+    }
+
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
         $self->stash(

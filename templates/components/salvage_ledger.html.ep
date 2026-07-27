@@ -42,10 +42,17 @@
 %   } elsif (stash('pawn_active') && !$item->{banned}) {
           <button class="mm-btn" disabled title="Not accepted by the broker">—</button>
 %   } elsif ($item->{banned}) {
-%     my $label = stash('pawn_active') ? 'PAWN' : 'BANNED';
-%     my $banned_btn = stash('pawn_active')
-%       ? { label => $label, attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } }
-%       : { label => $label, attrs => { class => 'mm-btn', disabled => 'disabled', title => 'Restricted by the dominant faction' } };
+%     my $pa = stash('pawn_active');
+%     my $pae = stash('pawn_ap_exhausted');
+%     my $label = $pa ? 'PAWN' : 'BANNED';
+%     my $banned_btn;
+%     if ($pa && $pae) {
+%       $banned_btn = { label => $label, attrs => { class => 'mm-btn', disabled => 'disabled', title => 'The broker has no budget left today — come back tomorrow' } };
+%     } elsif ($pa) {
+%       $banned_btn = { label => $label, attrs => { 'data-action-url' => $offer_url, 'data-method' => 'POST', class => 'mm-btn offer-btn', 'data-shed-item-id' => $item_id } };
+%     } else {
+%       $banned_btn = { label => $label, attrs => { class => 'mm-btn', disabled => 'disabled', title => 'Restricted by the dominant faction' } };
+%     }
 %=     include 'components/action_buttons', actions => [$banned_btn]
 %   } else {
 %     my $offer_label = stash('pawn_active') ? 'PAWN' : 'Offer';

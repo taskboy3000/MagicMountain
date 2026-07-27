@@ -30,10 +30,12 @@ sub index ($self) {
         my $banned_lookup = $self->app->pawn_calculator->banned_trait_lookup;
         my $items = _enriched_items($filtered, $is_secondary, $skill, $icon_base, $banned_lookup);
         my $pawn_context = ($type && $type eq 'pawn') || $view_param eq 'pawn';
+        my $pawn_ap_exhausted = ($type && $type eq 'pawn') && ($char->getCol('action_points') // 0) <= 0;
         $self->stash(
             items                 => $items,
             market_active         => ($type && $type eq 'market') ? 1 : 0,
             pawn_active           => $pawn_context ? 1 : 0,
+            pawn_ap_exhausted     => $pawn_ap_exhausted,
             offer_url             => $pawn_context ? $self->url_for('pawn_offer') : $self->url_for('market_offer'),
             climate_premium_traits => [ $type && $type eq 'pawn' ? () : sort keys %{ ($self->app->active_season ? $self->app->active_season->faction_climate : {})->{market}{buyer_trait_biases} // {} } ],
             show_trait_tags       => $skill >= 1 ? 1 : 0,

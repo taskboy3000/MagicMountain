@@ -1,6 +1,14 @@
 % my $closed = stash('pawn_closed');
 % my $deal = stash('pawn_deal');
-% if ($closed) {
+% if (stash('pawn_ap_exhausted')) {
+<div class="mm-panel">
+  <h2 class="mm-panel-header">PAWN SHOP</h2>
+  <div class="mm-panel-body">
+    <p class="mm-text-dim">I have no more budget for acquisitions today. Come back tomorrow.</p>
+    <button class="mm-btn" data-action-url="<%= url_for('result_dismiss') %>" data-method="POST">Dismiss</button>
+  </div>
+</div>
+% } elsif ($closed) {
 <div class="mm-panel">
   <h2 class="mm-panel-header">PAWN SHOP</h2>
   <div class="mm-panel-body">
@@ -20,7 +28,8 @@
     <div class="mm-flex mm-gap-sm" style="margin-top:0.5rem">
       <button class="mm-btn" data-action-url="<%= url_for('pawn_dismiss') %>" data-method="POST">Dismiss</button>
 %   my $calc = $self->app->pawn_calculator;
-%   if ($calc->has_banned_items($char)) {
+%   my $ch = stash('char');
+%   if ($calc->has_banned_items($ch)) {
       <button class="mm-btn" data-action-url="<%= url_for('pawn_offer_next') %>" data-method="POST">Offer Another</button>
 %   }
     </div>
