@@ -1,7 +1,6 @@
 data/*.json
 cover_db/
 .DS_Store
-.opencode
 data
 original
 out.log
