@@ -505,7 +505,12 @@ sub offer ($self, $char, %params) {
 
             # Cap the counter at the customer's remaining budget
             my $remaining = ($customer->{absolute_budget} // 999999) - ($customer->{spent_so_far} // 0);
-            $counter_value = $remaining if $counter_value > $remaining;
+            my $was_capped = $counter_value > $remaining;
+            $counter_value = $remaining if $was_capped;
+
+            # ── Floor: never below the settle price (50%) ──────────
+            my $settle_floor = int($decayed * $dyn_mult * 0.50);
+            $counter_value = $settle_floor if $counter_value < $settle_floor;
 
             # ── Budget exhausted: can't offer a 0-scrap counter ──
             if ($remaining <= 0) {
@@ -546,9 +551,19 @@ sub offer ($self, $char, %params) {
             $self->customer($customer);
             $self->save;
 
-            my $narrative = $self->_pick_reaction($customer->{faction_id}, 'counter',
-                item_id => $item->getCol('artifact_id'), value => $counter_value,
-            ) // sprintf("%s considers your offer. \"How about %d scrap?\"", $customer->{faction_name}, $counter_value);
+            my $narrative;
+            if ($was_capped) {
+                my @budget_hints = (
+                    sprintf("%s counts out %d scrap, eyeing their dwindling purse.", $customer->{faction_name}, $counter_value),
+                    sprintf("\"I can only offer %d,\" %s says, patting a thin wallet.", $counter_value, $customer->{faction_name}),
+                    sprintf("%s rummages for coins. \"Best I can do is %d scrap.\"", $customer->{faction_name}, $counter_value),
+                );
+                $narrative = $budget_hints[int(rand(scalar @budget_hints))];
+            } else {
+                $narrative = $self->_pick_reaction($customer->{faction_id}, 'counter',
+                    item_id => $item->getCol('artifact_id'), value => $counter_value,
+                ) // sprintf("%s considers your offer. \"How about %d scrap?\"", $customer->{faction_name}, $counter_value);
+            }
 
             $self->_log_event($char, {
                 type          => 'counter_offer',
@@ -719,6 +734,7 @@ sub stand_pat ($self, $char, %params) {
             shed_item_id  => $pc->{item_id},
             faction_id    => $customer->{faction_id},
             offered_value => $stand_price,
+            accepted      => 1,
             narrative     => sprintf("%s holds firm for %d scrap from %s — customer accepts.",
                 $char->getCol('name'), $stand_price, $customer->{faction_name}),
         });
@@ -776,6 +792,7 @@ sub stand_pat ($self, $char, %params) {
         shed_item_id  => $pc->{item_id},
         faction_id    => $customer->{faction_id},
         offered_value => $stand_price,
+        accepted      => 0,
         irritation    => $customer->{irritation},
         narrative     => sprintf("%s refuses stand-pat demand for %d scrap from %s.",
             $char->getCol('name'), $stand_price, $customer->{faction_name}),
