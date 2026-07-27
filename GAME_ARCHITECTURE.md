@@ -1340,9 +1340,8 @@ exact order):
 
 1. **Bot daily runs** (only when NOT catching up): If bots are configured
    (`bots.count > 0`), seed RNG with season_id + day, shuffle bot characters,
-   and run each bot's daily cycle via `BotRunner::run_day`. Bot events are
-   written to a separate transcript file (`transcript_bots.jsonl`) to keep
-   the main game transcript clean.
+   and run each bot's daily cycle via `BotRunner::run_day`. Bot events go
+   through the same `log_event` path as human events into `transcript.jsonl`.
 
 2. **Clear yesterday's modifiers**: `daily_modifiers` and `global_event_text`
    are cleared to make way for the new day's global events.
@@ -1370,10 +1369,11 @@ exact order):
    `global_event_text` is stored for Crier priority.
 
 9. **Generate Town Crier message**: Crier reads `global_event_text` first
-   (highest priority). If none, it diffs current `faction_state` against
-   `crier_snapshot`, selects the highest-priority message template (faction
-   dominance, surge, milestone, slump, daily progress, or generic), and
-   stores the result in `crier_message`.
+   (highest priority). If none, it reads `faction_climate.crier_text`
+   (priority 6, skipped if contested). If that's absent, it diffs current
+   `faction_state` against `crier_snapshot`, selects the highest-priority
+   message template (faction dominance, surge, milestone, slump, daily
+   progress, or generic), and stores the result in `crier_message`.
 
 10. **Update `crier_snapshot`** to current `faction_state`.
 
