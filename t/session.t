@@ -253,4 +253,28 @@ subtest 'mm_remember cookie uses pipe format (no JSON quotes to break parser)' =
       ->json_is('/ok' => 1);
 };
 
+subtest 'POST /sessions without displayName returns 400' => sub {
+    $t->post_ok('/sessions', json => {})
+      ->status_is(400)
+      ->json_is('/ok' => 0)
+      ->json_is('/error' => 'displayName is required');
+};
+
+subtest 'existing session touched on re-login' => sub {
+    my $t2 = TestEnv->create_app;
+    $t2->post_ok('/sessions', json => { displayName => 'touchcheck' })
+      ->status_is(200)
+      ->json_is('/ok' => 1);
+};
+
+subtest 'logout redirects to login form' => sub {
+    my $dataDir2 = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dataDir2;
+    my $t2 = TestEnv->create_app;
+    $t2->post_ok('/sessions', json => { displayName => 'logouttest' })->status_is(200);
+    $t2->get_ok('/logout')
+      ->status_is(302)
+      ->header_like(Location => qr{/game});
+};
+
 done_testing;

@@ -1,0 +1,29 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+
+my @violations;
+for my $file (glob("lib/**/*.pm")) {
+    open my $fh, '<', $file or next;
+    my @lines = <$fh>;
+    close $fh;
+    for (my $i = 0; $i < @lines; $i++) {
+        next unless $lines[$i] =~ /->app->log_event\(/;
+        my $found;
+        my $end = $i + 10 < $#lines ? $i + 10 : $#lines;
+        for my $j ($i .. $end) {
+            if ($lines[$j] =~ /,\s*(?:\$|')/) {
+                $found = 1;
+                last;
+            }
+        }
+        push @violations, "$file:" . ($i + 1) unless $found;
+    }
+}
+
+if (@violations) {
+    printf "%s\n", join("\n", @violations);
+    exit 1;
+}
+exit 0;
