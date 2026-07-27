@@ -17,7 +17,14 @@
 - id: value_hoarder
   display_name: "Hoarder"
   push_policy: { name: "value_target", params: { min: 30 } }
-  sell_policy: { name: "hoarder" }
+  sell_policy:
+    name: "highest_offer"
+    params:
+      min_value: 25
+      max_irritation: 2
+      max_pressure_state: "mood_interested"
+      haggle_aggression: 0.3
+      min_counter_pct: 0.80
   pawn_policy: { name: "always" }
   skill_policy: { name: "never" }
   pvp_aggressiveness: 0.05
@@ -25,7 +32,7 @@
 - id: fixed_highest
   display_name: "Measured"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
-  sell_policy: { name: "highest_offer", params: { min_value: 18, max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0.3, min_counter_pct: 0.80 } }
+  sell_policy: { name: "highest_offer", params: { min_value: 8, max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0.3, min_counter_pct: 0.80 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
   pvp_aggressiveness: 0.15
@@ -33,7 +40,7 @@
 - id: instability_loyalist
   display_name: "Loyalist"
   push_policy: { name: "instability_cap", params: { max: 3 } }
-  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling"], reserve: 20 } }
   pvp_aggressiveness: 0.25
@@ -41,7 +48,7 @@
 - id: fixed_loyalist
   display_name: "Fixed Loyalist"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
-  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 20 } }
   pvp_aggressiveness: 0.20
@@ -49,7 +56,7 @@
 - id: stage_loyalist
   display_name: "Stage Loyalist"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
-  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.65 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.65 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "immediate", params: { reserve: 30 } }
   pvp_aggressiveness: 0.15
@@ -57,7 +64,7 @@
 - id: greed_loyalist
   display_name: "Greedy Loyalist"
   push_policy: { name: "greed", params: { prob: 0.8 } }
-  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.70 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.70 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling", "prospecting"], reserve: 10 } }
   pvp_aggressiveness: 0.30
@@ -65,7 +72,7 @@
 - id: value_loyalist
   display_name: "Value Loyalist"
   push_policy: { name: "value_target", params: { min: 30 } }
-  sell_policy: { name: "faction_loyalist", params: { faction: "syndicate", max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0 } }
+  sell_policy: { name: "default", params: { max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
   pvp_aggressiveness: 0.10
