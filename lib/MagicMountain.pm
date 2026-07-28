@@ -479,6 +479,10 @@ sub startup ($self) {
     }
 
     $self->secrets($self->config->{secrets}) if ref ($self->config->{secrets} // '') eq ref [];
+    $self->log->debug(sprintf("Secrets (%d): %s...",
+        scalar(@{ $self->config->{secrets} // [] }),
+        substr(($self->config->{secrets}[0] // ''), 0, 16),
+    ));
     $self->sessions->cookie_name('mm_session');
     $self->sessions->default_expiration(86400);
 
