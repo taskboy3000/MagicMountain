@@ -21,7 +21,7 @@ my %PRESSURE_RANK = (
 sub _pressure_at_or_beyond ($state, $threshold) {
     return 0 unless $state && $threshold;
     return ($PRESSURE_RANK{$state} // 0) >= ($PRESSURE_RANK{$threshold} // 0);
-}
+} # end sub _pressure_at_or_beyond
 
 has agent         => sub { die "agent required" };
 has profile_file  => 'content/bots.yml';
@@ -31,15 +31,15 @@ has transcript_cb => undef;
 sub _ap_remaining ($self) {
     my $game = $self->agent->game;
     return $game->{player}{action_points} // 0;
-}
+} # end sub _ap_remaining
 
 sub load_profile ($self) {
     return {} unless $self->profile_id;
-    my $file = $self->profile_file;
+    my $file     = $self->profile_file;
     my $profiles = -e $file ? LoadFile($file) : [];
-    my ($p) = grep { $_->{id} eq $self->profile_id } @$profiles;
+    my ($p)      = grep { $_->{id} eq $self->profile_id } @$profiles;
     return $p // {};
-}
+} # end sub load_profile
 
 sub run_day ($self, $profile = undef) {
     $profile //= $self->load_profile;
@@ -58,7 +58,7 @@ sub run_day ($self, $profile = undef) {
     $self->agent->logout;
 
     return { ok => 1, actions => $actions };
-}
+} # end sub run_day
 
 sub _prospect_phase ($self, $profile, $push_pol) {
     my $actions = 0;
@@ -110,7 +110,7 @@ sub _prospect_phase ($self, $profile, $push_pol) {
     };
     warn "Prospecting error: $@" if $@;
     return $actions;
-}
+} # end sub _prospect_phase
 
 sub _market_phase ($self, $profile, $sell_pol) {
     return 0 unless $sell_pol;
@@ -118,6 +118,11 @@ sub _market_phase ($self, $profile, $sell_pol) {
     eval {
         # Hoarder skips market entirely
         return if ($sell_pol->{name} // '') eq 'hoarder';
+
+        # Skip market if no sellable items in shed
+        my $shed_check = $self->agent->shed;
+        my @sellable   = grep { !$_->{banned} } @{ $shed_check->{shed} // [] };
+        return unless @sellable;
 
         my $begin_res = $self->agent->begin_market;
         return unless $begin_res->{ok};
@@ -127,7 +132,7 @@ sub _market_phase ($self, $profile, $sell_pol) {
         return if ($begin_res->{result} // '') eq 'event_passive';
 
         # Decide whether to accept the customer
-        my $mkt = $self->agent->market;
+        my $mkt      = $self->agent->market;
         my $customer = $mkt->{market_visit};
         if (!MagicMountain::Bot::SellPolicy::accept_customer($customer, $sell_pol)) {
             $self->agent->send_away;
@@ -137,10 +142,10 @@ sub _market_phase ($self, $profile, $sell_pol) {
         }
 
         # Offer loop
-        my $shed_res = $self->agent->shed;
-        my $shed_items = $shed_res->{shed} // [];
-        my $keep_offering = 1;
-        my $max_irritation = $sell_pol->{params}{max_irritation} // 3;
+        my $shed_res           = $self->agent->shed;
+        my $shed_items         = $shed_res->{shed} // [];
+        my $keep_offering      = 1;
+        my $max_irritation     = $sell_pol->{params}{max_irritation}     // 3;
         my $max_pressure_state = $sell_pol->{params}{max_pressure_state} // 'mood_wary';
 
         while ($keep_offering) {
@@ -163,7 +168,8 @@ sub _market_phase ($self, $profile, $sell_pol) {
 
                 if ($offer_res->{result} eq 'sold_more') {
                     if (_pressure_at_or_beyond($offer_res->{pressure_state}, $max_pressure_state)
-                        || ($offer_res->{irritation} // 0) >= $max_irritation) {
+                        ||
+                        ($offer_res->{irritation} // 0) >= $max_irritation) {
                         $self->agent->send_away;
                         $actions++;
                     }
@@ -174,12 +180,17 @@ sub _market_phase ($self, $profile, $sell_pol) {
                 if ($offer_res->{result} eq 'counter_offer') {
                     my $decayed = $item->{decayed_value} // $item->{original_value} // 0;
                     if (MagicMountain::Bot::SellPolicy::should_accept_counter(
-                            $offer_res->{counter_value}, $decayed, $sell_pol)) {
+                            $offer_res->{counter_value},
+                            $decayed, $sell_pol
+                        )
+                    ) {
                         my $accept_res = $self->agent->accept_counter;
                         $actions++;
                         if ($accept_res->{ok} && $accept_res->{result} eq 'sold_more') {
-                            if (_pressure_at_or_beyond($accept_res->{pressure_state}, $max_pressure_state)
-                                || ($accept_res->{irritation} // 0) >= $max_irritation) {
+                            if (_pressure_at_or_beyond($accept_res->{pressure_state},
+                                    $max_pressure_state) ||
+                                ($accept_res->{irritation} // 0) >= $max_irritation
+                            ) {
                                 $self->agent->send_away;
                                 $actions++;
                             }
@@ -187,8 +198,11 @@ sub _market_phase ($self, $profile, $sell_pol) {
                         $keep_offering = 0;
                         last;
                     }
-                    if (defined $offer_res->{resolve}
-                        && MagicMountain::Bot::SellPolicy::should_stand_pat($offer_res->{resolve}, $sell_pol)) {
+                    if (defined $offer_res->{resolve} &&
+                        MagicMountain::Bot::SellPolicy::should_stand_pat(
+                            $offer_res->{resolve}, $sell_pol
+                        )
+                    ) {
                         my $stand_res = $self->agent->stand_pat;
                         $actions++;
                         $self->_log('stand_pat', { result => $stand_res->{result} });
@@ -201,7 +215,10 @@ sub _market_phase ($self, $profile, $sell_pol) {
                             last;
                         }
                     }
-                    if (!MagicMountain::Bot::SellPolicy::try_another($offer_res, $customer, $sell_pol)) {
+                    if (!MagicMountain::Bot::SellPolicy::try_another(
+                            $offer_res, $customer, $sell_pol
+                        )
+                    ) {
                         $keep_offering = 0;
                         last;
                     }
@@ -209,7 +226,8 @@ sub _market_phase ($self, $profile, $sell_pol) {
                 }
 
                 if ($offer_res->{result} eq 'refused') {
-                    $self->_log('refused', { item_id => $item->{id}, reason => $offer_res->{reason} });
+                    $self->_log('refused',
+                        { item_id => $item->{id}, reason => $offer_res->{reason} });
                     next;
                 }
 
@@ -231,7 +249,7 @@ sub _market_phase ($self, $profile, $sell_pol) {
     };
     warn "Market error: $@" if $@;
     return $actions;
-}
+} # end sub _market_phase
 
 sub _pawn_phase ($self, $profile) {
     my $pawn_pol = $profile->{pawn_policy} // { name => 'always' };
@@ -241,7 +259,7 @@ sub _pawn_phase ($self, $profile) {
         return if $pawn_res->{pawn_closed};
 
         my $shed_res = $self->agent->shed;
-        my @banned = grep { $_->{banned} } @{ $shed_res->{shed} // [] };
+        my @banned   = grep { $_->{banned} } @{ $shed_res->{shed} // [] };
         return unless @banned;
 
         my $state = { consecutive_seizures => 0 };
@@ -263,23 +281,23 @@ sub _pawn_phase ($self, $profile) {
         }
     };
     warn "Pawn phase error: $@" if $@;
-}
+} # end sub _pawn_phase
 
 sub _skill_phase ($self, $profile) {
     my $policy_params = $profile->{skill_policy} // { name => 'never' };
     eval {
-        my $game = $self->agent->game;
+        my $game       = $self->agent->game;
         my $skills_res = $self->agent->skills;
 
         my $p_skills = $game->{player}{skills} // {};
-        my $state = { scrap => $game->{player}{scrap} // 0 };
+        my $state    = { scrap => $game->{player}{scrap} // 0 };
 
         # Merge current skill levels into skill definitions
         my $skills = $skills_res->{skills} // [];
         for my $s (@$skills) {
             $s->{current_level} //= 0;
-            if (defined $p_skills->{$s->{id}}) {
-                $s->{current_level} = $p_skills->{$s->{id}};
+            if (defined $p_skills->{ $s->{id} }) {
+                $s->{current_level} = $p_skills->{ $s->{id} };
             }
         }
 
@@ -292,20 +310,20 @@ sub _skill_phase ($self, $profile) {
         }
     };
     warn "Skill purchase error: $@" if $@;
-}
+} # end sub _skill_phase
 
 sub _pvp_phase ($self, $profile) {
     eval {
-        my $game = $self->agent->game;
+        my $game    = $self->agent->game;
         my $pvp_res = $self->agent->rivals;
         return unless $pvp_res->{ok} && !$pvp_res->{disabled};
 
         my $my_faction_sales = $game->{player}{faction_sales} // {};
-        my $profile_pct = $profile->{pvp_aggressiveness};
-        my $costs = {
-            spoil_lead     => $pvp_res->{actions}[0]{cost} // 30,
-            outbid         => $pvp_res->{actions}[1]{cost} // 75,
-            corner_market  => $pvp_res->{actions}[2]{cost} // 50,
+        my $profile_pct      = $profile->{pvp_aggressiveness};
+        my $costs            = {
+            spoil_lead    => $pvp_res->{actions}[0]{cost} // 30,
+            outbid        => $pvp_res->{actions}[1]{cost} // 75,
+            corner_market => $pvp_res->{actions}[2]{cost} // 50,
         };
 
         # Build stack counts per rival per faction from pressures data
@@ -320,14 +338,14 @@ sub _pvp_phase ($self, $profile) {
         }
 
         my $context = {
-            aggressiveness    => $profile_pct // 0.20,
-            my_score          => $game->{player}{score} // 0,
-            my_scrap          => $game->{player}{scrap} // 0,
-            my_factions       => [ grep { ($my_faction_sales->{$_} // 0) >= 1 } keys %$my_faction_sales ],
-            rivals            => $rivals,
+            aggressiveness => $profile_pct           // 0.20,
+            my_score       => $game->{player}{score} // 0,
+            my_scrap       => $game->{player}{scrap} // 0,
+            my_factions => [ grep { ($my_faction_sales->{$_} // 0) >= 1 } keys %$my_faction_sales ],
+            rivals      => $rivals,
             pressures_from_bot => $pvp_res->{active_attacker} // [],
-            pvp_max_stack     => 3,
-            pvp_costs         => $costs,
+            pvp_max_stack      => 3,
+            pvp_costs          => $costs,
         };
 
         my $decision = MagicMountain::Bot::PressurePolicy->new->decide($context);
@@ -337,11 +355,11 @@ sub _pvp_phase ($self, $profile) {
         }
     };
     warn "PvP error: $@" if $@;
-}
+} # end sub _pvp_phase
 
 sub _log ($self, $type, $data) {
     return unless $self->transcript_cb;
     $self->transcript_cb->({ type => $type, %$data });
-}
+} # end sub _log
 
 1;
