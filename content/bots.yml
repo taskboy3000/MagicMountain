@@ -1,7 +1,7 @@
 - id: stage_guard_opportunist
   display_name: "Cautious"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
-  sell_policy: { name: "opportunist", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.7, min_counter_pct: 0.70 } }
+  sell_policy: { name: "opportunist", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.7, min_counter_pct: 0.70, stand_pat_resolve: [high] } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "immediate", params: { reserve: 30 } }
   pvp_aggressiveness: 0.10
@@ -72,7 +72,7 @@
 - id: value_loyalist
   display_name: "Value Loyalist"
   push_policy: { name: "value_target", params: { min: 30 } }
-  sell_policy: { name: "default", params: { max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0 } }
+  sell_policy: { name: "default", params: { max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0, stand_pat_resolve: [high, medium] } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
   pvp_aggressiveness: 0.10

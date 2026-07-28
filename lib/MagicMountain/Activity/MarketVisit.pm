@@ -160,6 +160,24 @@ sub _pick_reaction ($self, $faction_id, $outcome, %params) {
     return $text;
 }
 
+# ── Stand-pat helpers ──────────────────────────────────────────────
+
+sub _stand_pat_chance ($self, $char, $customer) {
+    my $sell     = $char->getCol('skill_selling') // 0;
+    my $standing = $char->getCol('standing') // {};
+    my $std_pct  = $standing->{$customer->{faction_id}} // 0;
+    my $chance   = 0.30 + ($sell * 0.15) + ($std_pct * 0.02);
+    $chance = 0.85 if $chance > 0.85;
+    return $chance;
+}
+
+sub _resolve_bucket ($self, $chance) {
+    my $eps = 1e-10;
+    return 'high'   if $chance >= 0.65 - $eps;
+    return 'medium' if $chance >= 0.45 - $eps;
+    return 'low';
+}
+
 # ═══════════════════════════════════════════════════════════════════════
 # HANDLERS
 # ═══════════════════════════════════════════════════════════════════════
@@ -565,6 +583,9 @@ sub offer ($self, $char, %params) {
                 ) // sprintf("%s considers your offer. \"How about %d scrap?\"", $customer->{faction_name}, $counter_value);
             }
 
+            my $resolve = $self->_resolve_bucket($self->_stand_pat_chance($char, $customer));
+            $customer->{resolve} = $resolve;
+
             $self->_log_event($char, {
                 type          => 'counter_offer',
                 shed_item_id  => $shed_item_id,
@@ -579,6 +600,7 @@ sub offer ($self, $char, %params) {
                     result        => 'counter_offer',
                     counter_value => $counter_value,
                     irritation    => $customer->{irritation},
+                    resolve       => $resolve,
                     message       => $narrative,
                     player        => $self->_player_snapshot($char),
                 },
@@ -715,12 +737,7 @@ sub stand_pat ($self, $char, %params) {
         : ($customer->{base_multiplier} // 1.0);
     my $stand_price = int($decayed * $dyn_mult);
 
-    my $sell     = $char->getCol('skill_selling') // 0;
-    my $standing = $char->getCol('standing') // {};
-    my $stand_pct = $standing->{$customer->{faction_id}} // 0;
-
-    my $chance = 0.30 + ($sell * 0.15) + ($stand_pct * 0.02);
-    $chance = 0.85 if $chance > 0.85;
+    my $chance = $self->_stand_pat_chance($char, $customer);
 
     if (rand() < $chance) {
         $customer->{pending_counter} = undef;

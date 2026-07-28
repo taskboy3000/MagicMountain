@@ -71,6 +71,7 @@ sub begin_market     ($self)              { $self->req(POST => '/market/begin') 
 sub offer            ($self, $shed_item_id) { $self->req(POST => '/market/offer', { shed_item_id => $shed_item_id }) }
 sub send_away        ($self)              { $self->req(POST => '/market/send_away') }
 sub accept_counter   ($self)              { $self->req(POST => '/market/accept_counter') }
+sub stand_pat        ($self)              { $self->req(POST => '/market/stand_pat') }
 sub offer_pawn       ($self, $shed_item_id) { $self->req(POST => '/pawn/offer', { shed_item_id => $shed_item_id }) }
 sub purchase_skill   ($self, $skill_id)   { $self->req(POST => '/skills/purchase', { skill_id => $skill_id }) }
 sub apply_pressure   ($self, %params)     { $self->req(POST => '/pvp/apply', \%params) }

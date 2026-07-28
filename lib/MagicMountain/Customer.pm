@@ -9,6 +9,7 @@ has [qw(
     pending_counter last_message last_sale
     pressure_state pressure_label
     budget_min budget_max
+    resolve
 )];
 
 sub has_pending_counter ($self) {
@@ -30,7 +31,8 @@ sub TO_JSON ($self) {
         (defined $self->budget_min ? (budget_min => $self->budget_min) : ()),
         (defined $self->budget_max ? (budget_max => $self->budget_max) : ()),
         ($self->has_pending_counter
-            ? (pending_counter => $self->pending_counter)
+            ? (pending_counter => $self->pending_counter,
+               resolve         => $self->resolve)
             : ()),
     };
     return $json;

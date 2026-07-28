@@ -17,6 +17,13 @@ my %TRY_ANOTHER = (
     default          => sub ($offer, $cust, $p) { 1 },
 );
 
+my %SHOULD_STAND_PAT = (
+    default => sub ($resolve, $p) {
+        my $acceptable = $p->{stand_pat_resolve} // [];
+        return scalar grep { $_ eq $resolve } @$acceptable;
+    },
+);
+
 my %ACCEPT_COUNTER = (
     default          => sub ($counter_value, $decayed, $p) {
         my $agg = $p->{haggle_aggression};
@@ -52,6 +59,11 @@ sub try_another ($offer_view, $customer, $policy) {
 sub should_accept_counter ($counter_value, $decayed_value, $policy) {
     my $name = $policy->{name} // 'default';
     _dispatch($name, \%ACCEPT_COUNTER, $counter_value, $decayed_value, $policy->{params} // {});
+}
+
+sub should_stand_pat ($resolve, $policy) {
+    my $name = $policy->{name} // 'default';
+    _dispatch($name, \%SHOULD_STAND_PAT, $resolve, $policy->{params} // {});
 }
 
 1;

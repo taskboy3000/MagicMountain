@@ -187,6 +187,20 @@ sub _market_phase ($self, $profile, $sell_pol) {
                         $keep_offering = 0;
                         last;
                     }
+                    if (defined $offer_res->{resolve}
+                        && MagicMountain::Bot::SellPolicy::should_stand_pat($offer_res->{resolve}, $sell_pol)) {
+                        my $stand_res = $self->agent->stand_pat;
+                        $actions++;
+                        $self->_log('stand_pat', { result => $stand_res->{result} });
+                        if ($stand_res->{result} eq 'sold' || $stand_res->{result} eq 'sold_more') {
+                            $keep_offering = 0;
+                            last;
+                        }
+                        if ($stand_res->{result} eq 'customer_left') {
+                            $keep_offering = 0;
+                            last;
+                        }
+                    }
                     if (!MagicMountain::Bot::SellPolicy::try_another($offer_res, $customer, $sell_pol)) {
                         $keep_offering = 0;
                         last;

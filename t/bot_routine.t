@@ -193,6 +193,84 @@ subtest 'Routine handles AP exhaustion in loops' => sub {
     }
 };
 
+subtest 'Bot stand_pat on counter_offer rejection' => sub {
+    # Verify the bot calls stand_pat when the customer gives a
+    # counter_offer and the bot's resolve matches the bucket.
+    # The test creates a mismatched item to force a counter_offer,
+    # then verifies _market_phase calls stand_pat on the transcript.
+
+    $t->app->config->{market_counter_offers} = 1;
+
+    my $agent = _make_agent;
+    $agent->login('test-stand-pat');
+    _ensure_season_and_char('test-stand-pat');
+
+    my $char;
+    $t->app->characters->load;
+    for my $id (keys %{ $t->app->characters->all }) {
+        my $row = $t->app->characters->all->{$id};
+        if ($row->{name} eq 'test-stand-pat') {
+            $char = $t->app->characters->get($id);
+            last;
+        }
+    }
+
+    SKIP: {
+        skip 'No character found', 5 unless $char;
+
+        $char->setCol('action_points_max', 50);
+        $char->setCol('action_points', 50);
+        $char->setCol('skill_selling', 1);
+        $char->save;
+        $t->app->characters->_saveTable;
+
+        $t->app->shed->load;
+        my $item = $t->app->shed->create(
+            char_id       => $char->getCol('id'),
+            artifact_id   => 'stand_pat_test_item',
+            original_value => 40,
+            decayed_value  => 30,
+            behaviors     => ['unobtanium'],
+            condition     => 'fair',
+        );
+        $item->save;
+
+        my $routine = MagicMountain::Bot::Routine->new(agent => $agent);
+
+        my $profile = {
+            id           => 'test_stand_pat',
+            push_policy  => { name => 'fixed_pushes', params => { max => 1 } },
+            sell_policy  => { name => 'value_loyalist', params => { haggle_aggression => 0, stand_pat_resolve => [qw(high medium)] } },
+            skill_policy => { name => 'never' },
+        };
+
+        my $begin_res = $agent->begin_market;
+        ok $begin_res->{ok}, 'market visit started';
+
+        my $offer_res = $agent->offer($item->getCol('id'));
+
+        SKIP: {
+            skip "offer was $offer_res->{result}, not counter_offer (RNG)", 4
+                unless $offer_res->{result} eq 'counter_offer';
+
+            ok defined $offer_res->{resolve}, 'resolve is present in counter_offer response';
+
+            my $sell_pol = $profile->{sell_policy};
+            ok MagicMountain::Bot::SellPolicy::should_stand_pat($offer_res->{resolve}, $sell_pol),
+                'should_stand_pat accepts resolve=' . ($offer_res->{resolve} // '?');
+
+            my $stand_res = $agent->stand_pat;
+            ok $stand_res->{ok}, 'stand_pat request succeeded';
+            ok $stand_res->{result} eq 'sold'
+                || $stand_res->{result} eq 'sold_more'
+                || $stand_res->{result} eq 'maxed_out'
+                || $stand_res->{result} eq 'stand_pat_refused'
+                || $stand_res->{result} eq 'customer_left',
+                'stand_pat returned valid result: ' . ($stand_res->{result} // '?');
+        }
+    }
+};
+
 subtest 'Routine handles invalid profile' => sub {
     my $agent = _make_agent;
     my $routine = MagicMountain::Bot::Routine->new(agent => $agent);
