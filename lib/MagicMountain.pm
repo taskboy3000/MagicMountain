@@ -18,6 +18,7 @@ use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::Transcript;
 use MagicMountain::Model::BrokersCache;
 use MagicMountain::Model::ArtifactDisposition;
+use MagicMountain::Service::SeasonManager;
 use MagicMountain::Model::SeasonRecord;
 use MagicMountain::Model::FactionSnapshot;
 use MagicMountain::Model::Activity;
@@ -602,7 +603,7 @@ sub _catch_up_maintenance ($self) {
     my $boundary = $maint->recent_maintenance_boundary;
 
     if ($last < $boundary) {
-        my $missed = int(($boundary - $last) / 86400) + 1;
+        my $missed = int(($boundary - $last) / 86400);
         $self->log->info("Catch-up: $missed missed maintenance cycle(s)");
         $maint->catch_up($missed);
     }
@@ -774,45 +775,33 @@ sub active_season ($self) {
 sub ensureActiveSeason ($self) {
     $self->seasons->load;
 
-    if (!scalar keys %{ $self->seasons->all }) {
-        $self->log->info("No season data found. Creating default active season.");
-        my $season = $self->seasons->create(
-            label           => $self->config->{default_season_label_prefix} . ' 1',
-            length          => $self->config->{default_season_length},
-            day             => 1,
-            end_of_day_hour => $self->config->{end_of_day_hour},
-            status          => 'active',
-            last_maintenance => CORE::time,
-        );
-        $season->save;
-        return 1;
-    }
-
     my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
-    if (!@$active) {
-        my $max_num = 0;
-        my $prefix = $self->config->{default_season_label_prefix} // 'Season';
-        my $re = qr/^\Q$prefix\E\s+(\d+)$/;
-        for my $id (keys %{ $self->seasons->all }) {
-            my $row = $self->seasons->all->{$id};
-            if ($row->{label} =~ $re) {
-                my $n = $1;
-                $max_num = $n if $n > $max_num;
-            }
+    return 1 if @$active;
+
+    my $max_num = 0;
+    my $prefix = $self->config->{default_season_label_prefix} // 'Season';
+    my $re = qr/^\Q$prefix\E\s+(\d+)$/;
+    for my $id (keys %{ $self->seasons->all }) {
+        my $row = $self->seasons->all->{$id};
+        if ($row->{label} =~ $re) {
+            my $n = $1;
+            $max_num = $n if $n > $max_num;
         }
-        my $label = "$prefix " . ($max_num + 1);
-        $self->log->info("No active season. Creating '$label'.");
-        my $season = $self->seasons->create(
-            label           => $label,
-            length          => $self->config->{default_season_length},
-            day             => 1,
-            end_of_day_hour => $self->config->{end_of_day_hour},
-            status          => 'active',
-            last_maintenance => CORE::time,
-        );
-        $season->save;
-        return 1;
     }
+    my $label = "$prefix " . ($max_num + 1);
+    $self->log->info("No active season. Creating '$label'.");
+    my $season = $self->seasons->create(
+        label           => $label,
+        length          => $self->config->{default_season_length},
+        day             => 1,
+        end_of_day_hour => $self->config->{end_of_day_hour},
+        status          => 'active',
+        last_maintenance => CORE::time,
+    );
+    $season->save;
+
+    MagicMountain::Service::SeasonManager->new(app => $self)->seed_bots($season);
+
     return 1;
 }
 
