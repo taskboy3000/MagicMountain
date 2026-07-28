@@ -9,6 +9,7 @@ use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::ArtifactDisposition;
 use MagicMountain::Model::FactionSnapshot;
 use MagicMountain::Model::SeasonRecord;
+use MagicMountain::Service::SeasonManager;
 use File::Path qw(remove_tree);
 use YAML::XS;
 
@@ -114,6 +115,8 @@ sub run ($self, @args) {
         status          => 'active',
     );
     $season->save;
+
+    MagicMountain::Service::SeasonManager->new(app => $app)->seed_bots($season);
 
     say "Season created:";
     say "  id:              " . $season->getCol('id');
