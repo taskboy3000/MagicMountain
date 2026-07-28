@@ -1,15 +1,15 @@
 - id: stage_guard_opportunist
   display_name: "Cautious"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
-  sell_policy: { name: "opportunist", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.7, min_counter_pct: 0.70, stand_pat_resolve: [high] } }
+  sell_policy: { name: "opportunist", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.25, min_counter_pct: 0.70, stand_pat_resolve: [high] } }
   pawn_policy: { name: "always" }
-  skill_policy: { name: "immediate", params: { reserve: 30 } }
+  skill_policy: { name: "immediate", params: { reserve: 10 } }
   pvp_aggressiveness: 0.10
 
 - id: greed_desperate
   display_name: "Risk Taker"
   push_policy: { name: "greed", params: { prob: 0.8 } }
-  sell_policy: { name: "desperate", params: { max_irritation: 4, max_pressure_state: "mood_strained", haggle_aggression: 1, min_counter_pct: 0.50 } }
+  sell_policy: { name: "desperate", params: { max_irritation: 4, max_pressure_state: "mood_strained", haggle_aggression: 0.25, min_counter_pct: 0.50 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling", "prospecting"], reserve: 10 } }
   pvp_aggressiveness: 0.35
@@ -23,7 +23,7 @@
       min_value: 25
       max_irritation: 2
       max_pressure_state: "mood_interested"
-      haggle_aggression: 0.3
+      haggle_aggression: 0.20
       min_counter_pct: 0.80
   pawn_policy: { name: "always" }
   skill_policy: { name: "never" }
@@ -32,39 +32,39 @@
 - id: fixed_highest
   display_name: "Measured"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
-  sell_policy: { name: "highest_offer", params: { min_value: 8, max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0.3, min_counter_pct: 0.80 } }
+  sell_policy: { name: "highest_offer", params: { min_value: 8, max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0.20, min_counter_pct: 0.80 } }
   pawn_policy: { name: "always" }
-  skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
+  skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 10 } }
   pvp_aggressiveness: 0.15
 
 - id: instability_loyalist
   display_name: "Loyalist"
   push_policy: { name: "instability_cap", params: { max: 3 } }
-  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.25, min_counter_pct: 0.60 } }
   pawn_policy: { name: "always" }
-  skill_policy: { name: "specialize", params: { priority: ["upcycling"], reserve: 20 } }
+  skill_policy: { name: "specialize", params: { priority: ["upcycling"], reserve: 10 } }
   pvp_aggressiveness: 0.25
 
 - id: fixed_loyalist
   display_name: "Fixed Loyalist"
   push_policy: { name: "fixed_pushes", params: { max: 2 } }
-  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.60 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.25, min_counter_pct: 0.60 } }
   pawn_policy: { name: "always" }
-  skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 20 } }
+  skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 10 } }
   pvp_aggressiveness: 0.20
 
 - id: stage_loyalist
   display_name: "Stage Loyalist"
   push_policy: { name: "stage_guard", params: { stop_at: "unstable" } }
-  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.65 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.25, min_counter_pct: 0.65 } }
   pawn_policy: { name: "always" }
-  skill_policy: { name: "immediate", params: { reserve: 30 } }
+  skill_policy: { name: "immediate", params: { reserve: 10 } }
   pvp_aggressiveness: 0.15
 
 - id: greed_loyalist
   display_name: "Greedy Loyalist"
   push_policy: { name: "greed", params: { prob: 0.8 } }
-  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 1, min_counter_pct: 0.70 } }
+  sell_policy: { name: "default", params: { max_irritation: 3, max_pressure_state: "mood_wary", haggle_aggression: 0.25, min_counter_pct: 0.70 } }
   pawn_policy: { name: "always" }
   skill_policy: { name: "specialize", params: { priority: ["upcycling", "prospecting"], reserve: 10 } }
   pvp_aggressiveness: 0.30
@@ -72,7 +72,7 @@
 - id: value_loyalist
   display_name: "Value Loyalist"
   push_policy: { name: "value_target", params: { min: 30 } }
-  sell_policy: { name: "default", params: { max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0, stand_pat_resolve: [high, medium] } }
+  sell_policy: { name: "default", params: { max_irritation: 2, max_pressure_state: "mood_interested", haggle_aggression: 0.15, stand_pat_resolve: [high, medium] } }
   pawn_policy: { name: "always" }
-  skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 30 } }
+  skill_policy: { name: "specialize", params: { priority: ["selling"], reserve: 10 } }
   pvp_aggressiveness: 0.10
