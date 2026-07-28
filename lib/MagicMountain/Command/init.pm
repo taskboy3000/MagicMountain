@@ -107,16 +107,13 @@ sub run ($self, @args) {
         $label = "$prefix 1";
     }
 
-    my $season = $app->seasons->create(
+    my $season = MagicMountain::Service::SeasonManager->new(app => $app)->create_season(
         label           => $label,
         length          => $length,
         day             => 1,
         end_of_day_hour => $end_of_day_hour,
         status          => 'active',
     );
-    $season->save;
-
-    MagicMountain::Service::SeasonManager->new(app => $app)->seed_bots($season);
 
     say "Season created:";
     say "  id:              " . $season->getCol('id');

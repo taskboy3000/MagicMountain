@@ -52,14 +52,14 @@ sub run ($self, @args) {
         $label = "$prefix " . ($max_num + 1);
     }
 
-    my $season = $self->app->seasons->create(
+    require MagicMountain::Service::SeasonManager;
+    my $season = MagicMountain::Service::SeasonManager->new(app => $self->app)->create_season(
         label           => $label,
         length          => $length,
         day             => 1,
         end_of_day_hour => $end_of_day_hour,
         status          => 'active',
     );
-    $season->save;
 
     my $daily_turns = $self->app->config->{default_daily_turns} // 10;
     my $old_id = @$active ? $active->[0]->getCol('id') : undef;
@@ -71,10 +71,6 @@ sub run ($self, @args) {
             $char->save;
         }
     }
-
-    require MagicMountain::Service::SeasonManager;
-    MagicMountain::Service::SeasonManager->new(app => $self->app)
-        ->seed_bots($season);
 
     say "Season created:";
     say "  id:              " . $season->getCol('id');

@@ -143,4 +143,47 @@ subtest 'seed_bots creates correct number of bot characters' => sub {
     cmp_ok scalar(keys %$accts), '>=', 2, 'bot accounts exist';
 };
 
+subtest 'SeasonManager::ensure_season creates season with bots and player character' => sub {
+    my $dir = tempdir(CLEANUP => 1);
+    $ENV{MM_DATA_DIR} = $dir;
+
+    write_file("$dir/config.yml", <<'YAML');
+bots:
+  count: 2
+  profiles:
+  - id: stage_guard_opportunist
+  - id: fixed_highest
+YAML
+    $ENV{MM_CFG_FILE} = "$dir/config.yml";
+
+    my $t = TestEnv->create_app;
+    my $app = $t->app;
+
+    # Create a player account
+    $app->accounts->load;
+    my $acct_model = $app->accounts->create(username => 'player');
+    $acct_model->save;
+
+    # Archive the active season that startup created
+    my $existing = $app->active_season;
+    if ($existing) {
+        $existing->setCol('status', 'archived');
+        $existing->save;
+    }
+
+    # Call ensure_season — it should create a new season with bots
+    my ($season, $recap) = MagicMountain::Service::SeasonManager->new(app => $app)
+        ->ensure_season($acct_model->getCol('id'));
+
+    ok $season, 'ensure_season returned a season';
+    is $season->getCol('day'), 1, 'day is 1';
+
+    # Bots exist
+    $app->characters->load;
+    my @bots = @{ $app->characters->find(sub {
+        $_[0]->{is_bot} && $_[0]->{season_id} eq $season->getCol('id')
+    }) };
+    is scalar @bots, 2, '2 bot characters created by ensure_season';
+};
+
 done_testing;

@@ -6,6 +6,14 @@ use MagicMountain::BotName qw(random_bot_name);
 
 has app => sub { die "app is required" };
 
+sub create_season ($self, %params) {
+    my $season = $self->app->seasons->create(%params);
+    $season->save;
+    $self->seed_bots($season);
+    $self->app->dominance_service->calculate_climate($season);
+    return $season;
+}
+
 sub ensure_season ($self, $player_id) {
     my $season = $self->app->active_season;
     my $season_recap;
@@ -49,17 +57,13 @@ sub ensure_season ($self, $player_id) {
         my $length = $self->app->config->{default_season_length} // 30;
         my $eod_hour = $self->app->config->{end_of_day_hour} // 0;
 
-        $season = $self->app->seasons->create(
+        $season = $self->create_season(
             label           => $label,
             length          => $length,
             day             => 1,
             end_of_day_hour => $eod_hour,
             status          => 'active',
         );
-        $season->save;
-
-        $self->seed_bots($season);
-        $self->app->dominance_service->calculate_climate($season);
     }
 
     return ($season, $season_recap);

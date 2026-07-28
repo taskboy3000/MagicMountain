@@ -790,7 +790,7 @@ sub ensureActiveSeason ($self) {
     }
     my $label = "$prefix " . ($max_num + 1);
     $self->log->info("No active season. Creating '$label'.");
-    my $season = $self->seasons->create(
+    MagicMountain::Service::SeasonManager->new(app => $self)->create_season(
         label           => $label,
         length          => $self->config->{default_season_length},
         day             => 1,
@@ -798,9 +798,6 @@ sub ensureActiveSeason ($self) {
         status          => 'active',
         last_maintenance => CORE::time,
     );
-    $season->save;
-
-    MagicMountain::Service::SeasonManager->new(app => $self)->seed_bots($season);
 
     return 1;
 }
