@@ -1,5 +1,13 @@
+# File: MagicMountain.pm
+# Indent with perltidy
+#
+# The game is called 'ProspectBoy 3000', but the codebase is called 'Magic Mountain'.
+#
+# This is the orchestrator class that makes game objects available
+# to controllers.
 package MagicMountain;
 
+# CPAN Modules
 use File::Basename;
 use File::Find;
 use Carp 'carp';
@@ -7,42 +15,41 @@ use Mojo::Base 'Mojolicious', -signatures;
 use Mojo::Home;
 use Mojo::IOLoop;
 use Time::HiRes;
-use List::Util 'shuffle';
 
+# Game modules
+use MagicMountain::Activity::MarketVisit;
+use MagicMountain::Activity::Pawn;
+use MagicMountain::Activity::Prospecting;
+use MagicMountain::Crier;
+use MagicMountain::Maintenance;
 use MagicMountain::Model::Account;
+use MagicMountain::Model::Activity;
+use MagicMountain::Model::ArtifactDisposition;
 use MagicMountain::Model::AuditLog;
+use MagicMountain::Model::BrokersCache;
 use MagicMountain::Model::Character;
+use MagicMountain::Model::FactionSnapshot;
+use MagicMountain::Model::Pressure;
 use MagicMountain::Model::Season;
+use MagicMountain::Model::SeasonRecord;
 use MagicMountain::Model::Session;
 use MagicMountain::Model::ShedItem;
 use MagicMountain::Model::Transcript;
-use MagicMountain::Model::BrokersCache;
-use MagicMountain::Model::ArtifactDisposition;
-use MagicMountain::Service::SeasonManager;
-use MagicMountain::Model::SeasonRecord;
-use MagicMountain::Model::FactionSnapshot;
-use MagicMountain::Model::Activity;
-use MagicMountain::Maintenance;
-use MagicMountain::Activity::Prospecting;
-use MagicMountain::Activity::Pawn;
-use MagicMountain::ShedManager;
-use MagicMountain::Crier;
-use MagicMountain::Service::Authentication;
 use MagicMountain::RateLimiter;
-use MagicMountain::Service::RandomEvents;
-use MagicMountain::Bot::Agent;
-use MagicMountain::Bot::Routine;
-
-use MagicMountain::Service::PvP;
-use MagicMountain::Service::Dominance;
-use MagicMountain::Service::PawnCalculator;
-use MagicMountain::Service::SkillTraining;
-use MagicMountain::Service::SeasonFinalizer;
-use MagicMountain::Service::CharacterView;
-use MagicMountain::Service::Navigation;
-use MagicMountain::Service::Suggestion;
 use MagicMountain::Service::AccountDeletion;
-use MagicMountain::Model::Pressure;
+use MagicMountain::Service::Authentication;
+use MagicMountain::Service::CharacterView;
+use MagicMountain::Service::DailyMaintenance;
+use MagicMountain::Service::Dominance;
+use MagicMountain::Service::Navigation;
+use MagicMountain::Service::PawnCalculator;
+use MagicMountain::Service::PvP;
+use MagicMountain::Service::RandomEvents;
+use MagicMountain::Service::SeasonFinalizer;
+use MagicMountain::Service::SeasonManager;
+use MagicMountain::Service::SkillTraining;
+use MagicMountain::Service::Suggestion;
+use MagicMountain::ShedManager;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -178,8 +185,6 @@ has prospecting => sub ($self) {
     return $p;
 };
 
-use MagicMountain::Activity::MarketVisit;
-
 has market => sub ($self) {
     MagicMountain::Activity::MarketVisit->new(
         table            => $self->activities->table,
@@ -195,150 +200,7 @@ has maintenance => sub ($self) {
     my $maint = MagicMountain::Maintenance->new(
         app             => $self,
         end_of_day_hour => $self->config->{end_of_day_hour} // 0,
-        on_maintenance  => sub ($maint) {
-            my $season = $maint->app->active_season;
-            return unless $season;
-
-            if (!$maint->_catching_up) {
-                my $bots_cfg = $maint->app->config->{bots} // {};
-                if (($bots_cfg->{count} // 0) > 0) {
-                    my $bot_chars = $maint->app->characters->find(sub {
-                        $_[0]->{season_id} eq $season->getCol('id')
-                        && $_[0]->{is_bot}
-                    });
-
-                    if (@$bot_chars) {
-                        my $seed = $season->getCol('day') // 0;
-                        my $id_str = $season->getCol('id') // '';
-                        for my $c (unpack('C*', $id_str)) {
-                            $seed = (($seed << 5) ^ $seed ^ $c) & 0x7FFFFFFF;
-                        }
-                        srand($seed);
-                        my @shuffled = List::Util::shuffle(@$bot_chars);
-
-                        my $port = $maint->app->config->{port} // 9000;
-                        my $svc_token = $maint->app->config->{bot_service_token};
-                        my $base_url = "http://localhost:$port";
-
-                        for my $bot_char (@shuffled) {
-                            eval {
-                                my $ua = Mojo::UserAgent->new;
-                                my $agent = MagicMountain::Bot::Agent->new(
-                                    ua        => $ua,
-                                    base_url  => $base_url,
-                                    svc_token => $svc_token,
-                                );
-                                $agent->login($bot_char->getCol('name'));
-                                my $routine = MagicMountain::Bot::Routine->new(
-                                    agent      => $agent,
-                                    profile_id => $bot_char->getCol('bot_profile_id'),
-                                );
-                                $routine->run_day;
-                            };
-                            if ($@) {
-                                $maint->app->log->warn(sprintf(
-                                    "Bot %s daily run failed: %s",
-                                    $bot_char->getCol('name') // '?', $@
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-
-            # Clear yesterday's modifiers before drawing new ones
-            $season->setCol('daily_modifiers', {});
-            $season->setCol('global_event_text', undef);
-
-            my $day    = $season->getCol('day') + 1;
-            $maint->app->log->info(sprintf("Maintenance: %s day %d -> %d",
-                $season->getCol('label') // '?', $day - 1, $day));
-            $season->setCol('day', $day);
-            $season->save;
-
-            $maint->app->characters->load;
-            my $chars = $maint->app->characters->find(sub { $_[0]->{season_id} eq $season->getCol('id') });
-            for my $char (@$chars) {
-                my $max = $char->getCol('action_points_max') // $maint->app->config->{default_action_points} // 15;
-                $char->setCol('action_points', $max);
-                $char->setCol('smuggle_reroll_used', 0);
-                $char->save;
-            }
-
-            $maint->app->shed_manager->apply_decay;
-
-            # Market dynamics reset (daily_intake=0, days_since_purchase++)
-            my $fs = $season->getCol('faction_state') // {};
-            for my $fid (keys %$fs) {
-                $fs->{$fid}->{daily_intake} = 0;
-                $fs->{$fid}->{days_since_purchase}++;
-            }
-            $season->setCol('faction_state', $fs);
-
-            # Faction climate calculation
-            $self->dominance_service->calculate_climate($season);
-
-            # Global event: draw and apply modifiers
-            if ($maint->app->can('random_events')) {
-                my $global_event = $maint->app->random_events->draw(
-                    pool    => 'global',
-                    trigger => 'day_start',
-                    context => {
-                        season        => $season,
-                        faction_state => \%$fs,
-                    },
-                );
-                if ($global_event) {
-                    $maint->app->random_events->apply_effects(
-                        $global_event, 'global',
-                        { season => $season, faction_state => \%$fs },
-                    );
-                    $season->setCol('global_event_text', $global_event->{text});
-                    $maint->app->log->info(
-                        sprintf("Global event [%s]: %s", $global_event->{id}, $global_event->{text})
-                    );
-                }
-            }
-
-            # Crier generation (reads global_event_text first)
-            my $crier_opts = $maint->_catching_up ? { time_warp => 1 } : {};
-            my $msg = $maint->app->crier->generate($season, $crier_opts);
-            $season->setCol('crier_message', $msg);
-            $season->setCol('crier_snapshot', $season->getCol('faction_state'));
-
-            for my $fid (keys %$fs) {
-                $maint->app->faction_snapshots->create(
-                    season_id         => $season->getCol('id'),
-                    day               => $day,
-                    faction_id        => $fid,
-                    influence         => $fs->{$fid}{influence} // 0,
-                    artifacts_received => $fs->{$fid}{artifacts_received} // 0,
-                    intake_by_trait   => $fs->{$fid}{intake_by_trait} // {},
-                )->save;
-            }
-
-            $season->setCol('faction_state', $fs);
-
-            $maint->app->log_event({
-                type     => 'faction_snapshot',
-                day      => $day,
-                factions => $season->getCol('faction_state') // {},
-                narrative => sprintf("Day %d faction snapshot: %s",
-                    $day, $msg // 'no message'),
-            }, 'season');
-
-            $season->setCol('last_maintenance', CORE::time);
-            $season->save;
-
-            my $length = $season->getCol('length');
-            if ($day > $length) {
-                $maint->app->log->info(sprintf(
-                    "Season '%s' day %d exceeds configured length %d — finalizing",
-                    $season->getCol('label'), $day, $length
-                ));
-                MagicMountain::Service::SeasonFinalizer->new(app => $maint->app)->finalize;
-            }
-        },
+        on_maintenance  => sub ($maint) { $maint->app->daily_maintenance->run_day($maint) },
     );
     $maint->next_run;
     return $maint;
@@ -418,6 +280,10 @@ has character_view => sub ($self) {
     MagicMountain::Service::CharacterView->new(app => $self);
 };
 
+has daily_maintenance => sub ($self) {
+    MagicMountain::Service::DailyMaintenance->new(app => $self);
+};
+
 has navigation => sub ($self) {
     MagicMountain::Service::Navigation->new(app => $self);
 };
@@ -490,15 +356,14 @@ sub startup ($self) {
     }
 
     if (my $path = $self->config->{log_file}) {
-        $self->log(Mojo::Log->new(
-            path  => $path,
-            level => $self->config->{log_level} // 'debug',
-        ));
-    } else {
-        $self->log->level($self->config->{log_level} // 'debug');
+        $self->log(Mojo::Log->new(path  => $path));
+    }
+    $self->log->level($self->config->{log_level} // 'debug');
+
+    if (ref ($self->config->{secrets} // '') eq ref []){
+        $self->secrets($self->config->{secrets});
     }
 
-    $self->secrets($self->config->{secrets}) if ref ($self->config->{secrets} // '') eq ref [];
     $self->log->debug(sprintf("Secrets (%d): %s...",
         scalar(@{ $self->config->{secrets} // [] }),
         substr(($self->config->{secrets}[0] // ''), 0, 16),
