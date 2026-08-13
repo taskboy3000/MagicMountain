@@ -40,9 +40,7 @@ sub _csrf { my $t = shift; $t->tx->res->json->{csrf_token} // '' }
 subtest 'unauthenticated' => sub {
     my $t = setup;
     $t->delete_ok('/sessions')->status_is(200);
-    $t->post_ok('/prospecting/begin')
-      ->status_is(302)
-      ->header_like(Location => qr{/login});
+    $t->post_ok('/prospecting/begin')->status_is(302)->header_like(Location => qr{/login});
 };
 
 subtest 'begin — starts a new artifact' => sub {

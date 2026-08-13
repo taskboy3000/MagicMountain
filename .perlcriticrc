@@ -11,3 +11,8 @@
 # Prohibit unless { BLOCK } — prefer if (!COND) { BLOCK }
 [ControlStructures::ProhibitUnlessBlocks]
 severity = 5
+
+# t/maintenance.t uses nested named subs in a state block for test harness
+# isolation — not refactorable without breaking test structure.
+[t/maintenance.t]
+exclude = Subroutines::ProhibitNestedSubs

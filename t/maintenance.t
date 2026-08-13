@@ -1,3 +1,5 @@
+## no critic
+
 use Modern::Perl;
 use Test::More;
 use POSIX qw(mktime);
@@ -8,49 +10,48 @@ use TestEnv;
 
 use MagicMountain::Maintenance;
 
-{
-    package FakeLogger;
-    sub new   { bless { messages => [] }, shift }
-    sub debug { my $self = shift; push @{$self->{messages}}, [debug => @_] }
-    sub info  { my $self = shift; push @{$self->{messages}}, [info => @_] }
+package FakeLogger;
+sub new   { bless { messages => [] }, shift }
+sub debug { my $self = shift; push @{$self->{messages}}, [debug => @_] }
+sub info  { my $self = shift; push @{$self->{messages}}, [info => @_] }
+
+
+package FakeDailyMaintenance;
+sub new { bless { app => $_[1] }, shift }
+sub open_bot_window { 0 }
+sub app { $_[0]->{app} }
+
+package FakeApp;
+sub new {
+    my $self = bless {
+        log               => FakeLogger->new,
+        dataDir           => File::Temp::tempdir(CLEANUP => 1),
+        config            => { bots => { count => 0 } },
+    }, shift;
+    $self->{daily_maintenance} = FakeDailyMaintenance->new($self);
+    return $self;
+}
+sub log { shift->{log} }
+sub transcript { bless {}, 'FakeTranscript' }
+sub dataDir { shift->{dataDir} }
+sub config { shift->{config} }
+sub daily_maintenance { shift->{daily_maintenance} }
+sub characters {
+    no warnings 'once';
+    state $chars = do {
+        package FakeChars;
+        sub new { bless {}, shift }
+        sub find { [] }
+    };
+    FakeChars->new;
 }
 
-{
-    package FakeDailyMaintenance;
-    sub new { bless { app => $_[1] }, shift }
-    sub open_bot_window { 0 }
-    sub app { $_[0]->{app} }
 
-    package FakeApp;
-    sub new {
-        my $self = bless {
-            log               => FakeLogger->new,
-            dataDir           => File::Temp::tempdir(CLEANUP => 1),
-            config            => { bots => { count => 0 } },
-        }, shift;
-        $self->{daily_maintenance} = FakeDailyMaintenance->new($self);
-        return $self;
-    }
-    sub log { shift->{log} }
-    sub transcript { bless {}, 'FakeTranscript' }
-    sub dataDir { shift->{dataDir} }
-    sub config { shift->{config} }
-    sub daily_maintenance { shift->{daily_maintenance} }
-    sub characters {
-        no warnings 'once';
-        state $chars = do {
-            package FakeChars;
-            sub new { bless {}, shift }
-            sub find { [] }
-        };
-        FakeChars->new;
-    }
-}
 
-{
-    package FakeTranscript;
-    sub log_event { 1 }
-}
+package FakeTranscript;
+sub log_event { 1 }
+
+package main;
 
 my $app = FakeApp->new;
 
