@@ -13,6 +13,7 @@ perl bin/walkthrough           # end-to-end loop
 make ci-check                  # tests + walkthrough + perlcritic
 make cover && make report      # coverage (85%+ required)
 perl -Ilib script/mountain advance-day   # manual day rollover
+perl -Ilib script/mountain bot-turn [bot-id]  # run bot turn(s)
 ```
 
 ---
@@ -59,6 +60,11 @@ it belongs.
 
 **data-attribute to POST body**: camelCase dataset key → snake_case param name.
 `data-shed-item-id="abc"` → `body.shed_item_id = "abc"`.
+
+**Bots take turns via external command only**: Bots run via `Command::bot_turn`
+(`perl -Ilib script/mountain bot-turn [bot-id]`), not via in-process sync dispatch.
+This is the only production path. `Command::simulate` is a dev/test tool carved out
+from this rule.
 
 ---
 

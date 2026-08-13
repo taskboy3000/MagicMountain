@@ -16,11 +16,35 @@ use MagicMountain::Maintenance;
 }
 
 {
+    package FakeDailyMaintenance;
+    sub new { bless { app => $_[1] }, shift }
+    sub open_bot_window { 0 }
+    sub app { $_[0]->{app} }
+
     package FakeApp;
-    sub new { bless { log => FakeLogger->new, dataDir => File::Temp::tempdir(CLEANUP => 1) }, shift }
+    sub new {
+        my $self = bless {
+            log               => FakeLogger->new,
+            dataDir           => File::Temp::tempdir(CLEANUP => 1),
+            config            => { bots => { count => 0 } },
+        }, shift;
+        $self->{daily_maintenance} = FakeDailyMaintenance->new($self);
+        return $self;
+    }
     sub log { shift->{log} }
     sub transcript { bless {}, 'FakeTranscript' }
     sub dataDir { shift->{dataDir} }
+    sub config { shift->{config} }
+    sub daily_maintenance { shift->{daily_maintenance} }
+    sub characters {
+        no warnings 'once';
+        state $chars = do {
+            package FakeChars;
+            sub new { bless {}, shift }
+            sub find { [] }
+        };
+        FakeChars->new;
+    }
 }
 
 {

@@ -64,23 +64,45 @@ Persisted in `data/shed.json`. One row per artifact waiting to be sold.
 
 ### Daily Maintenance
 
-Triggered at `end_of_day_hour` (default 0 = midnight) or manually via `perl -Ilib script/mountain advance-day`. Runs inside a bot-capable server request so bot agents can POST to localhost.
+Triggered at `end_of_day_hour` (default 0 = midnight) by the daemon's 60-second timer, or manually via `perl -Ilib script/mountain advance-day`.
 
-**Order of operations** (`MagicMountain.pm:189-337`):
+**Order of operations** (`MagicMountain::Maintenance`, `MagicMountain::Service::DailyMaintenance`):
 
-1. Bot operations (if not catching up) — bots prospect/market/pawn via HTTP to localhost
-2. Reset `daily_modifiers`, `global_event_text`
-3. Advance `day` counter, save
-4. Refresh AP for all characters
-5. Apply shed decay (items age: fresh→settling→fading)
-6. Reset `faction_state.daily_intake = 0`, increment `days_since_purchase`
-7. **Calculate faction climate** — `Dominance::calculate_climate`
-8. Draw and apply global event (may modify faction_state further)
-9. **Generate crier message** — from faction climate text and faction_state diffs
-10. Snapshot faction_state into `crier_snapshot`
-11. Write faction snapshots to `faction_snapshots.json`
-12. Store modified faction_state
-13. Check if season should end (day > length)
+The maintenance window has two phases: a **bot window** (external subprocess) and a **rollover** (in-process):
+
+**Bot Window Phase** (opens at `end_of_day_hour`):
+
+1. `Maintenance::dailyMaintenance` sees maintenance is due, calls `Service::DailyMaintenance::open_bot_window`
+2. Sets `bot_window_open = 1`, advances `next_run` to tomorrow
+3. Spawns `bot-turn` command as a non-blocking subprocess (`Mojo::IOLoop->subprocess`)
+4. While the window is open:
+   - `in_maintenance` stays 0 — normal game operation continues
+   - Bot logins require `X-Bot-Service-Token`; non-bot logins get HTTP 503 (token gate in `Sessions::_build_session`)
+5. When the subprocess exits (or deadline timer fires), `_rollover` runs
+
+**Rollover Phase** (when last bot finishes or deadline expires):
+
+1. `_backup_data` — copy all JSON data files to date-stamped backup directory
+2. `in_maintenance(1)` — write routes return HTTP 503
+3. `on_maintenance` callback runs:
+   - Clear `daily_modifiers`, `global_event_text`
+   - Advance `day` counter, save
+   - Refresh AP for all characters
+   - Apply shed decay (items age: fresh→settling→fading)
+   - Reset `faction_state.daily_intake = 0`, increment `days_since_purchase`
+   - **Calculate faction climate** — `Dominance::calculate_climate`
+   - Draw and apply global event (may modify faction_state further)
+   - **Generate crier message** — from faction climate text and faction_state diffs
+   - Snapshot faction_state into `crier_snapshot`
+   - Write faction snapshots to `faction_snapshots.json`
+   - Store modified faction_state
+   - Check if season should end (day > length)
+4. `in_maintenance(0)` — normal operation resumes
+5. `bot_window_open = 0` — bot logins reopened
+
+**Manual advance-day**: `advance-day` command shells out to `bot-turn` synchronously (waiting for all bots), then runs the rollover phase. If bots fail, the day still advances (graceful degradation).
+
+**Deadline valve**: If bots have not finished within `maintenance_bot_deadline_minutes` (default 10), the rollover runs anyway and that day's bots are skipped. This prevents a stalled bot from halting the season.
 
 ### Faction Influence
 

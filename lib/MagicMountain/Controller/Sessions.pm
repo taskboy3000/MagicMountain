@@ -222,6 +222,14 @@ sub recover ($self) {
 }
 
 sub _build_session ($self, $account, $ip, @rest) {
+    if ($self->is_bot_window && !$self->_bot_service_token) {
+        $self->render(json => {
+            ok => 0,
+            error => 'Server is running bot maintenance. Try again shortly.',
+        }, status => 503);
+        return;
+    }
+
     my $player_id = $account->getCol('id');
 
     # Bot check (skip for service-token authenticated requests)

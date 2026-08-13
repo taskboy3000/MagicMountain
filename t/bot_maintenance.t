@@ -19,7 +19,7 @@ my $svc_token = 'test-bot-token';
 write_file("$dataDir/magic_mountain.yml", "---\nbots:\n  count: 1\n  profiles:\n    - id: greed_desperate\n  action_points: 15\nbot_service_token: $svc_token\n");
 $ENV{MM_CFG_FILE} = "$dataDir/magic_mountain.yml";
 
-subtest 'bot runs during maintenance, AP consumed, then reset' => sub {
+subtest 'rollover advances day and resets human AP' => sub {
     MagicMountain::Model::Season->new(file => "$dataDir/seasons.json")
         ->create(
             id            => 's1',

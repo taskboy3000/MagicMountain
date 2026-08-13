@@ -14,7 +14,8 @@ what it affects. Refer to this when adjusting game balance.
 |-----|---------|------------------|
 | `secrets` | `[override-me]` | Session cookie signing key. **Set a real value in production.** |
 | `end_of_day_hour` | `0` (midnight) | Hour (0–23) when daily maintenance fires. AP refresh, decay, Crier. |
-| `maintenance_window_minutes` | `5` | How long write routes return 503 during maintenance. |
+| `maintenance_window_minutes` | `5` | How long write routes return 503 during rollover. |
+| `maintenance_bot_deadline_minutes` | `10` | Max minutes to wait for bots to finish before forcing rollover. `0` = immediate rollover; bots that haven't finished play on day N+1. |
 | `session_timeout_minutes` | `30` | Minutes of inactivity before a session expires (also used by concurrent session cap). |
 | `max_concurrent_sessions` | `10` | Max simultaneous active player sessions. `0` = unlimited. |
 | `default_season_length` | `30` | Days in a season before end is recommended (not enforced — admin-triggered). |

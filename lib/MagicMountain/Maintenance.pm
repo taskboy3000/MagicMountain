@@ -17,6 +17,7 @@ has next_run => sub ($self) {
 };
 
 has in_maintenance => 0;
+has bot_window_open => 0;
 has _catching_up => 0;
 
 sub catch_up ($self, $missed_cycles) {
@@ -40,15 +41,15 @@ sub compute_next_maintenance_window ($self, $timestamp = undef) {
     $timestamp //= $self->clock->();
 
     my @tm = localtime($timestamp);
-    $tm[0] = 0;                       # sec
-    $tm[1] = 0;                       # min
-    $tm[2] = $self->end_of_day_hour;  # hour
-    $tm[8] = -1;                      # isdst unknown, let libc decide
+    $tm[0] = 0;
+    $tm[1] = 0;
+    $tm[2] = $self->end_of_day_hour;
+    $tm[8] = -1;
 
     my $candidate = mktime(@tm);
 
     if ($candidate < $timestamp) {
-        $tm[3]++;                     # mday — mktime normalizes overflow
+        $tm[3]++;
         $candidate = mktime(@tm);
     }
 
@@ -68,22 +69,43 @@ sub _backup_data ($self) {
     }
 }
 
-sub dailyMaintenance ($self) {
-    my $now = $self->clock->();
-    return if $self->next_run > $now;
+sub _rollover ($self) {
+    return if $self->bot_window_open == 0;
+
+    $self->bot_window_open(0);
 
     $self->_backup_data;
 
     $self->in_maintenance(1);
-    $self->app->log->debug("Daily maintenance started");
-
-    $self->next_run($self->compute_next_maintenance_window($now + 1));
-
-    $self->app->log->debug("Next daily maintenance window: " . localtime($self->next_run));
+    $self->app->log->debug("Daily maintenance rollover started");
 
     $self->on_maintenance->($self);
+
     $self->in_maintenance(0);
+    $self->app->log->debug("Daily maintenance rollover complete");
     return 1;
+}
+
+sub _do_rollover ($self) {
+    $self->next_run($self->compute_next_maintenance_window(CORE::time + 1));
+    $self->app->log->debug("Next daily maintenance window: " . localtime($self->next_run));
+
+    my $opened = $self->app->daily_maintenance->open_bot_window($self);
+    if (!$opened) {
+        $self->bot_window_open(1);
+        $self->_rollover;
+    }
+    return 1;
+}
+
+sub dailyMaintenance ($self) {
+    my $now = $self->clock->();
+    return if $self->next_run > $now;
+
+    return if $self->bot_window_open;
+
+    $self->app->log->debug("Daily maintenance window opening");
+    return $self->_do_rollover;
 }
 
 1;

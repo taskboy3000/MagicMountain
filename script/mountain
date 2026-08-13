@@ -10,4 +10,16 @@ use Mojolicious::Commands;
 local $ENV{MM_SKIP_SEASON_CHECK} = 1
     if @ARGV && $ARGV[0] ne 'daemon';
 
+my @daemon_args;
+for my $i (0 .. $#ARGV) {
+    if ($ARGV[$i] eq '-l' && $i + 1 <= $#ARGV) {
+        my $listen_url = $ARGV[$i + 1];
+        my $daemon_url = $listen_url;
+        $daemon_url =~ s|^http://\*:|http://localhost:|i;
+        $daemon_url =~ s|^http\+unix://.*$|localhost:9000|i;
+        $ENV{MOUNTAIN_DAEMON_URL} = $daemon_url;
+        last;
+    }
+}
+
 Mojolicious::Commands->start_app('MagicMountain');

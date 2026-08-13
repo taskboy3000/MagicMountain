@@ -59,8 +59,9 @@ has defaultConfig => sub ($self) {
         secrets                   => [ 'override-me' ],
         session_timeout_minutes   => 30,
         max_concurrent_sessions  => 10,
-        end_of_day_hour           => 0,
-        maintenance_window_minutes => 5,
+        end_of_day_hour              => 0,
+        maintenance_window_minutes   => 5,
+        maintenance_bot_deadline_minutes => 10,
         default_season_length     => 30,
         default_season_label_prefix => 'Season',
         default_daily_turns       => 10,
@@ -374,15 +375,21 @@ sub startup ($self) {
         mkdir $self->dataDir or die("Cannot make dataDir[$!]: " . $self->dataDir);
     }
 
-    if (!$self->ensureActiveSeason) {
+    if (!$ENV{MM_SKIP_CATCHUP} && !$self->ensureActiveSeason) {
         $self->log->warn("No active season. Game controller will auto-create one on first visit.");
     };
+
+    $self->daily_maintenance->catch_up_missed_cycles unless $ENV{MM_SKIP_CATCHUP};
 
     $self->renderer->cache->max_keys(0);
     $self->defaults(layout => 'default');
 
     $self->helper(is_maintenance => sub ($c) {
         return $c->app->maintenance->in_maintenance;
+    });
+
+    $self->helper(is_bot_window => sub ($c) {
+        return $c->app->maintenance->bot_window_open;
     });
 
     $self->helper(skills_data => sub ($c) {
@@ -450,8 +457,6 @@ sub startup ($self) {
         $session->touch if time - $last >= 10;
         return $player_id;
     });
-
-    $self->daily_maintenance->catch_up_missed_cycles;
 
     if ($self->mode ne 'test') {
         Mojo::IOLoop->recurring(60 => sub {

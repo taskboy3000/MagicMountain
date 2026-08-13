@@ -172,49 +172,61 @@ Controllers are dumb pipes. They do not inspect or filter what the activity
 returns. They trust `action_points` as written by maintenance — no rollover
 checks, no clock advancement.
 
-### 3.2 Phase 2: Daily Maintenance (In-Process)
+### 3.2 Phase 2: Daily Maintenance (Window-Based)
 
 Maintenance runs as an in-process timer (Mojo::IOLoop recurring every 60
 seconds) managed by `MagicMountain::Maintenance`. When the configured
-`end_of_day_hour` arrives, the maintenance window fires: it sets an
-`in_maintenance` flag, invokes the `on_maintenance` callback for day-rollover
-logic, then clears the flag. No external cron or separate CLI invocation is
-needed.
+`end_of_day_hour` arrives, the maintenance window opens: it sets a
+`bot_window_open` flag, spawns the `bot-turn` external command as a
+non-blocking subprocess, and when the subprocess exits (or a deadline timer
+fires), runs the rollover callback and closes the window.
 
 ```
 Mojo::IOLoop (every 60s) → Maintenance::dailyMaintenance
   │
   ├── Check: is it time? (compare now against next_run)
+  ├── Check: bot_window_open already? → no-op (exactly-once guard)
+  ├── Call open_bot_window (Service::DailyMaintenance)
+  │     ├── Set bot_window_open = 1
+  │     ├── Advance next_run to tomorrow
+  │     ├── Spawn bot-turn subprocess (non-blocking, Mojo::IOLoop->subprocess)
+  │     └── Schedule deadline timer (maintenance_bot_deadline_minutes)
+  └── Return immediately (loop stays free to serve bot HTTP requests)
+       ...
+  [subprocess exits OR deadline fires] → _rollover
+  │
   ├── Backup data files to date-stamped directory
   ├── Set in_maintenance flag (gates write routes → HTTP 503)
-  ├── Advance next_run to next day
-  ├── Invoke on_maintenance callback
-  │     (see §8.1 for full 15+ step sequence including: bot daily runs,
-  │      clearing daily_modifiers, increment season.day, refresh AP,
-  │      artifact decay, faction climate, global events, crier,
+  ├── Invoke on_maintenance callback (rollover only — bots run externally)
+  │     (see §8.1 for full sequence: clear modifiers, increment day,
+  │      refresh AP, artifact decay, faction climate, global events, crier,
   │      faction snapshots, transcript logging, check season end)
-  └── Clear in_maintenance flag
+  ├── Clear in_maintenance flag
+  └── Set bot_window_open = 0 (reopen bot logins)
 ```
 
-**Route gating**: During the maintenance window, public read-only routes
-(`GET /`, `/login`, `/logout`, `DELETE /sessions`) remain available. All
-write routes and authenticated routes return HTTP 503. This is enforced via
-a Mojolicious `under` bridge that checks the `is_maintenance` helper.
+**Route gating**: During the bot window, public read-only routes
+(`GET /`, `/login`, `/logout`, `DELETE /sessions`) remain available. Bot
+logins (requests with `X-Bot-Service-Token`) are allowed; non-bot logins
+get HTTP 503. During the brief rollover callback, all write routes return
+HTTP 503.
 
-### 3.3 Why Not Separate Process?
+### 3.3 Why Not In-Process Bot Dispatch?
 
-A standalone CLI-based approach (cron-triggered `advance-day`) was considered
-and replaced with the in-process timer because:
+The in-process approach (running bots via `$ua->server->app` inside the
+maintenance timer callback) was replaced with an external subprocess because:
+single-process daemons cannot serve blocking HTTP requests made from inside
+their own event-loop callback — the event loop is blocked during the callback
+and cannot serve the bot requests. The external subprocess keeps the event
+loop free so bots' HTTP requests are served normally.
 
-- Maintenance needs to interact with the running app's route gating — setting
-  `in_maintenance` requires sharing process memory.
-- An external cron job would need to signal the running process (via file
-  lock, PID file, or HTTP endpoint), adding complexity without value.
-- The Mojo::IOLoop timer provides precise per-second scheduling without
-  external infrastructure (no crontab to configure, no separate deployment).
-- The actual day-rollover logic (AP refresh, day increment, decay) runs in the
-  `on_maintenance` callback — a single responsibility extension point that
-  keeps maintenance concerns isolated from controllers.
+Benefits of the subprocess approach:
+- The daemon's event loop stays responsive during the maintenance window
+- The `bot-turn` command is manually runnable for debugging
+- One single bot-execution path: both production (maintenance window) and
+  manual (`perl -Ilib script/mountain bot-turn`)
+- The `MM_SKIP_CATCHUP` env guard prevents the subprocess from double-rolling
+  the day on startup
 
 ### 3.4 Why Not an Engine?
 
@@ -266,7 +278,7 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Service::Suggestion** | Game rules, persistence operations |
 | **Service::RandomEvents** | Character models, Market, Faction objects, transcript references, persistence operations |
 | **Service::Authentication** | Direct persistence (mutates Account columns via Account model API), session management, character data, game logic |
-| **Service::BotRunner** | Direct model mutation except through Activity dispatch |
+| **Service::BotRunner** | (removed — replaced by `Command::bot_turn`) |
 | **Service::Dominance** | Character data, market negotiation state, persistence (read-only — writes via season model API) |
 | **Service::PvP** | Character state mutation outside of `apply_pressure`, market negotiation logic |
 | **Service::MarketGate** | Game rules, controller decisions, phase validation. Returns bool — never mutates. |
@@ -281,7 +293,7 @@ critical invariant — the "May Hold" column is implied by module name.
 | **BotName** | Game logic, persistence |
 | **Transcript** (event recorder) | Game rules, account management |
 | **Faction** (buyer definition) | Character data, player identity |
-| **Bot** (automated player) | Direct persistence (uses same models and activities as controllers) |
+| **Bot** (automated player) | In-process game logic or direct persistence (takes turns via `bot-turn` external command; uses `Bot::Agent` for HTTP to daemon) |
 
 ### Constructor Checklist for Activity Subclasses
 
@@ -1286,18 +1298,17 @@ with a `global`-pool condition registry that includes `any_faction_days_no_buy_g
 
 ## 8. Daily Maintenance & Season Lifecycle
 
-### 8.1 Daily Maintenance (In-Process Timer)
+### 8.1 Daily Maintenance (Window-Based)
 
 Maintenance is managed by `MagicMountain::Maintenance`, driven by a
 `Mojo::IOLoop->recurring(60 => ...)` timer that fires every 60 seconds.
-When the configured `end_of_day_hour` arrives, the maintenance window
-executes.
+When the configured `end_of_day_hour` arrives, the bot window opens. When
+the last bot finishes (or the deadline expires), the rollover runs.
 
 **Configuration** (in `magic_mountain.yml`):
 ```yaml
 end_of_day_hour: 0              # 0–23, local time hour when maintenance fires
-maintenance_window_minutes: 5   # reserved — route guard is currently a simple
-                                # boolean gate during the callback
+maintenance_bot_deadline_minutes: 10  # Max time to wait for bots before forcing rollover
 default_action_points: 20       # Daily AP refresh value
 default_season_length: 30       # Number of days before auto-finalization
 session_timeout_minutes: 30     # Server-side session idle timeout
@@ -1325,72 +1336,89 @@ bcrypt_cost: 10                 # bcrypt work factor
 
 1. Every 60 seconds, `dailyMaintenance()` is called.
 2. If current time has not reached `next_run`, it returns immediately (no-op).
-3. If `next_run` has arrived:
-   a. Backs up all JSON data files to a date-stamped directory.
-   b. Sets `in_maintenance` flag to `true` (write routes return HTTP 503).
-   c. Advances `next_run` to the same hour on the following day.
-   d. Invokes the `on_maintenance` callback.
-   e. Clears `in_maintenance` flag after callback completes.
+3. If `bot_window_open` is already true, return (exactly-once guard).
+4. If `next_run` has arrived, call `Service::DailyMaintenance::open_bot_window`:
+   a. If no bot characters exist in the active season, call `_rollover` directly and return.
+   b. Set `bot_window_open = 1`.
+   c. Advance `next_run` to the same hour on the following day.
+   d. Spawn `bot-turn` subprocess via `Mojo::IOLoop->subprocess` (non-blocking).
+   e. Set `MM_SKIP_CATCHUP=1` and `MOUNTAIN_DAEMON_URL` inside the child callback (post-fork).
+   f. Schedule deadline timer (`maintenance_bot_deadline_minutes` minutes).
+5. Return immediately — the event loop stays free to serve bot HTTP requests.
 
-**`on_maintenance` callback** (day-rollover logic):
+**Subprocess completion or deadline** → `_rollover`:
+1. `bot_window_open(0)` (exactly-once guard: if already 0, no-op).
+2. `_backup_data` — copy all JSON data files to date-stamped backup directory.
+3. `in_maintenance(1)` — write routes return HTTP 503.
+4. Invoke `on_maintenance` callback (rollover only — no bot runs here).
+5. `in_maintenance(0)`.
+6. Log window close.
+
+**`on_maintenance` callback** (day-rollover logic — no bot runs here):
 
 This callback is the single place where day-advancement logic lives. It
-receives the Maintenance object (`$self`). Implementation (executed in this
-exact order):
+receives the Maintenance object (`$self`). Bots run externally in the
+preceding window phase. Implementation (executed in this exact order):
 
-1. **Bot daily runs** (only when NOT catching up): If bots are configured
-   (`bots.count > 0`), seed RNG with season_id + day, shuffle bot characters,
-   and run each bot's daily cycle via `BotRunner::run_day`. Bot events go
-   through the same `log_event` path as human events into `transcript.jsonl`.
-
-2. **Clear yesterday's modifiers**: `daily_modifiers` and `global_event_text`
+1. **Clear yesterday's modifiers**: `daily_modifiers` and `global_event_text`
    are cleared to make way for the new day's global events.
 
-3. **Increment `season.day`** by 1
+2. **Increment `season.day`** by 1
 
-4. **For every Model::Character**: reset `action_points` to
+3. **For every Model::Character**: reset `action_points` to
    `action_points_max` (default 20, configurable)
 
-5. **Apply artifact decay** to every ShedItem (see 6.4)
+4. **Apply artifact decay** to every ShedItem (see 6.4)
 
-6. **Reset market dynamics state**: For each faction in `faction_state`:
+5. **Reset market dynamics state**: For each faction in `faction_state`:
    `daily_intake = 0` and `days_since_purchase++`.
 
-7. **Faction climate calculation**: `Service::Dominance::calculate_climate`
+6. **Faction climate calculation**: `Service::Dominance::calculate_climate`
    computes the dominant faction based on influence ranking, scales their
    climate profile by intensity tier (contested/leading/strong/dominant),
    and writes `faction_climate` to the season. Climate affects prospecting
    draw biases, buyer budgets/patience, and crier text.
 
-8. **Global event draw**: `Service::RandomEvents::draw` selects from
+7. **Global event draw**: `Service::RandomEvents::draw` selects from
    `content/events/global.yml` with trigger `day_start`. If an event fires,
    its effects are applied to the season (setting `daily_modifiers` keys
    like `instability_growth_delta`, `artifact_value_mult`, etc.) and
    `global_event_text` is stored for Crier priority.
 
-9. **Generate Town Crier message**: Crier reads `global_event_text` first
+8. **Generate Town Crier message**: Crier reads `global_event_text` first
    (highest priority). If none, it reads `faction_climate.crier_text`
    (priority 6, skipped if contested). If that's absent, it diffs current
    `faction_state` against `crier_snapshot`, selects the highest-priority
    message template (faction dominance, surge, milestone, slump, daily
    progress, or generic), and stores the result in `crier_message`.
 
-10. **Update `crier_snapshot`** to current `faction_state`.
+9. **Update `crier_snapshot`** to current `faction_state`.
 
-11. **Write FactionSnapshot rows**: For each faction in `faction_state`,
+10. **Write FactionSnapshot rows**: For each faction in `faction_state`,
     create a snapshot row with season_id, day, faction_id, influence,
     artifacts_received, intake_by_trait.
 
-12. **Log transcript event** with full faction_state and crier message.
+11. **Log transcript event** with full faction_state and crier message.
 
-13. **Record `season.last_maintenance`** as a Unix epoch timestamp.
+12. **Record `season.last_maintenance`** as a Unix epoch timestamp.
 
-14. **Preserve activity rows** — in-progress prospecting/market visits
+13. **Preserve activity rows** — in-progress prospecting/market visits
     survive rollover naturally (no explicit cleanup).
 
-15. **If `season.day > season_length`**, auto-finalize the season: call
+14. **If `season.day > season_length`**, auto-finalize the season: call
     `Service::SeasonFinalizer::finalize` which runs the clearance sale,
     creates SeasonRecords, deletes characters, and archives the season.
+
+**`bot-turn` command** (`MagicMountain::Command::bot_turn`):
+
+The external command that runs bot daily cycles. Manually runnable:
+`perl -Ilib script/mountain bot-turn [bot-id]`.
+
+- Optional `bot-id` argument runs that one bot only; bare invocation runs all bots.
+- Base URL from `MOUNTAIN_DAEMON_URL` env (set by daemon's `-l` argument), fallback config port.
+- Deterministic turn order via `srand` seeded from season_id + day (same seed derivation as removed `_run_bots`).
+- Logs per-bot failures; exits non-zero if any bot failed.
+- Set `MM_SKIP_CATCHUP=1` in env so startup doesn't double-roll the day.
 
 **Catch-up on server restart** (`DailyMaintenance::catch_up_missed_cycles`):
 
@@ -1398,6 +1426,9 @@ When the application starts, it checks whether the active season's
 `last_maintenance` timestamp precedes the most recent end-of-day boundary.
 If so, it runs the `on_maintenance` callback once per missed cycle,
 advancing the season by the corresponding number of days.
+`MM_SKIP_CATCHUP=1` is NOT set during catch-up — bots do not run during
+catch-up (the missed cycles represent the server being down, not a missed
+bot window).
 
 ```
 last_maintenance < recent_boundary  →  missed = floor((boundary - last) / 86400) + 1
@@ -1408,31 +1439,30 @@ During catch-up, the `on_maintenance` callback receives a `time_warp` signal.
 The Crier picks from a `time_warp` message template instead of the usual
 faction-diff logic, producing messages like "TIME WARP DETECTED".
 
-This handles both multi-day outages (server down for a week) and short
-overruns (server restarted minutes after midnight — the boundary check
-captures the window that was just missed).
-
 The `catch_up` method on `Maintenance.pm` sets the `in_maintenance` flag
 for the duration and clears it after all cycles complete.
 
-**Route gating during maintenance**:
+**Route gating during maintenance window and rollover**:
 
-Routes are partitioned into three tiers via Mojolicious `under` bridges:
+Routes are partitioned into tiers via Mojolicious `under` bridges:
 
-| Tier | Routes | During Maintenance |
-|------|--------|--------------------|
-| Public read-only | `GET /`, `/login`, `/logout`, `DELETE /sessions` | Allowed |
-| Writes (no auth) | `POST /sessions` | HTTP 503 |
-| Authenticated | `GET /player`, `DELETE /player`, `GET /game`, all game action endpoints | HTTP 503 |
+| Tier | Routes | Bot Window | Rollover |
+|------|--------|-------------|----------|
+| Public read-only | `GET /`, `/login`, `/logout`, `DELETE /sessions` | Allowed | Allowed |
+| Bot login | `POST /sessions` with `X-Bot-Service-Token` | Allowed | HTTP 503 |
+| Human login | `POST /sessions` without token | HTTP 503 | HTTP 503 |
+| Authenticated | `GET /player`, `DELETE /player`, `GET /game`, all game action endpoints | Allowed | HTTP 503 |
 
-The `is_maintenance` helper checks `$app->maintenance->in_maintenance` and
-returns 503 for gated routes.
+The `is_maintenance` helper checks `$app->maintenance->in_maintenance`.
+The `is_bot_window` helper checks `$app->maintenance->bot_window_open`.
+The token gate is enforced in `Sessions::_build_session`.
 
 **Invariants**:
 - Controllers NEVER check for or apply daily rollover
 - Controllers trust `action_points` as written by the maintenance callback
-- The `in_maintenance` flag blocks concurrent writes during the callback
-- Login and account creation are rejected during maintenance (503)
+- The `in_maintenance` flag blocks concurrent writes during rollover
+- Bot logins are rejected during rollover (503); human logins rejected during bot window (503)
+- `advance-day` shells out to `bot-turn`, waits, then rolls — bots run as part of the day
 ### 8.2 Season Start
 
 Admin-triggered via CLI (`create-season`) or auto-created by `Game::show`
@@ -1917,14 +1947,12 @@ Top-level keys: `ok`, `player` (name, AP, scrap, score, faction_sales, skills),
 
 ## 14. Bot Simulation
 
-Bots are automated players that invoke the same service classes as the web
-controllers. The simulate CLI command reads artifact content, iterates through
-a population of bots, and calls `Activity::Prospecting`, `Activity::MarketVisit`,
-`Shed`, and `Model::Character` mutators directly — producing game outcomes
-identical to human play. Additionally, during daily maintenance,
-`Service::BotRunner` runs each bot's daily cycle (prospect, visit market, apply
-PvP pressure) using the same activity dispatch path as human players. The
-simulation framework lives across four layers:
+Bots are automated players that take their turn via the external `bot-turn`
+command rather than in-process dispatch. The simulate CLI command reads artifact
+content, iterates through a population of bots, and calls `Activity::Prospecting`,
+`Activity::MarketVisit`, `Shed`, and `Model::Character` mutators directly —
+producing game outcomes identical to human play. The simulation framework lives
+across these layers:
 
 - **`MagicMountain::Bot::PushPolicy`** — stateless evaluation of push/stop
   decisions given character state, artifact state, and policy parameters.
@@ -1933,10 +1961,14 @@ simulation framework lives across four layers:
 - **`MagicMountain::Bot::PressurePolicy`** — stateless evaluation of PvP
   pressure decisions. Bots press rivals on factions they sell to, using a
   per-profile `pvp_aggressiveness` field (default global: `pvp_bot_aggressiveness`, 0.20).
-- **`MagicMountain::Service::BotRunner`** — orchestrates the daily bot cycle.
-  Called during maintenance (before day advance, only when not catching up).
-  Loads bot characters, shuffles for fairness, runs each bot's day via
-  `run_day()`, writing bot events to a separate transcript (`transcript_bots.jsonl`).
+- **`MagicMountain::Bot::Routine`** — orchestrates a single bot's daily cycle
+  (prospect, market, pawn, skill, PvP). Used by both `bot-turn` (production)
+  and `Command::simulate` (dev/test).
+- **`MagicMountain::Command::bot_turn`** — production bot execution. Run by
+  the maintenance window subprocess or manually for debugging. Loads bot
+  characters from the active season, shuffles for fairness, runs each bot's
+  day via `Routine->new(agent => ..., profile_id => ...)->run_day` over HTTP.
+  Logs per-bot failures; exits non-zero if any bot failed.
 - **`Command::simulate`** — CLI orchestrator for the simulation loop, creates
   bot accounts/characters, drives prospecting and market phases, calls policies,
   and records transcripts.
