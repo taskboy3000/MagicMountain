@@ -3,7 +3,7 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub show ($self) {
     my $char = $self->_require_character or return;
-    my $season = $self->app->active_season;
+    my $season = $self->active_season;
     return $self->rendered(204) unless $season;
 
     my $factions = $self->app->factions_data || [];
@@ -13,7 +13,7 @@ sub show ($self) {
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        my $dom   = $self->app->dominance_service;
+        my $dom   = $self->dominance_service;
         my $fc    = $season->faction_climate // {};
 
         $dom->ensure_mountain_data($season);

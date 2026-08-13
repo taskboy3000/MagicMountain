@@ -7,7 +7,7 @@ sub show ($self) {
     return $self->rendered(204) if $type;
 
     my $ap = $char->getCol('action_points') // 0;
-    my $shed_count = scalar @{ $self->app->shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') }) };
+    my $shed_count = scalar @{ $self->shed->find(sub { $_[0]->{char_id} eq $char->getCol('id') }) };
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {

@@ -2,12 +2,12 @@ package MagicMountain::Controller::Leaderboard;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub index ($self) {
-    my $season = $self->app->active_season;
+    my $season = $self->active_season;
     return $self->render(json => { ok => 0, error => 'No active season' }, status => 404)
         unless $season;
 
-    $self->app->characters->load;
-    my $chars = $self->app->characters->find(
+    $self->characters->load;
+    my $chars = $self->characters->find(
         sub { $_[0]->{season_id} eq $season->getCol('id') }
     );
 
@@ -33,11 +33,11 @@ sub index ($self) {
 }
 
 sub factions ($self) {
-    my $season = $self->app->active_season;
+    my $season = $self->active_season;
     return $self->render(json => { ok => 0, error => 'No active season' }, status => 404)
         unless $season;
 
-    my $snaps = $self->app->faction_snapshots->find(
+    my $snaps = $self->faction_snapshots->find(
         sub { $_[0]->{season_id} eq $season->getCol('id') }
     );
 

@@ -1,8 +1,6 @@
 package MagicMountain::Controller::Skills;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
-use MagicMountain::Service::SkillTraining;
-
 sub _build_skill_actions ($self, $skills, $scrap) {
     my $purchase_url = $self->url_for('skills_purchase');
     my @actions;
@@ -30,8 +28,7 @@ sub index ($self) {
     my $char = $self->_require_character;
     return unless $char;
 
-    my $svc = MagicMountain::Service::SkillTraining->new(app => $self->app);
-    my $result = $svc->skill_list($char);
+    my $result = $self->skill_training->skill_list($char);
     my $actions = $self->_build_skill_actions($result->{skills}, $result->{scrap});
 
     my $format = $self->param('_format');
@@ -50,8 +47,7 @@ sub purchase ($self) {
     my $skill_id = $self->req->json->{skill_id};
     return $self->render(json => { ok => 0, error => 'skill_id required' }, status => 400) unless $skill_id;
 
-    my $svc = MagicMountain::Service::SkillTraining->new(app => $self->app);
-    my $result = $svc->purchase($char, $skill_id);
+    my $result = $self->skill_training->purchase($char, $skill_id);
 
     if ($result->{ok}) {
         $self->_render_action({ view => $result }, 'purchase');

@@ -13,7 +13,7 @@ sub show ($self) {
 sub dismiss ($self) {
     my $player_id = $self->current_player;
     if ($player_id) {
-        my ($char_model) = @{ $self->app->characters->find(
+        my ($char_model) = @{ $self->characters->find(
             sub { $_[0]->{account_id} eq $player_id }
         ) };
         if ($char_model) {

@@ -13,7 +13,7 @@ sub _normalize_name ($self, $raw) {
 
 sub _resolve_remember_me ($self, $name, $auth) {
     my $data = $self->_read_remember_cookie or return;
-    my $acct = $self->app->accounts->get($data->{account_id}) or return;
+    my $acct = $self->accounts->get($data->{account_id}) or return;
     return unless $acct->getCol('username') eq $name;
     return if $acct->getCol('banned');
     return unless $auth->verify_remember_token($acct, $data->{token});
@@ -30,7 +30,7 @@ sub create ($self) {
     my $ip   = $self->tx->remote_address;
     my $body = $self->req->json;
     my $name = $self->_normalize_name($body->{displayName} // '');
-    my $rl   = $self->app->rate_limiter;
+    my $rl   = $self->rate_limiter;
     my $is_bot_svc = $self->_bot_service_token;
 
     return $self->render(json => { ok => 0, error => 'displayName is required' }, status => 400)
@@ -45,17 +45,17 @@ sub create ($self) {
         }, status => 429);
     }
 
-    my $auth = $self->app->auth_service;
+    my $auth = $self->auth_service;
     my $submitted_token = uc ($body->{token} // '');
 
     # Early return: existing Mojo session matches
     if (!$submitted_token) {
         my $player_id = $self->session('playerId');
         if ($player_id) {
-            $self->app->session_store->load;
-            my $sess = $self->app->session_store->find_by_player_id($player_id);
+            $self->session_store->load;
+            my $sess = $self->session_store->find_by_player_id($player_id);
             if ($sess) {
-                my $existing_acct = $self->app->accounts->get($player_id);
+                my $existing_acct = $self->accounts->get($player_id);
                 if ($existing_acct && $existing_acct->getCol('username') eq $name) {
                     $sess->touch;
                     my %vars = (
@@ -81,7 +81,7 @@ sub create ($self) {
 
     # Resolve account from username
     if (!$account) {
-        my $row = $self->app->accounts->find_by_username($name);
+        my $row = $self->accounts->find_by_username($name);
 
         if (!$row) {
             return $self->render(json => { ok => 0, error => 'Display name must be 1-24 characters: letters, numbers, underscores, dashes' }, status => 400)
@@ -95,7 +95,7 @@ sub create ($self) {
             $rl->record_success($ip);
             $rl->record_name_success(lc $name);
 
-            $self->app->audit_log->log('account_created',
+            $self->audit_log->log('account_created',
                 player_id   => $account->getCol('id'),
                 player_name => $name,
             );
@@ -129,7 +129,7 @@ sub create ($self) {
                     if ($verify->{error}) {
                         $rl->record_failure($ip);
                         $rl->record_name_failure(lc $name);
-                        $self->app->audit_log->log('token_verify_failed',
+                        $self->audit_log->log('token_verify_failed',
                             player_id   => $row->getCol('id'),
                             player_name => $name,
                         );
@@ -180,32 +180,32 @@ sub recover ($self) {
     return $self->render(json => { ok => 0, error => 'displayName required' }, status => 400) unless $name;
     return $self->render(json => { ok => 0, error => 'Recovery code required' }, status => 400) unless $code;
 
-    my $account = $self->app->accounts->find_by_username($name);
+    my $account = $self->accounts->find_by_username($name);
     if (!$account) {
-        $self->app->audit_log->log('recovery_failed', player_name => $name);
+        $self->audit_log->log('recovery_failed', player_name => $name);
         return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
     }
 
     if ($account->getCol('banned')) {
-        $self->app->audit_log->log('recovery_failed',
+        $self->audit_log->log('recovery_failed',
             player_name => $name, player_id => $account->getCol('id'));
         return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
     }
 
-    if (!$self->app->auth_service->verify_recovery_code($account, $code)) {
-        $self->app->rate_limiter->record_failure($ip);
-        $self->app->rate_limiter->record_name_failure(lc $name);
-        $self->app->audit_log->log('recovery_failed',
+    if (!$self->auth_service->verify_recovery_code($account, $code)) {
+        $self->rate_limiter->record_failure($ip);
+        $self->rate_limiter->record_name_failure(lc $name);
+        $self->audit_log->log('recovery_failed',
             player_name => $name, player_id => $account->getCol('id'));
         return $self->render(json => { ok => 0, error => 'Invalid credentials' }, status => 403);
     }
 
-    my $result = $self->app->auth_service->recover_account($account);
+    my $result = $self->auth_service->recover_account($account);
 
-    $self->app->rate_limiter->record_success($ip);
-    $self->app->rate_limiter->record_name_success(lc $name);
+    $self->rate_limiter->record_success($ip);
+    $self->rate_limiter->record_name_success(lc $name);
 
-    $self->app->audit_log->log('account_recovered',
+    $self->audit_log->log('account_recovered',
         player_id   => $account->getCol('id'),
         player_name => $name,
     );
@@ -226,12 +226,12 @@ sub _build_session ($self, $account, $ip, @rest) {
 
     # Bot check (skip for service-token authenticated requests)
     if (!$self->_bot_service_token) {
-        $self->app->characters->load;
-        my ($bot_char) = @{ $self->app->characters->find(
+        $self->characters->load;
+        my ($bot_char) = @{ $self->characters->find(
             sub { $_[0]->{account_id} eq $player_id && $_[0]->{is_bot} }
         ) };
         if ($bot_char) {
-            my $rl = $self->app->rate_limiter;
+            my $rl = $self->rate_limiter;
             $rl->record_failure($ip);
             $rl->record_name_failure(lc $account->getCol('username'));
             $self->render(json => { ok => 0, error => 'Bot account' }, status => 403);
@@ -242,11 +242,11 @@ sub _build_session ($self, $account, $ip, @rest) {
     # Concurrent session cap
     my $max = $self->app->config->{max_concurrent_sessions} // 10;
     if ($max > 0) {
-        $self->app->session_store->load;
-        my $existing = $self->app->session_store->find_by_player_id($player_id);
+        $self->session_store->load;
+        my $existing = $self->session_store->find_by_player_id($player_id);
         if (!$existing) {
             my $timeout = $self->app->config->{session_timeout_minutes} // 30;
-            my $active = $self->app->session_store->active_count($timeout);
+            my $active = $self->session_store->active_count($timeout);
             if ($active >= $max) {
                 $self->app->log->debug(sprintf(
                     "Session cap hit: %d active >= %d max for %s (%s)",
@@ -260,12 +260,12 @@ sub _build_session ($self, $account, $ip, @rest) {
         }
     }
 
-    my $existing = $self->app->session_store->find_by_player_id($player_id);
+    my $existing = $self->session_store->find_by_player_id($player_id);
     if ($existing) {
         $existing->touch;
     } else {
         my $node = sprintf '%02d', int(rand(9)) + 1;
-        my $session = $self->app->session_store->create(
+        my $session = $self->session_store->create(
             player_id   => $player_id,
             last_active => time,
             node_number => $node,
@@ -274,13 +274,13 @@ sub _build_session ($self, $account, $ip, @rest) {
     }
 
     $self->session(playerId => $player_id);
-    $self->app->audit_log->log('login',
+    $self->audit_log->log('login',
         player_id   => $player_id,
         player_name => $account->getCol('username'),
     );
 
     # Refresh remember-me cookie on every session creation
-    my $auth = $self->app->auth_service;
+    my $auth = $self->auth_service;
     my $new_token = $auth->generate_remember_token;
     my $new_hash = $auth->hash_token($new_token);
     $account->setCol('remember_token_hash', $new_hash);
@@ -320,8 +320,8 @@ sub _read_remember_cookie ($self) {
 
 sub _clear_nav_state ($self, $player_id) {
     return unless $player_id;
-    $self->app->characters->load;
-    my ($char) = @{ $self->app->characters->find(
+    $self->characters->load;
+    my ($char) = @{ $self->characters->find(
         sub { $_[0]->{account_id} eq $player_id }
     ) };
     return unless $char;
@@ -366,8 +366,8 @@ sub destroy ($self) {
     my $player_id = $self->session('playerId');
     if ($player_id) {
         $self->_clear_nav_state($player_id);
-        $self->app->session_store->delete_by_player_id($player_id);
-        $self->app->audit_log->log('logout', player_id => $player_id);
+        $self->session_store->delete_by_player_id($player_id);
+        $self->audit_log->log('logout', player_id => $player_id);
     }
     $self->session(expires => 1);
     $self->render(json => { ok => 1 });
@@ -377,8 +377,8 @@ sub logout ($self) {
     my $player_id = $self->session('playerId');
     if ($player_id) {
         $self->_clear_nav_state($player_id);
-        $self->app->session_store->delete_by_player_id($player_id);
-        $self->app->audit_log->log('logout', player_id => $player_id);
+        $self->session_store->delete_by_player_id($player_id);
+        $self->audit_log->log('logout', player_id => $player_id);
     }
     $self->session(expires => 1);
     $self->redirect_to('game');

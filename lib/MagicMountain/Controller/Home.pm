@@ -1,15 +1,13 @@
 package MagicMountain::Controller::Home;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
-use MagicMountain::Service::Suggestion;
-
 sub show ($self) {
     my $char = $self->_require_character or return;
 
-    my $season     = $self->app->active_season;
+    my $season     = $self->active_season;
     my $season_day = $season ? $season->getCol('day') // 1 : 1;
 
-    my $all_shed = $self->app->shed->find(
+    my $all_shed = $self->shed->find(
         sub { $_[0]->{char_id} eq $char->getCol('id') }
     );
     my $shed_count = scalar @$all_shed;
@@ -18,8 +16,7 @@ sub show ($self) {
     my $market_active = ($type && $type eq 'market') ? 1 : 0;
 
     my $advisories = $self->app->advisories // {};
-    my $svc = MagicMountain::Service::Suggestion->new(app => $self->app);
-    my $suggestions = $svc->build($char, $season, $advisories, $all_shed);
+    my $suggestions = $self->suggestion->build($char, $season, $advisories, $all_shed);
 
     my $crier = $season ? $season->getCol('crier_message') : undef;
 

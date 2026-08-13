@@ -3,7 +3,7 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
 sub _pending_counter ($self, $char) {
     my $activity_id = $char->getCol('pending_activity_id') or return;
-    my $activity = $self->app->market->get($activity_id) or return;
+    my $activity = $self->market->get($activity_id) or return;
     my $customer = $activity->customer or return;
     return $customer->{pending_counter};
 }
@@ -12,7 +12,7 @@ sub index ($self) {
     my $char = $self->_require_character;
     return unless $char;
 
-    my $all = $self->app->shed->find(
+    my $all = $self->shed->find(
         sub { $_[0]->{char_id} eq $char->getCol('id') }
     );
 
@@ -27,7 +27,7 @@ sub index ($self) {
         my $view_param = $self->param('view') || '';
         my $skill = $char->getCol('skill_prospecting') // 0;
         my $icon_base = $self->url_for('/images');
-        my $banned_lookup = $self->app->pawn_calculator->banned_trait_lookup;
+        my $banned_lookup = $self->pawn_calculator->banned_trait_lookup;
         my $items = _enriched_items($filtered, $is_secondary, $skill, $icon_base, $banned_lookup);
         my $pawn_context = ($type && $type eq 'pawn') || $view_param eq 'pawn';
         my $pawn_ap_exhausted = ($type && $type eq 'pawn') && ($char->getCol('action_points') // 0) <= 0;
@@ -37,7 +37,7 @@ sub index ($self) {
             pawn_active           => $pawn_context ? 1 : 0,
             pawn_ap_exhausted     => $pawn_ap_exhausted,
             offer_url             => $pawn_context ? $self->url_for('pawn_offer') : $self->url_for('market_offer'),
-            climate_premium_traits => [ $type && $type eq 'pawn' ? () : sort keys %{ ($self->app->active_season ? $self->app->active_season->faction_climate : {})->{market}{buyer_trait_biases} // {} } ],
+            climate_premium_traits => [ $type && $type eq 'pawn' ? () : sort keys %{ ($self->active_season ? $self->active_season->faction_climate : {})->{market}{buyer_trait_biases} // {} } ],
             show_trait_tags       => $skill >= 1 ? 1 : 0,
             pending_counter_item_id => $pc ? $pc->{item_id} : undef,
             pending_counter_value   => $pc ? $pc->{value} : undef,
@@ -51,7 +51,7 @@ sub index ($self) {
     my $offer_url = $self->url_for('market_offer');
     my $icon_base = $self->url_for('/images');
 
-    my $banned_lookup_json = $self->app->pawn_calculator->banned_trait_lookup;
+    my $banned_lookup_json = $self->pawn_calculator->banned_trait_lookup;
     my $view_param = $self->param('view') || '';
     my $pawn_context = ($type && $type eq 'pawn') || $view_param eq 'pawn';
     my $offer_url_json = $pawn_context ? $self->url_for('pawn_offer') : $self->url_for('market_offer');

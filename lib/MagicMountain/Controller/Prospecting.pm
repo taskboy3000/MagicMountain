@@ -8,7 +8,7 @@ sub show ($self) {
     my $type = $self->_active_activity_type($char);
     return $self->rendered(204) unless $type && $type eq 'prospecting';
 
-    my $activity = $self->app->prospecting->get($char->getCol('pending_activity_id'));
+    my $activity = $self->prospecting->get($char->getCol('pending_activity_id'));
     return $self->rendered(204) unless $activity && $activity->phase ne 'idle';
 
     my $pending = $activity->getCol('pending_event');
@@ -68,16 +68,16 @@ HTML
 
 sub _activity_action ($self, $action, %params) {
     my $player_id = $self->session('playerId');
-    my $season = $self->app->active_season;
+    my $season = $self->active_season;
     my $season_id = $season ? $season->getCol('id') : undef;
 
-    my ($char_model) = @{ $self->app->characters->find(
+    my ($char_model) = @{ $self->characters->find(
         sub { $_[0]->{account_id} eq $player_id && (!$season_id || $_[0]->{season_id} eq $season_id) }
     ) };
     return $self->render(json => { ok => 0, error => 'No character' }, status => 404)
         unless $char_model;
 
-    my $p   = $self->app->prospecting;
+    my $p   = $self->prospecting;
     my $id  = $char_model->getCol('pending_activity_id');
 
     if (!$id && $action ne 'begin') {

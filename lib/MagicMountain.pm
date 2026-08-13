@@ -38,6 +38,10 @@ use MagicMountain::Service::Dominance;
 use MagicMountain::Service::PawnCalculator;
 use MagicMountain::Service::SkillTraining;
 use MagicMountain::Service::SeasonFinalizer;
+use MagicMountain::Service::CharacterView;
+use MagicMountain::Service::Navigation;
+use MagicMountain::Service::Suggestion;
+use MagicMountain::Service::AccountDeletion;
 use MagicMountain::Model::Pressure;
 
 has configFile => sub ($self) {
@@ -408,6 +412,22 @@ has dominance_service => sub ($self) {
 
 has pawn_calculator => sub ($self) {
     MagicMountain::Service::PawnCalculator->new(app => $self);
+};
+
+has character_view => sub ($self) {
+    MagicMountain::Service::CharacterView->new(app => $self);
+};
+
+has navigation => sub ($self) {
+    MagicMountain::Service::Navigation->new(app => $self);
+};
+
+has suggestion => sub ($self) {
+    MagicMountain::Service::Suggestion->new(app => $self);
+};
+
+has account_deletion => sub ($self) {
+    MagicMountain::Service::AccountDeletion->new(app => $self);
 };
 
 has pawn => sub ($self) {

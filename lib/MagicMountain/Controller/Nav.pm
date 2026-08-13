@@ -1,8 +1,6 @@
 package MagicMountain::Controller::Nav;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
-use MagicMountain::Service::Navigation;
-
 my %SECONDARY = (
     home          => 'factions',
     idle          => 'factions',
@@ -51,12 +49,11 @@ sub show ($self) {
     my $char = $self->_require_character or return;
     my $type = $self->_active_activity_type($char);
     my $ap   = $char->getCol('action_points') // 0;
-    my $shed_count = scalar @{ $self->app->shed->find(
+    my $shed_count = scalar @{ $self->shed->find(
         sub { $_[0]->{char_id} eq $char->getCol('id') }
     ) };
 
-    my $nav = MagicMountain::Service::Navigation->new(app => $self->app);
-    my $base     = $nav->base_tab_state($type);
+    my $base     = $self->navigation->base_tab_state($type);
     my $overrides = {};
     if ($base->{bazaar}{active}) {
         if ($ap < 1) {
@@ -71,19 +68,19 @@ sub show ($self) {
         }
     }
     if ($base->{pawn}{active}) {
-        my $calc = $self->app->pawn_calculator;
+        my $calc = $self->pawn_calculator;
         if (!$calc->has_banned_items($char)) {
             $overrides->{pawn} = { active => 0, reason => 'No restricted items' };
         }
     }
-    my $primary_tabs = $nav->build_tabs($char, $type, $overrides);
+    my $primary_tabs = $self->navigation->build_tabs($char, $type, $overrides);
 
     my $view = _resolve_requested_view($self, $primary_tabs);
     if (!$view) {
-        $view = $nav->resolve_view($char->getCol('current_view'), $type, $primary_tabs);
+        $view = $self->navigation->resolve_view($char->getCol('current_view'), $type, $primary_tabs);
     }
 
-    my $current_tab = $nav->tab_id_for($view);
+    my $current_tab = $self->navigation->tab_id_for($view);
     for my $tab (@$primary_tabs) {
         $tab->{current} = 1 if $tab->{id} eq $current_tab;
     }
@@ -98,7 +95,7 @@ sub show ($self) {
         }
     }
 
-    my $secondary_tabs = $nav->secondary_tabs($char, {
+    my $secondary_tabs = $self->navigation->secondary_tabs($char, {
         factions_url     => $self->url_for('factions')->query(_format => 'fragment'),
         account_url      => $self->url_for('account')->query(_format => 'fragment'),
         orientation_url  => $self->url_for('orientation')->query(_format => 'fragment'),
@@ -158,15 +155,15 @@ sub _faction_short_name ($self, $faction_id) {
 sub _context_text ($self, $char, $view) {
     if ($view eq 'home' || $view eq 'idle') {
         my $msg = '';
-        my $season = $self->app->active_season;
+        my $season = $self->active_season;
         if ($season) {
             $msg = $season->getCol('crier_message') || '';
         }
         # Append pressure notice if active target pressures exist.
-        if ($self->app->can('pvp_service') && $self->app->config->{pvp_enabled}) {
-            $self->app->pressures->load;
+        if ($self->can('pvp_service') && $self->app->config->{pvp_enabled}) {
+            $self->pressures->load;
             my $aged = $self->app->config->{pvp_pressure_max_age_days};
-            my $active = $self->app->pressures->find_active_for_target(
+            my $active = $self->pressures->find_active_for_target(
                 $char->getCol('id'), undef, $aged);
             if (@$active) {
                 my $p = $active->[0];
@@ -180,8 +177,8 @@ sub _context_text ($self, $char, $view) {
     }
     if ($view eq 'prospecting') {
         my $id = $char->getCol('pending_activity_id') or return '';
-        $self->app->prospecting->load;
-        my $act = $self->app->prospecting->get($id) or return '';
+        $self->prospecting->load;
+    my $act = $self->prospecting->get($id) or return '';
         my $a = $act->artifact or return '';
         return sprintf "INSTABILITY %d/%d  \x{7c}  STAGE %s  \x{7c}  VALUE %d",
             $a->{instability} // 0, $a->{max_instability} // 0,
@@ -190,8 +187,8 @@ sub _context_text ($self, $char, $view) {
     }
     if ($view eq 'market') {
         my $id = $char->getCol('pending_activity_id') or return '';
-        $self->app->market->load;
-        my $act = $self->app->market->get($id) or return '';
+        $self->market->load;
+    my $act = $self->market->get($id) or return '';
         my $c = $act->customer or return '';
         my $state = $act->budget_pressure_state($c)->{display};
         my $short = $self->_faction_short_name($c->{faction_id});
@@ -200,8 +197,8 @@ sub _context_text ($self, $char, $view) {
     }
     if ($view eq 'pawn') {
         my $id = $char->getCol('pending_activity_id') or return '';
-        $self->app->pawn->load;
-        my $act = $self->app->pawn->get($id) or return '';
+        $self->pawn->load;
+    my $act = $self->pawn->get($id) or return '';
         my $c = $act->customer or return '';
         my $seizure_pct = $c->{outcome} ? 0 : ($c->{seizure_chance} // 0) * 100;
         return sprintf "BROKER  \x{7c}  %s  \x{7c}  SEIZURE RISK %.0f%%",

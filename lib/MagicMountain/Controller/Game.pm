@@ -3,9 +3,6 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 use Mojo::JSON qw(encode_json);
 use YAML::XS qw(LoadFile);
 
-use MagicMountain::Service::SeasonManager;
-use MagicMountain::Service::CharacterView;
-
 sub show ($self) {
     my $player_id = $self->current_player;
 
@@ -13,7 +10,7 @@ sub show ($self) {
         $self->respond_to(
             json => sub { $self->render(json => { ok => 0, error => 'Not logged in' }, status => 401) },
             html => sub {
-                my $active_season = $self->app->active_season;
+                my $active_season = $self->active_season;
                 my $season_number = $active_season ? ($active_season->getCol('label') // '1') : '1';
                 $self->stash(authenticated => 0, player_name => '—', node_number => '—', unit_status => '',
                     season_number => $season_number,
@@ -24,33 +21,31 @@ sub show ($self) {
         return;
     }
 
-    my $account = $self->app->accounts->get($player_id);
-    $self->app->session_store->load;
-    my $sess = $self->app->session_store->find_by_player_id($player_id);
+    my $account = $self->accounts->get($player_id);
+    $self->session_store->load;
+    my $sess = $self->session_store->find_by_player_id($player_id);
     my $node_number = $sess ? $sess->getCol('node_number') // '07' : '07';
 
-    my $season_mgr = MagicMountain::Service::SeasonManager->new(app => $self->app);
-    my ($season, $season_recap) = $season_mgr->ensure_season($player_id);
-    my ($char_model, $onboarding_notices) = $season_mgr->ensure_character($account, $season);
+    my ($season, $season_recap) = $self->season_manager->ensure_season($player_id);
+    my ($char_model, $onboarding_notices) = $self->season_manager->ensure_character($account, $season);
 
     my $row = $char_model->row;
-    my $cv  = MagicMountain::Service::CharacterView->new(app => $self->app);
-    my $prospecting_view = $cv->prospecting_view($char_model);
-    my $market_view      = $cv->market_view($char_model);
-    my $skills           = $cv->player_skills($char_model);
-    my $shed_items       = $cv->shed_items($char_model);
+    my $prospecting_view = $self->character_view->prospecting_view($char_model);
+    my $market_view      = $self->character_view->market_view($char_model);
+    my $skills           = $self->character_view->player_skills($char_model);
+    my $shed_items       = $self->character_view->shed_items($char_model);
 
     my $activityPhase = '';
     my $id = $row->{pending_activity_id};
     if ($id) {
-        $self->app->prospecting->load;
-        if (my $row = $self->app->prospecting->get($id)) {
+        $self->prospecting->load;
+        if (my $row = $self->prospecting->get($id)) {
             my $type = $row->getCol('type') // '';
             my $activity;
             if ($type eq 'prospecting') {
-                $activity = $self->app->prospecting->get($id);
+                $activity = $self->prospecting->get($id);
             } elsif ($type eq 'market_visit') {
-                $activity = $self->app->market->get($id);
+                $activity = $self->market->get($id);
             }
 
             if ($activity && $activity->phase) {
@@ -59,7 +54,7 @@ sub show ($self) {
         }
     }
 
-    my $active_season = $self->app->active_season;
+    my $active_season = $self->active_season;
     my $season_number = $active_season ? ($active_season->getCol('label') // '1') : '1';
 
     $self->respond_to(

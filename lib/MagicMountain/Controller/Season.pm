@@ -8,21 +8,21 @@ sub recap ($self) {
     return $self->rendered(204) unless $player_id;
 
     my $season_id = $self->param('season_id');
-    $self->app->seasons->load;
-    $self->app->season_records->load;
+    $self->seasons->load;
+    $self->season_records->load;
 
     my $season;
     if ($season_id) {
-        $season = $self->app->seasons->get($season_id);
+        $season = $self->seasons->get($season_id);
     } else {
-        my $archived = $self->app->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
+        my $archived = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'archived' });
         return $self->rendered(204) unless @$archived;
         my @sorted = sort { ($b->getCol('day') // 0) <=> ($a->getCol('day') // 0) } @$archived;
         $season = $sorted[0];
     }
     return $self->rendered(204) unless $season;
 
-    my $recs = $self->app->season_records->find(
+    my $recs = $self->season_records->find(
         sub { $_[0]->{player_id} eq $player_id && $_[0]->{season_id} eq $season->getCol('id') }
     );
     return $self->rendered(204) unless @$recs;

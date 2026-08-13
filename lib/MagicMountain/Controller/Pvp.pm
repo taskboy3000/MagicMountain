@@ -5,7 +5,7 @@ sub show ($self) {
     my $char = $self->_require_character;
     return unless $char;
 
-    my $result = $self->app->pvp_service->build_view($char, apply_url => $self->url_for('pvp_apply'));
+    my $result = $self->pvp_service->build_view($char, apply_url => $self->url_for('pvp_apply'));
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
@@ -21,7 +21,7 @@ sub apply ($self) {
     return unless $char;
 
     my $body = $self->req->json or return $self->render(json => { ok => 0, error => 'json body required' }, status => 400);
-    my $result = $self->app->pvp_service->apply_pressure(
+    my $result = $self->pvp_service->apply_pressure(
         $char,
         $body->{target_id}     // '',
         $body->{faction_id}    // '',

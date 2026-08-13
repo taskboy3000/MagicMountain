@@ -8,19 +8,19 @@ sub show ($self) {
     my $factions = $self->app->factions_data // [];
     my %name_of = map { $_->{id} => $_->{name} } @$factions;
 
-    $self->app->season_records->load;
-    $self->app->seasons->load;
+    $self->season_records->load;
+    $self->seasons->load;
 
-    my $active_season = $self->app->active_season;
-    my $all = $self->app->seasons->all;
+    my $active_season = $self->active_season;
+    my $all = $self->seasons->all;
     my @seasons = sort { ($b->{createdAt} // 0) <=> ($a->{createdAt} // 0) } values %$all;
 
     my @archive;
     for my $s (@seasons) {
         next unless $player_id;
         if ($s->{status} eq 'active') {
-            $self->app->characters->load;
-            my ($char) = @{ $self->app->characters->find(sub {
+            $self->characters->load;
+            my ($char) = @{ $self->characters->find(sub {
                 $_[0]->{account_id} eq $player_id && $_[0]->{season_id} eq $s->{id}
             }) };
             push @archive, {
@@ -32,7 +32,7 @@ sub show ($self) {
                 final_score => $char ? ($char->getCol('score') // 0) : 0,
             };
         } else {
-            my $recs = $self->app->season_records->find(
+            my $recs = $self->season_records->find(
                 sub { $_[0]->{player_id} eq $player_id && $_[0]->{season_id} eq $s->{id} }
             );
             next unless @$recs;
@@ -56,7 +56,7 @@ sub show ($self) {
         { label => 'LOGOUT', attrs => { 'data-action-url' => $self->url_for('logout_api'), 'data-method' => 'DELETE', id => 'logout-btn', class => 'mm-btn', 'data-redirect' => $self->url_for('game') } },
     );
 
-    my $account = $self->app->accounts->get($player_id);
+    my $account = $self->accounts->get($player_id);
     my $player_name = $account ? $account->getCol('username') : 'Unknown';
 
     my $format = $self->param('_format');
