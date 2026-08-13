@@ -38,8 +38,9 @@ sub show ($self) {
 
 sub dismiss ($self) {
     my $char = $self->_require_character or return;
+    my $currentView = $self->param("current_view") || 'home';
     $char->nullCol('result');
-    $char->setCol('current_view', 'home');
+    $char->setCol('current_view', $currentView);
     $char->save;
     $self->render(json => { ok => 1, csrf_token => $self->csrf_token });
 }

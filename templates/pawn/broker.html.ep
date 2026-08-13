@@ -5,7 +5,7 @@
   <h2 class="mm-panel-header">PAWN SHOP</h2>
   <div class="mm-panel-body">
     <p class="mm-text-dim">I have no more budget for acquisitions today. Come back tomorrow.</p>
-    <button class="mm-btn" data-action-url="<%= url_for('result_dismiss') %>" data-method="POST">Dismiss</button>
+    <button class="mm-btn" data-action-url="<%= url_for('result_dismiss') %>" data-method="POST" data-current-view="pawn">Dismiss</button>
   </div>
 </div>
 % } elsif ($closed) {
