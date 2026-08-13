@@ -1392,7 +1392,7 @@ exact order):
     `Service::SeasonFinalizer::finalize` which runs the clearance sale,
     creates SeasonRecords, deletes characters, and archives the season.
 
-**Catch-up on server restart** (`_catch_up_maintenance`):
+**Catch-up on server restart** (`DailyMaintenance::catch_up_missed_cycles`):
 
 When the application starts, it checks whether the active season's
 `last_maintenance` timestamp precedes the most recent end-of-day boundary.

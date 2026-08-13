@@ -45,7 +45,6 @@ use MagicMountain::Service::Navigation;
 use MagicMountain::Service::PawnCalculator;
 use MagicMountain::Service::PvP;
 use MagicMountain::Service::RandomEvents;
-use MagicMountain::Service::SeasonFinalizer;
 use MagicMountain::Service::SeasonManager;
 use MagicMountain::Service::SkillTraining;
 use MagicMountain::Service::Suggestion;
@@ -452,7 +451,7 @@ sub startup ($self) {
         return $player_id;
     });
 
-    $self->_catch_up_maintenance;
+    $self->daily_maintenance->catch_up_missed_cycles;
 
     if ($self->mode ne 'test') {
         Mojo::IOLoop->recurring(60 => sub {
@@ -466,36 +465,6 @@ sub startup ($self) {
     }
 
     $self->buildRoutes;
-}
-
-sub _catch_up_maintenance ($self) {
-    $self->seasons->load;
-    my $active = $self->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
-    return unless @$active;
-
-    my $season = $active->[0];
-    my $day    = $season->getCol('day') // 0;
-    my $length = $season->getCol('length') // 30;
-    if ($day > $length) {
-        $self->log->info(sprintf(
-            "Auto-finalizing season '%s' at day %d (length %d)",
-            $season->getCol('label') // '?', $day, $length
-        ));
-        MagicMountain::Service::SeasonFinalizer->new(app => $self)->finalize;
-        return;
-    }
-
-    my $last = $season->getCol('last_maintenance');
-    return unless defined $last;
-
-    my $maint = $self->maintenance;
-    my $boundary = $maint->recent_maintenance_boundary;
-
-    if ($last < $boundary) {
-        my $missed = int(($boundary - $last) / 86400);
-        $self->log->info("Catch-up: $missed missed maintenance cycle(s)");
-        $maint->catch_up($missed);
-    }
 }
 
 sub buildRoutes ($self) {

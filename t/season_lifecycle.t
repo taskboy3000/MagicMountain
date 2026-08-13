@@ -107,7 +107,7 @@ subtest 'catch_up_maintenance advances day without off-by-one' => sub {
     $season->save;
 
     # Re-run catch-up (startup already ran it with last_maintenance=now, no-op)
-    $app->_catch_up_maintenance;
+    $app->daily_maintenance->catch_up_missed_cycles;
 
     $app->seasons->load;
     $season = $app->seasons->get('s1');

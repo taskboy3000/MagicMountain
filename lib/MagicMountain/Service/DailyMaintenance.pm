@@ -110,6 +110,37 @@ sub run_day ($self, $maint) {
     }
 }
 
+sub catch_up_missed_cycles ($self) {
+    my $app = $self->app;
+    $app->seasons->load;
+    my $active = $app->seasons->find(sub { ($_[0]->{status} // '') eq 'active' });
+    return unless @$active;
+
+    my $season = $active->[0];
+    my $day    = $season->getCol('day') // 0;
+    my $length = $season->getCol('length') // 30;
+    if ($day > $length) {
+        $app->log->info(sprintf(
+            "Auto-finalizing season '%s' at day %d (length %d)",
+            $season->getCol('label') // '?', $day, $length
+        ));
+        MagicMountain::Service::SeasonFinalizer->new(app => $app)->finalize;
+        return;
+    }
+
+    my $last = $season->getCol('last_maintenance');
+    return unless defined $last;
+
+    my $maint = $app->maintenance;
+    my $boundary = $maint->recent_maintenance_boundary;
+
+    if ($last < $boundary) {
+        my $missed = int(($boundary - $last) / 86400);
+        $app->log->info("Catch-up: $missed missed maintenance cycle(s)");
+        $maint->catch_up($missed);
+    }
+}
+
 sub _run_bots ($self, $maint, $season) {
     my $bots_cfg = $self->app->config->{bots} // {};
     return unless ($bots_cfg->{count} // 0) > 0;
