@@ -1,5 +1,6 @@
 data/*.json
 cover_db/
+t/.test_budget_start
 .DS_Store
 data
 original

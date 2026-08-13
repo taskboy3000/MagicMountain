@@ -1,0 +1,66 @@
+#!/usr/bin/env perl
+use v5.28;
+use strict;
+use warnings;
+use YAML::XS qw(LoadFile DumpFile);
+
+# Test-suite time budget gate.
+#
+# Usage:
+#   make test-budget              # run suite + enforce budget (used by ci-check)
+#   make test-budget-baseline     # re-record the baseline timings
+#
+# The make target touches a marker file before running prove, then invokes
+# this script afterward. Elapsed wall-clock time is computed from the marker's
+# mtime. The current run is compared against a committed baseline
+# (t/.test_budget.yml) with a tolerance factor so the gate is relative to the
+# machine it runs on, not an absolute wall-clock number.
+#
+# Tuning (env overrides):
+#   MM_TEST_BUDGET_TARGET_SECONDS  nominal target; exceeded -> warning (default 90)
+#   MM_TEST_BUDGET_TOTAL_FACTOR    fail when elapsed > baseline x factor (default 1.3)
+
+my $MARKER   = 't/.test_budget_start';
+my $BASELINE = 't/.test_budget.yml';
+
+my $target_seconds = $ENV{MM_TEST_BUDGET_TARGET_SECONDS} // 90;
+my $total_factor   = $ENV{MM_TEST_BUDGET_TOTAL_FACTOR}   // 1.3;
+my $rebaseline     = grep { $_ eq '--baseline' } @ARGV;
+
+my @stat = stat $MARKER
+    or die "Missing marker $MARKER — run via make test-budget\n";
+my $elapsed = time - $stat[9];
+
+my $baseline = -e $BASELINE ? LoadFile($BASELINE) : undef;
+
+if ($rebaseline || !$baseline) {
+    DumpFile($BASELINE, {
+        total_seconds => $elapsed,
+        recorded      => scalar(localtime),
+    });
+    print sprintf("TEST BUDGET: %.1fs recorded as new baseline in $BASELINE\n", $elapsed);
+    if ($elapsed > $target_seconds) {
+        print sprintf("TEST BUDGET WARNING: %.1fs exceeds the %ds target — trim the suite\n",
+            $elapsed, $target_seconds);
+    }
+    exit 0;
+}
+
+my $limit = $baseline->{total_seconds} * $total_factor;
+my $ok    = $elapsed <= $limit;
+
+printf("TEST BUDGET: %.1fs elapsed (baseline %.1fs, limit %.1fs) — %s\n",
+    $elapsed, $baseline->{total_seconds} // 0, $limit, $ok ? 'PASS' : 'FAIL');
+
+if ($elapsed > $target_seconds) {
+    print sprintf("TEST BUDGET WARNING: %.1fs exceeds the %ds target\n",
+        $elapsed, $target_seconds);
+}
+
+if (!$ok) {
+    print "TEST BUDGET FAIL: suite has grown past the budget.\n";
+    print "  Trim tests, or run `make test-budget-baseline` after a justified change.\n";
+    exit 1;
+}
+
+exit 0;

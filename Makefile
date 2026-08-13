@@ -1,6 +1,6 @@
 test: test-perl test-js
 
-ci-check: test-perl test-js walkthrough perlcritic verify
+ci-check: test-budget test-js walkthrough perlcritic verify
 
 check-coverage:
 	perl -Ilib bin/check_coverage
@@ -16,6 +16,16 @@ check-style:
 
 test-perl:
 	MOJO_MODE=test prove t
+
+test-budget:
+	touch t/.test_budget_start
+	MOJO_MODE=test prove t
+	@perl -Ilib bin/check_test_budget
+
+test-budget-baseline:
+	touch t/.test_budget_start
+	MOJO_MODE=test prove t
+	@perl -Ilib bin/check_test_budget --baseline
 
 test-js:
 	node -c public/js/ambient.js && node -c public/js/game.js && echo "JS syntax OK"
@@ -73,7 +83,7 @@ check-boundary-rules:
 check-log-event-category:
 	@perl -Ilib bin/check_log_event_category
 
-.PHONY: indent ci-check verify verify-coverage check-columns check-unintended-files check-doc-consistency check-log-event-category check-boundary-rules
+.PHONY: indent ci-check verify verify-coverage check-columns check-unintended-files check-doc-consistency check-log-event-category check-boundary-rules test-budget test-budget-baseline
 indent:
 	@echo "Finding Perl files..."
 	@find . -name '*.pl' -o -name '*.pm' -o -name '*.t' -type f \
