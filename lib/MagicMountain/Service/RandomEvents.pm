@@ -300,9 +300,10 @@ sub describe_effects ($self, $resolved_values, $pool) {
 # ── Public API ───────────────────────────────────────────────────────
 
 sub draw ($self, %args) {
-    my $pool    = $args{pool}    or die "pool required";
-    my $trigger = $args{trigger} or die "trigger required";
-    my $rng     = $args{seeded_rng};
+    my $pool       = $args{pool}       or die "pool required";
+    my $trigger    = $args{trigger}    or die "trigger required";
+    my $rng        = $args{seeded_rng};
+    my $resolve_url = $args{resolve_url};
 
     return if $self->app && $self->app->mode eq 'test' && !$ENV{MM_EVENTS};
 
@@ -327,6 +328,7 @@ sub draw ($self, %args) {
     # Choice events: return with choices populated, effects NOT applied.
     # Caller must call apply_choice() to resolve.
     if ($event_def->{choices}) {
+        die "resolve_url required for choice events" unless defined $resolve_url;
         my @resolved;
         for my $choice (@{ $event_def->{choices} }) {
             push @resolved, {
@@ -335,7 +337,7 @@ sub draw ($self, %args) {
                 effects => $choice->{effects},
                 result  => $choice->{result},
                 attrs => {
-                    'data-action-url' => '/prospecting/resolve_event',
+                    'data-action-url' => $resolve_url,
                     'data-method'     => 'POST',
                     'data-choice-id'  => $choice->{id},
                     class             => 'mm-btn mm-btn-primary',

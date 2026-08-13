@@ -209,9 +209,10 @@ sub begin ($self, $char, %params) {
     # Check for random event FIRST — if one fires, it replaces the artifact draw
     if ($self->app->can('random_events')) {
         my $event = $self->app->random_events->draw(
-            pool    => 'prospecting',
-            trigger => 'begin',
-            context => {
+            pool        => 'prospecting',
+            trigger     => 'begin',
+            resolve_url => $params{resolve_url},
+            context     => {
                 char   => $char,
                 season => $season,
             },

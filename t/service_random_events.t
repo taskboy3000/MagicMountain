@@ -630,9 +630,10 @@ subtest 'choice event returns choices in draw()' => sub {
     my $char = _fresh_char;
     my $ctx = { char => $char, artifact => {}, season => { day => 1 } };
     my $result = $svc->draw(
-        pool    => 'prospecting',
-        trigger => 'begin',
-        context => $ctx,
+        pool        => 'prospecting',
+        trigger     => 'begin',
+        resolve_url => '/prospecting/resolve_event',
+        context     => $ctx,
         seeded_rng => sub { 0.01 },  # force event chance roll to pass
     );
     ok($result, 'draw returns event');
@@ -660,9 +661,10 @@ subtest 'choice event filters ineligible choices by condition' => sub {
     $char->setCol('skill_prospecting', 1);  # too low for hard
     my $ctx = { char => $char, artifact => {}, season => { day => 1 } };
     my $result = $svc->draw(
-        pool    => 'prospecting',
-        trigger => 'begin',
-        context => $ctx,
+        pool        => 'prospecting',
+        trigger     => 'begin',
+        resolve_url => '/prospecting/resolve_event',
+        context     => $ctx,
         seeded_rng => sub { 0.01 },
     );
     ok($result, 'draw returns event');
@@ -683,9 +685,10 @@ subtest 'choice event discarded when all choices gated' => sub {
     $char->setCol('skill_prospecting', 1);  # too low
     my $ctx = { char => $char, artifact => {}, season => { day => 1 } };
     my $result = $svc->draw(
-        pool    => 'prospecting',
-        trigger => 'begin',
-        context => $ctx,
+        pool        => 'prospecting',
+        trigger     => 'begin',
+        resolve_url => '/prospecting/resolve_event',
+        context     => $ctx,
         seeded_rng => sub { 0.01 },
     );
     is($result, undef, 'no event when all choices gated');

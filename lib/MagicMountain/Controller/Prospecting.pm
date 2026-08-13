@@ -86,6 +86,7 @@ sub _activity_action ($self, $action, %params) {
 
     my $result = eval {
         if ($action eq 'begin') {
+            $params{resolve_url} //= $self->url_for('prospecting_resolve_event');
             $p->begin_activity($char_model, %params);
         } else {
             $p->get($id)->dispatch($char_model, $action, %params);
