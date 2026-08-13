@@ -30,14 +30,13 @@ sub finalize ($self) {
     $app->shed->load;
     my %clearance;
     for my $sid (keys %{ $app->shed->table }) {
-        my $row = $app->shed->table->{$sid};
-        next unless $row->{char_id};
-        my $cref = $app->characters->table->{$row->{char_id}};
-        next unless $cref && $cref->{season_id} eq $season_id;
-        $clearance{ $row->{char_id} } += ($row->{decayed_value} // 0);
-        delete $app->shed->table->{$sid};
+        my $row = $app->shed->get($sid) or next;
+        my $char_id = $row->getCol('char_id') or next;
+        my $cref = $app->characters->get($char_id) or next;
+        next unless $cref->getCol('season_id') eq $season_id;
+        $clearance{$char_id} += ($row->getCol('decayed_value') // 0);
+        $app->shed->delete($sid);
     }
-    $app->shed->save;
     my $total_discard = scalar keys %clearance;
     $app->log->info("Discarded $total_discard shed items.");
 
