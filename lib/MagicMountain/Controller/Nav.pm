@@ -68,9 +68,13 @@ sub show ($self) {
         }
     }
     if ($base->{pawn}{active}) {
-        my $calc = $self->pawn_calculator;
-        if (!$calc->has_banned_items($char)) {
-            $overrides->{pawn} = { active => 0, reason => 'No restricted items' };
+        if ($ap < 1) {
+            $overrides->{pawn} = { active => 0, reason => 'No AP remaining' };
+        } else {
+            my $calc = $self->pawn_calculator;
+            if (!$calc->has_banned_items($char)) {
+                $overrides->{pawn} = { active => 0, reason => 'No restricted items' };
+            }
         }
     }
     my $primary_tabs = $self->navigation->build_tabs($char, $type, $overrides);

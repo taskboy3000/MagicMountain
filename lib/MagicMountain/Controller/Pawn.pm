@@ -4,12 +4,13 @@ use Mojo::Base 'MagicMountain::Controller', '-signatures';
 sub show ($self) {
     my $char = $self->_require_character or return;
     my $type = $self->_active_activity_type($char);
+    my $ap   = $char->getCol('action_points') // 0;
 
     my $calc = $self->pawn_calculator;
     my $has_banned = $calc->has_banned_items($char);
 
-    # If no pawn activity and no banned items, show closed state
-    if ((!$type || $type ne 'pawn') && !$has_banned) {
+    # If no pawn activity and no banned items or no AP, show closed state
+    if ((!$type || $type ne 'pawn') && (!$has_banned || $ap < 1)) {
         my $format = $self->param('_format');
         if ($format && $format eq 'fragment') {
             $self->stash(pawn_closed => 1, layout => undef);
@@ -32,7 +33,6 @@ sub show ($self) {
     }
 
     # ── AP exhaustion (don't interrupt pending results) ────────
-    my $ap = $char->getCol('action_points') // 0;
     if ($type && $type eq 'pawn' && !$deal && $ap <= 0) {
         my $format = $self->param('_format');
         if ($format && $format eq 'fragment') {
