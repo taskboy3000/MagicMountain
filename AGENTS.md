@@ -70,6 +70,8 @@ from this rule.
 
 ## Conventions
 
+- Do not fix a hypothesized cause. First reproduce the reported failure and use a
+  test to prove where it occurs.
 - **CI check**: `make ci-check` before every `git push` — catches test failures,
   walkthrough regressions, and perlcritic violations before they reach CI.
   `make verify` is the faster post-implementation gate (structural checks only).
