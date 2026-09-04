@@ -159,28 +159,42 @@ sub open_bot_window ($self, $maint) {
     $app->log->info("Opening bot window (deadline: ${deadline_minutes}m)");
 
     my $deadline_timer;
-    if ($deadline_minutes > 0) {
-        $deadline_timer = Mojo::IOLoop->timer($deadline_minutes * 60 => sub {
-            $app->log->warn("Bot window deadline reached — rolling over");
-            $maint->_rollover;
-        });
-    }
+    my $deadline_fired = 0;
+    my $subprocess;
 
-    my $child;
-    $child = Mojo::IOLoop->subprocess(
+    $subprocess = Mojo::IOLoop->subprocess(
         sub {
+            my $grandchild;
+            $SIG{TERM} = sub {
+                kill('TERM', $grandchild) if $grandchild && kill(0, $grandchild);
+                exit(1);
+            };
+
             local $ENV{MM_SKIP_CATCHUP} = '1';
             local $ENV{MOUNTAIN_DAEMON_URL} = $daemon_url;
             my @cmd = ($^X, '-Ilib', 'script/mountain', 'bot-turn');
-            exec @cmd;
+            system(@cmd);
+            return $? >> 8;
         },
-        sub ($subprocess, $exit_code) {
-            undef $child;
+        sub ($subprocess, $err, @results) {
+            my $exit_code = $results[0] // -1;
             Mojo::IOLoop->cancel($deadline_timer) if $deadline_timer;
-            $app->log->info("Bot window subprocess exited with code $exit_code");
+            $app->log->info("Bot window finished with code $exit_code");
             $maint->_rollover;
         },
     );
+
+    if ($deadline_minutes > 0) {
+        $deadline_timer = Mojo::IOLoop->timer($deadline_minutes * 60 => sub {
+            return if $deadline_fired++;
+            $app->log->warn("Bot window deadline reached — cancelling bot work");
+            my $pid;
+            if ($subprocess) {
+                $pid = $subprocess->pid;
+            }
+            kill('TERM', $pid) if $pid;
+        });
+    }
 
     return 1;
 }
