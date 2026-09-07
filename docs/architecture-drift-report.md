@@ -3,10 +3,11 @@
 **Date**: 2026-08-13
 **Scope**: Full codebase audit against AGENTS.md layer boundaries
 
-**Status (2026-09-07)**: 3 of 24 items fixed (`17`, `18`, `20`). Item `19`
-accepted by design — rationale recorded in `GAME_ARCHITECTURE.md` §3.3.
-Remaining 20 items are open. Item resolution appears in each section header
-and in the status column of the summary table (§6).
+**Status (2026-09-07)**: 4 of 24 items fixed (`1`, `3`, `17`, `18`). Item `20`
+partly fixed. Items `2` and `19` accepted by design — rationale recorded in
+`GAME_ARCHITECTURE.md` §3.3 and the section notes below. Remaining 17 items are
+open. Item resolution appears in each section header and in the status column
+of the summary table (§6).
 
 ---
 
@@ -22,7 +23,7 @@ Violations are categorized by layer, with file:line references and code context.
 
 Controllers MUST NOT implement game rules, calculate derived state, build recommendations, assemble narrative, determine navigation policy, or mutate domain objects except through model/service APIs. Controllers SHOULD ONLY extract HTTP params, dispatch to services/activities, stash, render.
 
-### 1.1 Direct Model Row Access — `Game.pm` [DONE]
+### 1.1 Direct Model Row Access — `Game.pm` — **[FIXED]**
 
 **File**: `lib/MagicMountain/Controller/Game.pm`
 **Severity**: High
@@ -43,7 +44,11 @@ action_points_max => $row->{action_points_max} // 15,
 
 Bypasses `getCol` accessors and column validation entirely. Should use `$char_model->getCol('score')`, etc.
 
-### 1.2 Domain Mutations in Controller — `Nav.pm` [WONTFIX]
+**Resolution (`806e99d`)**: `$char_model->row` removed entirely. All reads
+now go through `getCol`; the `action_points_max` fallback reads
+`$self->app->config->{default_action_points}` instead of a hardcoded `// 15`.
+
+### 1.2 Domain Mutations in Controller — `Nav.pm` — **[ACCEPTED — BY DESIGN]**
 
 **File**: `lib/MagicMountain/Controller/Nav.pm`
 **Severity**: High
@@ -60,7 +65,13 @@ $char->save;
 
 View selection and mute toggle are domain mutations that belong in services.
 
-### 1.3 Navigation Policy in Controller — `Nav.pm`
+**Accepted (2026-09-07)**: not a layer violation. The navigation *decision*
+(via `Navigation->resolve_view`) already lives in the service; the controller
+only persists the result through the model API (`setCol` + `save`), which
+AGENTS.md explicitly permits. `current_view` is mutated the same way in ~20
+sites, mostly inside activity handlers.
+
+### 1.3 Navigation Policy in Controller — `Nav.pm` — **[FIXED]**
 
 **File**: `lib/MagicMountain/Controller/Nav.pm`
 **Severity**: High
@@ -88,6 +99,13 @@ if ($base->{pawn}{active}) {
 ```
 
 AP costs and item requirements are game rules. The Navigation service already has `base_tab_state` and `build_tabs` — these overrides should be computed there.
+
+**Resolution (2026-09-07)**: the override block was removed from
+`Controller::Nav`. `Service::Navigation::build_tabs` now computes dynamic
+eligibility internally via `_eligibility_overrides($char, $base)` (AP,
+shed-count, banned-item checks) with the original reason strings preserved.
+`base_tab_state` was removed — it had exactly one caller. Covered by
+`t/nav_web.t` (all-active, no-AP, empty-shed, prospecting, market branches).
 
 ### 1.4 Narrative Assembly in Controller — `Nav.pm`
 
@@ -494,9 +512,9 @@ Performs a set-intersection between item behaviors and climate premium traits. D
 
 | # | Layer | File | Lines | Violation | Severity | Status |
 |---|-------|------|-------|-----------|----------|--------|
-| 1 | Controller | Game.pm | 32, 39, 103-106 | Direct `$row->{...}` access | High | Open |
-| 2 | Controller | Nav.pm | 111-112, 133-134 | Domain mutations (setCol + save) | High | Open |
-| 3 | Controller | Nav.pm | 58-75 | Navigation policy (AP/item rules) | High | Open |
+| 1 | Controller | Game.pm | 32, 39, 103-106 | Direct `$row->{...}` access | High | **Fixed** |
+| 2 | Controller | Nav.pm | 111-112, 133-134 | Domain mutations (setCol + save) | High | **By design** |
+| 3 | Controller | Nav.pm | 58-75 | Navigation policy (AP/item rules) | High | **Fixed** |
 | 4 | Controller | Nav.pm | 155-209 | Narrative assembly + derived state | High | Open |
 | 5 | Controller | Result.pm | 41-43, 56-66 | Domain mutations + navigation policy | High | Open |
 | 6 | Controller | Market.pm | 32-35 | Domain mutation (clear state) | Medium | Open |
@@ -523,8 +541,10 @@ Performs a set-intersection between item behaviors and climate premium traits. D
 
 ## 7. Pattern Analysis
 
-**Status update (2026-09-07)**: service-layer items 17, 18 (URL discipline) and
-20 (SeasonFinalizer) are fixed. Item 19 (DailyMaintenance HTTP infra) is an
+**Status update (2026-09-07)**: controller items 1 (Game.pm row access) and 3
+(Nav.pm eligibility policy) are fixed; item 2 (Nav.pm view/mute persistence) is
+an accepted design decision. Service items 17, 18 (URL discipline) and 20
+(SeasonFinalizer) are fixed. Item 19 (DailyMaintenance HTTP infra) is an
 accepted design decision. The open items cluster in exactly the three areas
 below — no new classes of drift were introduced since the audit.
 
@@ -532,7 +552,7 @@ below — no new classes of drift were introduced since the audit.
 
 The drift concentrates in three areas:
 
-1. **Nav.pm** — The single worst file. Navigation policy, narrative assembly, and domain mutations all live here despite the Navigation service existing. This is the primary candidate for extraction.
+1. **Nav.pm** — Still the busiest file, but navigation policy (item 1.3) moved into the service. Remaining: narrative assembly (1.4) and derived display state. Primary candidate for further extraction.
 
 2. **Controller layer broadly** — Derived state computation (mood, ranking, affordability, fresh-player detection) is scattered across 6+ controllers. A `GameState` service or expanding the existing `CharacterView` service could absorb this.
 
@@ -548,7 +568,7 @@ The drift concentrates in three areas:
 ### Risk Assessment
 
 This drift is **manageable but compounding**. Each individual violation is small ("it's just a sprintf"), but collectively they mean:
-- Game rules are duplicated (AP costs in Nav.pm, Idle.pm, and the Navigation service)
+- Game rules are duplicated (AP costs still echoed in `Idle.pm` beside the eligibility logic in the Navigation service, and the authoritative `ap_cost` in activity actions)
 - Templates make decisions that should be pre-computed
 - The controller layer does work that should be in services
 

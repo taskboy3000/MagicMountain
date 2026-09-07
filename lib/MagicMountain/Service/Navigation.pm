@@ -49,11 +49,7 @@ use constant {
     BIT_INTEL    => 8,
 };
 
-sub base_tab_state ($self, $type) {
-    return $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
-}
-
-sub build_tabs ($self, $char, $type, $overrides = {}) {
+sub build_tabs ($self, $char, $type, $explicit_overrides = {}) {
     my $base     = $BASE_TAB{$type // 'idle'} // $BASE_TAB{idle};
     my @tab_ids  = qw(home prospect bazaar pawn pvp skills);
     my $onboarding = $char ? ($char->getCol('onboarding') // 0) : 15;
@@ -62,6 +58,11 @@ sub build_tabs ($self, $char, $type, $overrides = {}) {
         pvp    => BIT_INTEL,
         skills => BIT_SKILLS,
     );
+
+    my $overrides = {
+        %{ $self->_eligibility_overrides($char, $base) },
+        %$explicit_overrides,
+    };
 
     my @tabs;
     for my $id (@tab_ids) {
@@ -78,6 +79,39 @@ sub build_tabs ($self, $char, $type, $overrides = {}) {
         };
     }
     return \@tabs;
+}
+
+sub _eligibility_overrides ($self, $char, $base) {
+    my $overrides = {};
+    return $overrides unless $char;
+    my $ap = $char->getCol('action_points') // 0;
+
+    if ($base->{bazaar}{active}) {
+        if ($ap < 1) {
+            $overrides->{bazaar} = { active => 0, reason => 'No AP remaining' };
+        } elsif ($self->_shed_count($char) < 1) {
+            $overrides->{bazaar} = { active => 0, reason => 'No artifacts in shed' };
+        }
+    }
+    if ($base->{prospect}{active}) {
+        if ($ap < 2) {
+            $overrides->{prospect} = { active => 0, reason => 'Not enough AP (2 required)' };
+        }
+    }
+    if ($base->{pawn}{active}) {
+        if ($ap < 1) {
+            $overrides->{pawn} = { active => 0, reason => 'No AP remaining' };
+        } elsif (!$self->app->pawn_calculator->has_banned_items($char)) {
+            $overrides->{pawn} = { active => 0, reason => 'No restricted items' };
+        }
+    }
+    return $overrides;
+}
+
+sub _shed_count ($self, $char) {
+    return scalar @{ $self->app->shed->find(
+        sub { $_[0]->{char_id} eq $char->getCol('id') }
+    ) };
 }
 
 sub secondary_tabs ($self, $char, $urls = {}) {

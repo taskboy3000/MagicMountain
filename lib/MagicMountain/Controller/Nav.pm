@@ -48,36 +48,8 @@ my %TAB_TO_VIEW = (
 sub show ($self) {
     my $char = $self->_require_character or return;
     my $type = $self->_active_activity_type($char);
-    my $ap   = $char->getCol('action_points') // 0;
-    my $shed_count = scalar @{ $self->shed->find(
-        sub { $_[0]->{char_id} eq $char->getCol('id') }
-    ) };
 
-    my $base     = $self->navigation->base_tab_state($type);
-    my $overrides = {};
-    if ($base->{bazaar}{active}) {
-        if ($ap < 1) {
-            $overrides->{bazaar} = { active => 0, reason => 'No AP remaining' };
-        } elsif ($shed_count < 1) {
-            $overrides->{bazaar} = { active => 0, reason => 'No artifacts in shed' };
-        }
-    }
-    if ($base->{prospect}{active}) {
-        if ($ap < 2) {
-            $overrides->{prospect} = { active => 0, reason => 'Not enough AP (2 required)' };
-        }
-    }
-    if ($base->{pawn}{active}) {
-        if ($ap < 1) {
-            $overrides->{pawn} = { active => 0, reason => 'No AP remaining' };
-        } else {
-            my $calc = $self->pawn_calculator;
-            if (!$calc->has_banned_items($char)) {
-                $overrides->{pawn} = { active => 0, reason => 'No restricted items' };
-            }
-        }
-    }
-    my $primary_tabs = $self->navigation->build_tabs($char, $type, $overrides);
+    my $primary_tabs = $self->navigation->build_tabs($char, $type);
 
     my $view = _resolve_requested_view($self, $primary_tabs);
     if (!$view) {
