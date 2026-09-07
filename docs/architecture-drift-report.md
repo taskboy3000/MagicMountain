@@ -3,6 +3,11 @@
 **Date**: 2026-08-13
 **Scope**: Full codebase audit against AGENTS.md layer boundaries
 
+**Status (2026-09-07)**: 3 of 24 items fixed (`17`, `18`, `20`). Item `19`
+accepted by design — rationale recorded in `GAME_ARCHITECTURE.md` §3.3.
+Remaining 20 items are open. Item resolution appears in each section header
+and in the status column of the summary table (§6).
+
 ---
 
 ## Methodology
@@ -17,7 +22,7 @@ Violations are categorized by layer, with file:line references and code context.
 
 Controllers MUST NOT implement game rules, calculate derived state, build recommendations, assemble narrative, determine navigation policy, or mutate domain objects except through model/service APIs. Controllers SHOULD ONLY extract HTTP params, dispatch to services/activities, stash, render.
 
-### 1.1 Direct Model Row Access — `Game.pm`
+### 1.1 Direct Model Row Access — `Game.pm` [DONE]
 
 **File**: `lib/MagicMountain/Controller/Game.pm`
 **Severity**: High
@@ -38,7 +43,7 @@ action_points_max => $row->{action_points_max} // 15,
 
 Bypasses `getCol` accessors and column validation entirely. Should use `$char_model->getCol('score')`, etc.
 
-### 1.2 Domain Mutations in Controller — `Nav.pm`
+### 1.2 Domain Mutations in Controller — `Nav.pm` [WONTFIX]
 
 **File**: `lib/MagicMountain/Controller/Nav.pm`
 **Severity**: High
@@ -302,7 +307,7 @@ Inside the model class (so technically permitted), but bypasses the accessor abs
 
 Services MUST contain extracted game logic. MUST NOT call `url_for` or hardcode URL paths. MUST NOT access HTTP/IO loop infrastructure.
 
-### 3.1 Hardcoded URL in Service — `RandomEvents.pm`
+### 3.1 Hardcoded URL in Service — `RandomEvents.pm` — **[FIXED]**
 
 **File**: `lib/MagicMountain/Service/RandomEvents.pm`
 **Severity**: High
@@ -322,7 +327,10 @@ push @resolved, {
 
 This hardcoded path will break behind a reverse-proxy sub-path deployment. The URL must be injected by the calling controller.
 
-### 3.2 Hardcoded Fallback URLs in Service — `Navigation.pm`
+**Resolution (`53895c8`)**: `draw()` now requires `resolve_url`; the URL is
+threaded from the controller via `url_for()` through the activity layer.
+
+### 3.2 Hardcoded Fallback URLs in Service — `Navigation.pm` — **[FIXED]**
 
 **File**: `lib/MagicMountain/Service/Navigation.pm`
 **Severity**: High
@@ -343,7 +351,10 @@ action_url    => $urls->{toggle_url} // '/nav/toggle',
 
 Fallback hardcoded URL paths bypass `url_for` and break behind a reverse proxy. The controller must always supply these URLs; the service should not have fallback paths.
 
-### 3.3 HTTP Infrastructure in Service — `DailyMaintenance.pm`
+**Resolution (`53895c8`)**: fallbacks removed — `secondary_tabs()` now uses
+the caller-supplied URLs without `//` fallback paths.
+
+### 3.3 HTTP Infrastructure in Service — `DailyMaintenance.pm` — **[ACCEPTED — BY DESIGN]**
 
 **File**: `lib/MagicMountain/Service/DailyMaintenance.pm`
 **Severity**: Medium
@@ -369,7 +380,12 @@ $daemon_url = "http://localhost:$daemon_url" if $daemon_url =~ /^\d+$/;
 
 Subprocess management, event-loop timers, and daemon URL construction are infrastructure concerns that belong in a controller or command layer.
 
-### 3.4 Direct Table Access in Service — `SeasonFinalizer.pm`
+**Accepted (2026-09-07)**: keeping subprocess/daemon/timer mechanics in the
+service is deliberate. Single-process daemons cannot serve blocking HTTP
+from inside their own event-loop callback, so the bot window must run as an
+external subprocess. Rationale recorded in `GAME_ARCHITECTURE.md` §3.3.
+
+### 3.4 Direct Table Access in Service — `SeasonFinalizer.pm` — **[PARTLY FIXED]**
 
 **File**: `lib/MagicMountain/Service/SeasonFinalizer.pm`
 **Severity**: High
@@ -388,6 +404,11 @@ $app->shed->save;                                   # Bare save (no sync_row)
 ```
 
 Bypasses `get`, `getCol`, `setCol`, `find`, and `delete` model methods entirely. Skips `validate_save` that would run during normal `save()`.
+
+**Resolution (`e0500c3`)**: reads now go through `$app->shed->get($sid)` and
+deletion through `$app->shed->delete($sid)`, so `validate_save` runs. A raw
+`keys %{ $app->shed->table }` iteration remains solely to enumerate ids for
+the `get()` lookup — no raw mutation.
 
 ---
 
@@ -471,36 +492,41 @@ Performs a set-intersection between item behaviors and climate premium traits. D
 
 ## 6. Summary Table
 
-| # | Layer | File | Lines | Violation | Severity |
-|---|-------|------|-------|-----------|----------|
-| 1 | Controller | Game.pm | 32, 39, 103-106 | Direct `$row->{...}` access | High |
-| 2 | Controller | Nav.pm | 111-112, 133-134 | Domain mutations (setCol + save) | High |
-| 3 | Controller | Nav.pm | 58-75 | Navigation policy (AP/item rules) | High |
-| 4 | Controller | Nav.pm | 155-209 | Narrative assembly + derived state | High |
-| 5 | Controller | Result.pm | 41-43, 56-66 | Domain mutations + navigation policy | High |
-| 6 | Controller | Market.pm | 32-35 | Domain mutation (clear state) | Medium |
-| 7 | Controller | Market.pm | 41-43, 54-57 | Derived state (mood, skill gate) | Medium |
-| 8 | Controller | Skills.pm | 4-25 | Game rules (level/cost/affordability) | Medium |
-| 9 | Controller | Home.pm | 42, 47-51 | Derived state (fresh player, top faction) | Medium |
-| 10 | Controller | Leaderboard.pm | 14-24 | Ranking computation | Medium |
-| 11 | Controller | OnboardingNotice.pm | 60-61 | Domain mutation (bitwise) | Medium |
-| 12 | Controller | Idle.pm | 15-16 | Navigation policy (AP costs) | Medium |
-| 13 | Controller | Orientation.pm | 20-21 | Domain mutation | Low |
-| 14 | Controller | Pawn.pm | 75 | Domain object creation | Medium |
-| 15 | Model | Pressure.pm | 32, 50, 52-53 | Banned `_saveTable` + raw table mutation | High |
-| 16 | Model | Character.pm | 50-58 | `$self->row->{...}` in validate_save | Medium |
-| 17 | Service | RandomEvents.pm | 338 | Hardcoded URL path | High |
-| 18 | Service | Navigation.pm | 93, 102, 110, 121 | Hardcoded fallback URLs | High |
-| 19 | Service | DailyMaintenance.pm | 4-5, 152-170 | HTTP infrastructure (IOLoop, UA) | Medium |
-| 20 | Service | SeasonFinalizer.pm | 32-39 | Direct table access/mutation | High |
-| 21 | Activity | Pawn.pm | 186-203 | Missing _log_event | Low |
-| 22 | Template | broker.html.ep | 15, 30, 43 | Game logic + service access + rand() | Medium |
-| 23 | Template | training.html.ep | 17 | Affordability computation | Medium |
-| 24 | Template | salvage_ledger.html.ep | 21 | Trait-matching logic | Medium |
+| # | Layer | File | Lines | Violation | Severity | Status |
+|---|-------|------|-------|-----------|----------|--------|
+| 1 | Controller | Game.pm | 32, 39, 103-106 | Direct `$row->{...}` access | High | Open |
+| 2 | Controller | Nav.pm | 111-112, 133-134 | Domain mutations (setCol + save) | High | Open |
+| 3 | Controller | Nav.pm | 58-75 | Navigation policy (AP/item rules) | High | Open |
+| 4 | Controller | Nav.pm | 155-209 | Narrative assembly + derived state | High | Open |
+| 5 | Controller | Result.pm | 41-43, 56-66 | Domain mutations + navigation policy | High | Open |
+| 6 | Controller | Market.pm | 32-35 | Domain mutation (clear state) | Medium | Open |
+| 7 | Controller | Market.pm | 41-43, 54-57 | Derived state (mood, skill gate) | Medium | Open |
+| 8 | Controller | Skills.pm | 4-25 | Game rules (level/cost/affordability) | Medium | Open |
+| 9 | Controller | Home.pm | 42, 47-51 | Derived state (fresh player, top faction) | Medium | Open |
+| 10 | Controller | Leaderboard.pm | 14-24 | Ranking computation | Medium | Open |
+| 11 | Controller | OnboardingNotice.pm | 60-61 | Domain mutation (bitwise) | Medium | Open |
+| 12 | Controller | Idle.pm | 15-16 | Navigation policy (AP costs) | Medium | Open |
+| 13 | Controller | Orientation.pm | 20-21 | Domain mutation | Low | Open |
+| 14 | Controller | Pawn.pm | 75 | Domain object creation | Medium | Open |
+| 15 | Model | Pressure.pm | 32, 50, 52-53 | Banned `_saveTable` + raw table mutation | High | Open |
+| 16 | Model | Character.pm | 50-58 | `$self->row->{...}` in validate_save | Medium | Open |
+| 17 | Service | RandomEvents.pm | 338 | Hardcoded URL path | High | **Fixed** |
+| 18 | Service | Navigation.pm | 93, 102, 110, 121 | Hardcoded fallback URLs | High | **Fixed** |
+| 19 | Service | DailyMaintenance.pm | 4-5, 152-170 | HTTP infrastructure (IOLoop, UA) | Medium | **By design** |
+| 20 | Service | SeasonFinalizer.pm | 32-39 | Direct table access/mutation | High | **Partly fixed** |
+| 21 | Activity | Pawn.pm | 186-203 | Missing _log_event | Low | Open |
+| 22 | Template | broker.html.ep | 15, 30, 43 | Game logic + service access + rand() | Medium | Open |
+| 23 | Template | training.html.ep | 17 | Affordability computation | Medium | Open |
+| 24 | Template | salvage_ledger.html.ep | 21 | Trait-matching logic | Medium | Open |
 
 ---
 
 ## 7. Pattern Analysis
+
+**Status update (2026-09-07)**: service-layer items 17, 18 (URL discipline) and
+20 (SeasonFinalizer) are fixed. Item 19 (DailyMaintenance HTTP infra) is an
+accepted design decision. The open items cluster in exactly the three areas
+below — no new classes of drift were introduced since the audit.
 
 ### Pressure Points
 

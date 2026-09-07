@@ -29,14 +29,13 @@ sub show ($self) {
     my ($season, $season_recap) = $self->season_manager->ensure_season($player_id);
     my ($char_model, $onboarding_notices) = $self->season_manager->ensure_character($account, $season);
 
-    my $row = $char_model->row;
     my $prospecting_view = $self->character_view->prospecting_view($char_model);
     my $market_view      = $self->character_view->market_view($char_model);
     my $skills           = $self->character_view->player_skills($char_model);
     my $shed_items       = $self->character_view->shed_items($char_model);
 
     my $activityPhase = '';
-    my $id = $row->{pending_activity_id};
+    my $id = $char_model->getCol('pending_activity_id');
     if ($id) {
         $self->prospecting->load;
         if (my $row = $self->prospecting->get($id)) {
@@ -100,10 +99,10 @@ sub show ($self) {
                 season_day        => $season ? ($season->getCol('day') // 1)             : '—',
                 season_total_days => $season ? ($season->getCol('length') // 30)         : '—',
                 season_is_active  => $season ? 1 : 0,
-                score             => $row->{score} // 0,
-                scrap             => $row->{scrap} // 0,
-                action_points     => $row->{action_points} // 0,
-                action_points_max => $row->{action_points_max} // 15,
+                score             => $char_model->getCol('score') // 0,
+                scrap             => $char_model->getCol('scrap') // 0,
+                action_points     => $char_model->getCol('action_points') // 0,
+                action_points_max => $char_model->getCol('action_points_max') // $self->app->config->{default_action_points},
                 active_phase      => $activityPhase,
                 artifact_json     => $prospecting_view ? encode_json($prospecting_view) : 'null',
                 unit_status       => $self->_unit_status,
