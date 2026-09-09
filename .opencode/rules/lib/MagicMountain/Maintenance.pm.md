@@ -6,9 +6,12 @@
 
 ## Responsibilities
 - Timer entry: `dailyMaintenance()` called by the 60-second recurring timer
-- Window state machine: `bot_window_open` flag, `in_maintenance` flag
-- `_rollover` routine: coordinates backup → `in_maintenance(1)` → `on_maintenance` → `in_maintenance(0)` → `bot_window_open = 0`
-- Exactly-once guard: rollover fires once (subprocess callback OR deadline), winner cancels the other
+- Window state machine: `bot_window_open` flag, `bot_window_opened_at` timestamp, `in_maintenance` flag
+- `mark_bot_window_open`: sets the window open and records `bot_window_opened_at` from `clock`
+- `bot_window_deadline_seconds`: reads `maintenance_bot_deadline_minutes` config (default 10 min) — single source of truth for the bot deadline
+- `_rollover` routine: coordinates backup → `in_maintenance(1)` → `on_maintenance` → `in_maintenance(0)` → `bot_window_open = 0` and resets `bot_window_opened_at`
+- Watchdog: `dailyMaintenance()` force-closes an overdue window by calling `_rollover` if the window has been open past `bot_window_deadline_seconds` — this check MUST precede the `next_run` gate so it fires on every tick even though `next_run` was already advanced when the window opened
+- Exactly-once guard: rollover fires once (subprocess callback OR deadline timer OR watchdog), the flag guard makes further rollovers no-ops
 - Clock abstraction: `clock` attribute for testability
 - `compute_next_maintenance_window`, `recent_maintenance_boundary`
 - `catch_up` method for missed-cycle recovery

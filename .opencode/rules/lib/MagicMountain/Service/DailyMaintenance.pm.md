@@ -6,13 +6,15 @@
 
 ## Responsibilities
 - `run_day`: rollover-only day-advancement logic (clear modifiers, day++, AP reset, shed decay, market reset, climate, events, crier, faction snapshots, season-finalize check)
-- `open_bot_window`: set `bot_window_open`, advance `next_run`, non-blocking subprocess spawn, deadline timer
+- `open_bot_window`: set `bot_window_open` via `mark_bot_window_open`, non-blocking subprocess spawn, deadline timer
+- Bot subprocess: wrapper forks/execs the real `bot-turn` process, reports its PID to the parent via `progress`, forwards TERM to it, and reaps it; the deadline timer kills BOTH the wrapper and the reported broker PID AND calls `$maint->_rollover` unconditionally (window must close by the deadline regardless of subprocess signal delivery)
 - `catch_up_missed_cycles`: missed-cycle recovery (no bot runs)
 - Backup step is in `Maintenance::_rollover` (shared window-only routine)
 
 ## Constraints (MUST NOT)
 - NEVER make blocking HTTP requests from inside the event loop (causes deadlock in single-process daemons)
 - NEVER call `_run_bots` or equivalent in-process bot dispatch on production paths
+- NEVER rely solely on the subprocess completion callback to close the bot window — the deadline timer must call `_rollover` directly
 - `Command::simulate` is explicitly carved out as a dev/test tool that may use in-process dispatch
 - NEVER access `$self->{row}` directly — use `getCol`/`setCol`
 - NEVER construct URLs or call `url_for` (URL construction belongs in controllers)
@@ -21,5 +23,7 @@
 ## Signs of a Violation
 - `$ua->start` or `Mojo::UserAgent` blocking calls inside timer callbacks or synchronous maintenance paths
 - `_run_bots` method or equivalent in-process bot loop
+- Deadline timer without a direct `_rollover` call (killing the child alone is NOT sufficient)
+- Opening the window by setting `bot_window_open` directly instead of `mark_bot_window_open` (loses the `bot_window_opened_at` timestamp the watchdog needs)
 - Direct model mutation that bypasses Activity dispatch (except in `run_day` rollover body)
 - URL construction in this module

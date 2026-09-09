@@ -18,6 +18,7 @@ has next_run => sub ($self) {
 
 has in_maintenance => 0;
 has bot_window_open => 0;
+has bot_window_opened_at => 0;
 has _catching_up => 0;
 
 sub catch_up ($self, $missed_cycles) {
@@ -69,10 +70,23 @@ sub _backup_data ($self) {
     }
 }
 
+sub bot_window_deadline_seconds ($self) {
+    my $minutes = $self->app->config->{maintenance_bot_deadline_minutes};
+    $minutes = 10 unless defined $minutes;
+    return $minutes * 60;
+}
+
+sub mark_bot_window_open ($self) {
+    $self->bot_window_open(1);
+    $self->bot_window_opened_at($self->clock->());
+    return 1;
+}
+
 sub _rollover ($self) {
     return if $self->bot_window_open == 0;
 
     $self->bot_window_open(0);
+    $self->bot_window_opened_at(0);
 
     $self->_backup_data;
 
@@ -92,17 +106,32 @@ sub _do_rollover ($self) {
 
     my $opened = $self->app->daily_maintenance->open_bot_window($self);
     if (!$opened) {
-        $self->bot_window_open(1);
+        $self->mark_bot_window_open;
         $self->_rollover;
     }
     return 1;
 }
-
 sub dailyMaintenance ($self) {
     my $now = $self->clock->();
-    return if $self->next_run > $now;
 
-    return if $self->bot_window_open;
+    if ($self->bot_window_open) {
+        # Watchdog: if the window has been open past the deadline without a
+        # completion callback, the subprocess signal was lost. Force-close
+        # regardless so a stalled bot turn can never wedge the server. This
+        # check must precede the next_run gate so it fires on every tick even
+        # though next_run was already advanced when the window opened.
+        my $opened = $self->bot_window_opened_at || 0;
+        if ($opened > 0 && $now - $opened >= $self->bot_window_deadline_seconds) {
+            $self->app->log->warn(sprintf(
+                "Bot window open %ds without completion — force-closing",
+                $now - $opened,
+            ));
+            return $self->_rollover;
+        }
+        return;
+    }
+
+    return if $self->next_run > $now;
 
     $self->app->log->debug("Daily maintenance window opening");
     return $self->_do_rollover;

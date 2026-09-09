@@ -184,16 +184,24 @@ fires), runs the rollover callback and closes the window.
 ```
 Mojo::IOLoop (every 60s) → Maintenance::dailyMaintenance
   │
+  ├── Watchdog: window open past deadline? → _rollover (force-close)
+  │         (independent of next_run; closes the window if the subprocess
+  │          completion signal was lost)
   ├── Check: is it time? (compare now against next_run)
   ├── Check: bot_window_open already? → no-op (exactly-once guard)
   ├── Call open_bot_window (Service::DailyMaintenance)
-  │     ├── Set bot_window_open = 1
+  │     ├── mark_bot_window_open (set flag + record bot_window_opened_at)
   │     ├── Advance next_run to tomorrow
-  │     ├── Spawn bot-turn subprocess (non-blocking, Mojo::IOLoop->subprocess)
+  │     ├── Spawn bot-turn subprocess (non-blocking, Mojo::IOLoop->subprocess);
+  │     │     wrapper forks/execs the real bot-turn process and reports its
+  │     │     PID back to the parent via progress
   │     └── Schedule deadline timer (maintenance_bot_deadline_minutes)
   └── Return immediately (loop stays free to serve bot HTTP requests)
        ...
   [subprocess exits OR deadline fires] → _rollover
+  │    (the deadline timer kills the wrapper AND the reported bot-turn PID AND
+  │     then calls _rollover directly — the window closes regardless of whether
+  │     the kill signal is ever delivered)
   │
   ├── Backup data files to date-stamped directory
   ├── Set in_maintenance flag (gates write routes → HTTP 503)
@@ -202,8 +210,15 @@ Mojo::IOLoop (every 60s) → Maintenance::dailyMaintenance
   │      refresh AP, artifact decay, faction climate, global events, crier,
   │      faction snapshots, transcript logging, check season end)
   ├── Clear in_maintenance flag
-  └── Set bot_window_open = 0 (reopen bot logins)
+  └── Set bot_window_open = 0, reset bot_window_opened_at (reopen bot logins)
 ```
+
+The window is guaranteed to close by the deadline through **three
+independent paths**: the subprocess completion callback (normal), the
+deadline timer (fires at `maintenance_bot_deadline_minutes`, calls
+`_rollover` directly), and the 60-second watchdog in `dailyMaintenance`
+(force-closes any window still open past the deadline). All three are
+idempotent — `_rollover` is a no-op once the flag is cleared.
 
 **Route gating**: During the bot window, public read-only routes
 (`GET /`, `/login`, `/logout`, `DELETE /sessions`) remain available. Bot
@@ -1335,24 +1350,35 @@ bcrypt_cost: 10                 # bcrypt work factor
 **Maintenance.pm lifecycle**:
 
 1. Every 60 seconds, `dailyMaintenance()` is called.
-2. If current time has not reached `next_run`, it returns immediately (no-op).
-3. If `bot_window_open` is already true, return (exactly-once guard).
-4. If `next_run` has arrived, call `Service::DailyMaintenance::open_bot_window`:
+2. Watchdog: if a bot window is open and `now - bot_window_opened_at` is past
+   `maintenance_bot_deadline_minutes`, call `_rollover` to force-close the
+   window (recovery from a lost subprocess completion signal). This check
+   precedes the `next_run` gate so it fires on every tick.
+3. If current time has not reached `next_run`, it returns immediately (no-op).
+4. If `bot_window_open` is already true, return (exactly-once guard).
+5. If `next_run` has arrived, call `Service::DailyMaintenance::open_bot_window`:
    a. If no bot characters exist in the active season, call `_rollover` directly and return.
-   b. Set `bot_window_open = 1`.
+   b. `mark_bot_window_open` — set `bot_window_open = 1` and record `bot_window_opened_at`.
    c. Advance `next_run` to the same hour on the following day.
    d. Spawn `bot-turn` subprocess via `Mojo::IOLoop->subprocess` (non-blocking).
-   e. Set `MM_SKIP_CATCHUP=1` and `MOUNTAIN_DAEMON_URL` inside the child callback (post-fork).
+   e. Inside the child callback (post-fork), the wrapper forks/execs the real
+      `bot-turn` process, reports its PID back via `progress`, forwards TERM to
+      it, and reaps it. Set `MM_SKIP_CATCHUP=1` and `MOUNTAIN_DAEMON_URL` before exec.
    f. Schedule deadline timer (`maintenance_bot_deadline_minutes` minutes).
-5. Return immediately — the event loop stays free to serve bot HTTP requests.
+6. Return immediately — the event loop stays free to serve bot HTTP requests.
 
-**Subprocess completion or deadline** → `_rollover`:
-1. `bot_window_open(0)` (exactly-once guard: if already 0, no-op).
+**Subprocess completion or deadline or watchdog** → `_rollover`:
+1. `bot_window_open(0)` and reset `bot_window_opened_at` (exactly-once guard: if already 0, no-op).
 2. `_backup_data` — copy all JSON data files to date-stamped backup directory.
 3. `in_maintenance(1)` — write routes return HTTP 503.
 4. Invoke `on_maintenance` callback (rollover only — no bot runs here).
 5. `in_maintenance(0)`.
 6. Log window close.
+
+The deadline timer kills both the wrapper and the reported bot-turn PID and
+then calls `_rollover` **directly** — the window closes by the deadline even if
+the kill signal is never delivered and the completion callback never fires.
+All three close paths are idempotent.
 
 **`on_maintenance` callback** (day-rollover logic — no bot runs here):
 

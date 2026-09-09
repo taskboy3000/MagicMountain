@@ -73,12 +73,12 @@ The maintenance window has two phases: a **bot window** (external subprocess) an
 **Bot Window Phase** (opens at `end_of_day_hour`):
 
 1. `Maintenance::dailyMaintenance` sees maintenance is due, calls `Service::DailyMaintenance::open_bot_window`
-2. Sets `bot_window_open = 1`, advances `next_run` to tomorrow
-3. Spawns `bot-turn` command as a non-blocking subprocess (`Mojo::IOLoop->subprocess`)
+2. `mark_bot_window_open` sets `bot_window_open = 1` and records `bot_window_opened_at`; advances `next_run` to tomorrow
+3. Spawns `bot-turn` command as a non-blocking subprocess (`Mojo::IOLoop->subprocess`); the wrapper forks/execs the real bot-turn process and reports its PID back to the parent
 4. While the window is open:
    - `in_maintenance` stays 0 — normal game operation continues
    - Bot logins require `X-Bot-Service-Token`; non-bot logins get HTTP 503 (token gate in `Sessions::_build_session`)
-5. When the subprocess exits (or deadline timer fires), `_rollover` runs
+5. The window closes via `_rollover`, triggered by any of: subprocess completion callback, the deadline timer (kills the bot-turn process and calls `_rollover` directly), or the 60-second watchdog in `dailyMaintenance` (force-closes any window still open past the deadline)
 
 **Rollover Phase** (when last bot finishes or deadline expires):
 
@@ -102,7 +102,7 @@ The maintenance window has two phases: a **bot window** (external subprocess) an
 
 **Manual advance-day**: `advance-day` command shells out to `bot-turn` synchronously (waiting for all bots), then runs the rollover phase. If bots fail, the day still advances (graceful degradation).
 
-**Deadline valve**: If bots have not finished within `maintenance_bot_deadline_minutes` (default 10), the rollover runs anyway and that day's bots are skipped. This prevents a stalled bot from halting the season.
+**Deadline valve**: If bots have not finished within `maintenance_bot_deadline_minutes` (default 10), the rollover runs anyway and that day's bots are skipped. This prevents a stalled bot from halting the season. Closure is guaranteed by three independent, idempotent paths: the subprocess completion callback, the deadline timer (calls `_rollover` directly — never relies on the kill signal being delivered), and a 60-second watchdog in `dailyMaintenance` that force-closes any window still open past the deadline even if the timer itself was lost.
 
 ### Faction Influence
 
