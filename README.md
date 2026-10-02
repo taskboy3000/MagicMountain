@@ -12,24 +12,43 @@ in `docs/TUNING.md`.
 
 Licensed under the [MIT License](LICENSE.txt).
 
-## Development approach
+## Install
 
-This project was developed with AI-assisted tooling: specialized agents handle
-implementation scaffolding, boundary-rule review, and plan analysis, while
-human review gates every change through CI (tests, linting, structural checks).
-The result is a hybrid workflow — AI accelerates iteration, human judgment
-owns architecture and quality.
+### PREPARE THE ENIRONMENT
 
-## Deploying behind a reverse proxy
+* Ensure you have perl5.24 or greater (with [plenv](https://github.com/tokuhirom/plenv#installation) if you want an isolated environment)
+* Install cpanm: `perl -MCPAN -e 'install App::cpanminus'`
+* To install libraries: `cpanm --installdeps .`
 
-The game listens on `http://localhost:9000` and must be placed behind a reverse
-proxy (Apache, nginx, etc.) that terminates TLS and proxies to the backend.
+You can the decide how to deploy this web application.  See DEPLOYMENT.
 
-> **Project name / public name**: the codebase is *Magic Mountain*; the public
-> facing deployment is *ProspectBoy 3000* (pb3k). Do not use `pb3k` as-is in
-> production — replace it with a non-guessable path segment.
+If you are looking to extend the game or run the tests, you will need:
 
-### Option A: X-Forwarded-Prefix header (recommended)
+* `cpanm --installdeps --with-develop .`
+* `npm ci`
+    
+### DEPLOYMENT
+
+There are several ways to run this web app. 
+    
+### Run it from the command line for local testing 
+
+* Changed to the directory that contains this file (referred to as $INSTALL_DIR)
+* To restrict access to this game strictly to your local machine, run: `perl script/mountain`
+* To have other folks on your LAN access the game, run: `perl script/mountain daemon --url http://0.0.0.0:3000` (pick a TCP port amenable to your environment)
+
+     
+### Deploying behind a reverse proxy
+
+This is a good option if you want to make this game available to a
+wider audience or already have a web app cluster that you wish to
+enhance with PB3K.
+
+- Launch the game as described above using the 'daemon --url XXX' invocation.
+- If deployed on linux, consider using systemd and making this a service.  (or a launchd service if on mac)
+  
+      
+### Reverse proxy considerations
 
 Apache — mount at something like `https://your.domain/pb3k/`:
 
@@ -66,6 +85,15 @@ visitors landing on `https://your.domain/` end up at the prefixed URL:
 ```apache
 RedirectMatch ^/$ /pb3k/
 ```
+
+## Development approach
+
+This project was developed with AI-assisted tooling: specialized agents handle
+implementation scaffolding, boundary-rule review, and plan analysis, while
+human review gates every change through CI (tests, linting, structural checks).
+The result is a hybrid workflow — AI accelerates iteration, human judgment
+owns architecture and quality.
+
 
 ### Rules enforced at application level
 

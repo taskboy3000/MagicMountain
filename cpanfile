@@ -12,12 +12,11 @@ requires 'PPI';
 on 'develop' => sub {
     requires 'Perl::Tidy';
     requires 'Perl::Critic';
-};
-
-on 'test' => sub {
+    requires 'Test2::V0';
     requires 'Test::More';
     requires 'Test::Mojo';
     requires 'Test::Exception';
+    requires 'Test::Simple';
     requires 'File::Temp';
     requires 'IPC::Run3';
 };

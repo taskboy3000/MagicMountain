@@ -129,7 +129,7 @@ sub _faction_name ($self, $id) {
 sub _faction_icon ($self, $id) {
     return unless $id && $self->factions;
     for my $f (@{ $self->factions }) {
-        return '/images/' . $f->{icon} if $f->{id} eq $id && $f->{icon};
+        return 'images/' . $f->{icon} if $f->{id} eq $id && $f->{icon};
     }
     return;
 }
