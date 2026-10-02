@@ -16,7 +16,8 @@ sub describe ($value) {
     for my $tier (@TIERS) {
         return $tier->{label} if $value <= $tier->{max};
     }
-    return 'high';
+
+    die("assert - unhandled tier value '$value'");
 }
 
 1;

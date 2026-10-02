@@ -3,7 +3,6 @@ use Mojo::Base '-base', '-signatures';
 use YAML::XS qw(LoadFile);
 
 has content_file => sub { die "content_file is required" };
-has log          => sub { sub {} };
 
 my %PRIORITY = (
     faction_climate => 6,
