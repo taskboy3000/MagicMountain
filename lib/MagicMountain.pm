@@ -96,7 +96,7 @@ has defaultConfig => sub ($self) {
         pvp_bot_aggressiveness         => 0.20,
         pvp_pressure_max_age_days      => 7,
         onboarding_skill_unlock_scrap  => 100,
-        log_level                     => 'debug',
+        log_level                     => ($ENV{MM_LOG_LEVEL} // 'debug'),
         log_file                      => undef,
     }
 };
@@ -358,7 +358,7 @@ sub startup ($self) {
     if (my $path = $self->config->{log_file}) {
         $self->log(Mojo::Log->new(path  => $path));
     }
-    $self->log->level($self->config->{log_level} // 'debug');
+    $self->log->level($self->config->{log_level});
 
     if (ref ($self->config->{secrets} // '') eq ref []){
         $self->secrets($self->config->{secrets});
