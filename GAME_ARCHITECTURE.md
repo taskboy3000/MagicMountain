@@ -279,6 +279,7 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Activity::MarketVisit** | Prospecting logic, artifact push math |
 | **Activity::Pawn** | MarketVisit logic, faction standing, normal bazaar customer state |
 | **Activity::BlackMarket (future state)** | MarketVisit logic, faction standing, normal bazaar customer state |
+| **Helper::ActivityValueLabel | View helper that shows pretty artifact value labels |
 | **Shed** (inventory manager) | Market, Faction objects, Account model |
 | **Model::Character** | Game math, artifact logic, state mutation outside of CRUD |
 | **Model::ShedItem** | Game logic, decay math, faction rules |
@@ -294,7 +295,6 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Nav** (Controller::Nav) | Game logic, character data |
 | **Skills** / **CERTS** (YAML loader) | Game logic, character state |
 | **Maintenance** | Game math, artifact logic, character internals |
-| **ValueTier** (pure function) | App reference, game state, model objects |
 | **Artifact** / **Customer** (view models) | Game logic, persistence |
 | **Content** (YAML helpers) | Model persistence, game rules, URL construction |
 | **SeasonReport** (recap builder) | Model objects, app reference, game logic, formatting, HTML |
@@ -722,7 +722,7 @@ When a player stops (not collapse, not breakthrough):
 No buyer offers are generated at stop time. Selling is a separate activity.
 
 **Player-facing value**: The player never sees the exact `decayed_value`.
-What is shown is either a fuzzy tier label (via `ValueTier::describe`) or the
+What is shown is either a fuzzy artifact label (via `ArtifactValueLabel::value_label`) or the
 estimated range (`estimated_value_min`–`estimated_value_max`). The raw
 `decayed_value` and `original_value` are server-only — they are computed and
 stored but never rendered to the player.
@@ -2378,7 +2378,7 @@ magic_mountain/
 │   ├── Model/*.pm                    # Persistence (Character, Account, Season, ShedItem, etc.)
 │   ├── Service/*.pm                  # Extracted logic (Authentication, DailyMaintenance, RandomEvents, etc.)
 │   ├── Activity.pm, Controller.pm, Model.pm  # Base classes
-│   ├── Maintenance.pm, Crier.pm, ShedManager.pm, ValueTier.pm
+│   ├── Maintenance.pm, Crier.pm, ShedManager.pm
 │   └── Artifact.pm, Customer.pm, SeasonReport.pm  # View models
 ├── templates/                        # .ep templates (one per controller)
 ├── public/css/app.css, public/js/game.js

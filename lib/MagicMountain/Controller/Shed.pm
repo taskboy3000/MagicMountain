@@ -116,7 +116,7 @@ sub _enriched_items ($items, $is_secondary, $skill, $icon_base, $banned_lookup =
             icon        => $icon_base . '/artifact_' . $aid . '.svg',
             condition   => $item->getCol('condition'),
             tags        => $skill >= 1 ? join(', ', @$behaviors) : '-',
-            value_label => $item->value_label,
+            current_value => $item->current_value,
             days        => $item->getCol('days_in_shed'),
             behaviors   => $behaviors,
             banned      => $banned,

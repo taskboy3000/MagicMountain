@@ -116,7 +116,8 @@ subtest 'climate premium badge in shed fragment' => sub {
     my $season = MagicMountain::Model::Season->new(file => "$ENV{MM_DATA_DIR}/seasons.json");
     $season->load;
     my $s = $season->find(sub { 1 })->[0];
-    $s->setCol('faction_climate', {
+    if ($s) {
+        $s->setCol('faction_climate', {
         dominant_faction_name => 'The Syndicate',
         intensity_label => 'Intense',
         intensity => 2,
@@ -125,9 +126,9 @@ subtest 'climate premium badge in shed fragment' => sub {
             market_summary => 'Rich buyers',
         },
         town_crier => { hint => 'test' },
-    });
-    $s->save;
-
+        });
+        $s->save;
+    }
     $t->get_ok('/shed?_format=fragment')->status_is(200);
     my $html = $t->tx->res->body;
     like($html, qr/mm-text-amber/, 'climate premium badge class present');

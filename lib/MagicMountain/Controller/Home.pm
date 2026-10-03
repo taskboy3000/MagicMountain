@@ -33,7 +33,7 @@ sub show ($self) {
                 label_full  => $aid,
                 icon        => $self->url_for('/images') . '/artifact_' . $aid . '.svg',
                 condition   => $item->getCol('condition'),
-                value_label => $item->value_label,
+                current_value => $item->current_value,
                 days        => $item->getCol('days_in_shed'),
                 behaviors   => $behaviors,
                 tags        => $skill >= 1 ? join(', ', @$behaviors) : '-',

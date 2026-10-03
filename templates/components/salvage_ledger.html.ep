@@ -15,7 +15,7 @@
           </div>
           <div class="mm-ledger-card__info">
             <div class="mm-ledger-card__name"><%= $item->{label} %></div>
-            <div class="mm-ledger-card__detail">Valuation: <%= $item->{value_label} // '?' %></div>
+            <div class="mm-ledger-card__detail">Valuation: <%= artifact_value_label($item->{current_value}) // '?' %></div>
 % if ($show_tags) {
 %   my $cpt = stash('climate_premium_traits') // [];
 %   my $has_match = $item->{behaviors} && grep { my $t = $_; grep { $t eq $_ } @$cpt } @{$item->{behaviors}};

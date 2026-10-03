@@ -1,8 +1,6 @@
 package MagicMountain::Model::ShedItem;
 use Mojo::Base 'MagicMountain::Model', '-signatures';
 
-use MagicMountain::ValueTier;
-
 has columns => sub ($self) {
     my $cols = $self->defaultColumns;
     return [ @$cols, qw(
@@ -15,8 +13,8 @@ has columns => sub ($self) {
     )];
 };
 
-sub value_label ($self) {
-    MagicMountain::ValueTier::describe($self->getCol('decayed_value') // $self->getCol('original_value') // 0);
+sub current_value ($self) {
+    return $self->getCol('decayed_value') // $self->getCol('original_value') // 0;
 }
 
 1;

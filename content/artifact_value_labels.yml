@@ -1,0 +1,16 @@
+---
+tiers:
+  - label: negligible
+    max: 5
+  - label: low
+    max: 10
+  - label: middling
+    max: 20
+  - label: ordinary
+    max: 35
+  - label: uncommon
+    max: 55
+  - label: rare
+    max: 80
+  - label: high
+    max: 999    

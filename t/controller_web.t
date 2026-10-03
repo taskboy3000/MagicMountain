@@ -60,8 +60,7 @@ subtest 'prospecting show returns JSON without _format' => sub {
       ->status_is(200)
       ->json_has('/prospecting')
       ->json_has('/prospecting/id')
-      ->json_has('/prospecting/stage')
-      ->json_has('/prospecting/value_tier');
+      ->json_has('/prospecting/stage');
 };
 
 subtest 'market show returns JSON without _format' => sub {

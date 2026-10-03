@@ -98,6 +98,29 @@ with defaults are applied by `_apply_defaults()` in
 | `settling_day` | `2` | Day number when artifact transitions from `fresh` to `settling`. |
 | `fading_day` | `5` | Day number when artifact transitions from `settling` to `fading`. Must be > settling_day. |
 
+### Value tier labels (artifact_value_labels.yml)
+
+**File**: `content/artifact_value_labels.yml`
+
+Display band for an artifact's current value (shed card, prospecting scan).
+Presentation only — no game logic, bot policy, or bot JSON reads these labels.
+Bots read the raw `decayed_value` off `/shed` instead.
+
+| Field | Default | What it affects |
+|-------|---------|-----------------|
+| `tiers` | *(see below)* | Ordered list of `{label, max}` bands. The first tier whose `max` is greater than or equal to the value wins, so **keep the list ascending by `max`**. Values above the last tier fall back to that tier's label. |
+
+```yaml
+tiers:
+  - { label: negligible, max: 5   }
+  - { label: low,        max: 10  }
+  - { label: middling,   max: 20  }
+  - { label: ordinary,   max: 35  }
+  - { label: uncommon,   max: 55  }
+  - { label: rare,       max: 80  }
+  - { label: high,       max: 999 }
+```
+
 ---
 
 ## 3. Collapse Math (hardcoded in Prospecting.pm)

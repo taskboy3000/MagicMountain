@@ -54,8 +54,10 @@ HTML
 
     my $format = $self->param('_format');
     if ($format && $format eq 'fragment') {
-        $self->stash(artifact => $artifact, actions => \@actions,
-            event => $activity->artifact->{_event_text} ? { text => $activity->artifact->{_event_text} } : undef);
+        $self->stash(artifact => $artifact,
+                     actions => \@actions,
+                     event => $activity->artifact->{_event_text}
+                     ? { text => $activity->artifact->{_event_text} } : undef);
         return $self->render('prospecting/scan', layout => undef);
     }
 

@@ -21,6 +21,7 @@ use MagicMountain::Activity::MarketVisit;
 use MagicMountain::Activity::Pawn;
 use MagicMountain::Activity::Prospecting;
 use MagicMountain::Crier;
+use MagicMountain::Helper::ArtifactValueLabel;
 use MagicMountain::Maintenance;
 use MagicMountain::Model::Account;
 use MagicMountain::Model::Activity;
@@ -155,6 +156,12 @@ has transcript => sub ($self) {
     MagicMountain::Model::Transcript->new(
         file => $self->dataDir . '/transcript.jsonl',
     );
+};
+
+has artifact_value_label => sub ($self) {
+    MagicMountain::Helper::ArtifactValueLabel->new(
+                                                   content_file => $self->home . '/content/artifact_value_labels.yml'
+                                                  );
 };
 
 sub log_event ($self, $event, $category) {
@@ -374,6 +381,9 @@ sub startup ($self) {
     if (!-e $self->dataDir) {
         mkdir $self->dataDir or die("Cannot make dataDir[$!]: " . $self->dataDir);
     }
+
+
+    $self->install_helpers();
 
     if (!$ENV{MM_SKIP_CATCHUP} && !$self->ensureActiveSeason) {
         $self->log->warn("No active season. Game controller will auto-create one on first visit.");
@@ -664,6 +674,19 @@ sub ensureActiveSeason ($self) {
 
     return 1;
 }
+
+
+sub install_helpers ($self) {
+    my %helpers = (
+                   artifact_value_label => sub ($c, $value) {
+                       return $c->app->artifact_value_label->value_label($value);
+                   }
+                  );
+
+
+    return $self->helper(%helpers);
+}
+
 
 =head1 CONFIGURATION
 
