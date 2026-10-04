@@ -33,7 +33,32 @@ sub run_day ($self, $maint) {
         $char->save;
     }
 
-    $self->app->shed_manager->apply_decay;
+    # Compute each shed item's decayed value
+    my $shed = $self->app->shed;
+    $shed->load;
+
+    for my $id (keys %{ $shed->table }) {
+        my $item = $shed->get($id) or next;
+        my ($decayed_value, $multipler) = $item->apply_daily_decay();
+        # ensure updated row data
+        $item = $shed->get($id);
+        $self->app->log_event({
+            type         => 'decay_tick',
+            shed_item_id => $item->getCol('id'),
+            char_id      => $item->getCol('char_id'),
+            artifact_id  => $item->getCol('artifact_id'),
+            days_in_shed => $item->getCol('days_in_shed'),
+            condition    => $item->getCol('condition'),
+            decayed_value => $decayed_value,
+            multiplier    => sprintf('%.4f', $multipler),
+            narrative     => sprintf("%s day %d: %s (value %d, mult %s).",
+                $item->getCol('artifact_id') // 'unknown',
+                $item->getCol('days_in_shed'), 
+                $item->getCol('condition'), 
+                $decayed_value, 
+                sprintf('%.2f', $multipler))
+        }, 'shed');
+    }
 
     my $fs = $season->getCol('faction_state') // {};
     for my $fid (keys %$fs) {

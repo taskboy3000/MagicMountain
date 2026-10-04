@@ -49,7 +49,6 @@ use MagicMountain::Service::RandomEvents;
 use MagicMountain::Service::SeasonManager;
 use MagicMountain::Service::SkillTraining;
 use MagicMountain::Service::Suggestion;
-use MagicMountain::ShedManager;
 
 has configFile => sub ($self) {
     $ENV{MM_CFG_FILE} || $self->home . '/' . $self->moniker . '.yml';
@@ -140,10 +139,6 @@ has shed => sub ($self) {
         file => $self->dataDir . '/shed.json',
         log  => $self->log,
     );
-};
-
-has shed_manager => sub ($self) {
-    MagicMountain::ShedManager->new(app => $self);
 };
 
 has crier => sub ($self) {

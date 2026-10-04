@@ -182,9 +182,6 @@ sub run ($self, @args) {
     my $svc_token = $app->config->{bot_service_token} // 'sim-token';
     $app->config->{bot_service_token} = $svc_token;
 
-    # Enable shed transcript logging
-    $app->shed_manager->log_transcript(1);
-
     # Run simulation
     my $maint = $app->maintenance;
     my @chars = @bot_chars;
