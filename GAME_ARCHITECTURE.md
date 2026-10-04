@@ -297,7 +297,6 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Maintenance** | Game math, artifact logic, character internals |
 | **Artifact** / **Customer** (view models) | Game logic, persistence |
 | **Content** (YAML helpers) | Model persistence, game rules, URL construction |
-| **SeasonReport** (recap builder) | Model objects, app reference, game logic, formatting, HTML |
 | **Service::SkillTraining** | Game rules, view logic, URL construction |
 | **Service::Navigation** | Game rules, persistence, template rendering |
 | **Service::SeasonManager** | — |
@@ -2379,7 +2378,7 @@ magic_mountain/
 │   ├── Service/*.pm                  # Extracted logic (Authentication, DailyMaintenance, RandomEvents, etc.)
 │   ├── Activity.pm, Controller.pm, Model.pm  # Base classes
 │   ├── Maintenance.pm, Crier.pm, ShedManager.pm
-│   └── Artifact.pm, Customer.pm, SeasonReport.pm  # View models
+│   └── Artifact.pm, Customer.pm  # View models
 ├── templates/                        # .ep templates (one per controller)
 ├── public/css/app.css, public/js/game.js
 ├── content/                          # YAML: artifacts, factions, skills, bots, events, flavor

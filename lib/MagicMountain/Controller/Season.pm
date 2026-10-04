@@ -1,8 +1,6 @@
 package MagicMountain::Controller::Season;
 use Mojo::Base 'MagicMountain::Controller', '-signatures';
 
-use MagicMountain::SeasonReport;
-
 sub recap ($self) {
     my $player_id = $self->current_player;
     return $self->rendered(204) unless $player_id;
@@ -32,26 +30,16 @@ sub recap ($self) {
 
     my $standing  = $rec->getCol('faction_standing_snapshot') // {};
     my $highlights = $rec->getCol('story_highlights') // {};
+    my $season_label = $season->getCol('label');
+    my $logger = sub ($event) { $self->app->log_event($event, 'season') };
 
-    my $report = MagicMountain::SeasonReport->new(
-        final_score  => $rec->getCol('final_score') // 0,
-        final_scrap  => $rec->getCol('final_scrap') // 0,
-        rank         => $rec->getCol('rank') // 0,
-        standing     => $standing,
-        highlights   => $highlights,
-        season_label => $season->getCol('label'),
-        factions     => $factions,
-        log          => sub ($event) { $self->app->log_event($event, 'season') },
-    );
-    my $sections = $report->build;
-    my $standing_rows = $report->build_standing_rows;
-
+    my ($sections, $standing_rows) = $rec->build_season_report($factions, $logger);
     $self->stash(
         sections      => $sections,
-        season_label  => $season->getCol('label'),
-        final_score   => $rec->getCol('final_score'),
-        final_scrap   => $rec->getCol('final_scrap'),
-        rank          => $rec->getCol('rank'),
+        season_label  => $season_label,
+        final_score   => $rec->getCol('final_score') // 0,
+        final_scrap   => $rec->getCol('final_scrap') // 0,
+        rank          => $rec->getCol('rank') // 0,
         standing_rows => $standing_rows,
         dismiss_url   => $self->url_for('result_dismiss'),
         redirect_url  => $self->url_for('game'),
@@ -65,9 +53,9 @@ sub recap ($self) {
     $self->render(json => {
         ok           => 1,
         season_label => $season->getCol('label'),
-        final_score  => $rec->getCol('final_score'),
-        final_scrap  => $rec->getCol('final_scrap'),
-        rank         => $rec->getCol('rank'),
+        final_score  => $rec->getCol('final_score') // 0,
+        final_scrap  => $rec->getCol('final_scrap') // 0,
+        rank         => $rec->getCol('rank') // 0,
         standing     => $standing,
         highlights   => $highlights,
         sections     => $sections,
