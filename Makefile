@@ -51,7 +51,7 @@ perlcritic-brutal:
 	@find . -name '*.pl' -o -name '*.pm' -o -name '*.t' -type f \
 	  | xargs perlcritic --severity 5 --verbose 8
 
-verify: check-columns check-unintended-files check-doc-consistency check-log-event-category check-style check-boundary-rules
+verify: check-columns check-unintended-files check-doc-consistency check-log-event-category check-style
 	@echo "=== All verification checks passed ==="
 
 verify-coverage:
@@ -77,13 +77,10 @@ check-unintended-files:
 check-doc-consistency:
 	@perl -Ilib bin/check_doc_consistency
 
-check-boundary-rules:
-	@perl bin/check_boundary_rules
-
 check-log-event-category:
 	@perl -Ilib bin/check_log_event_category
 
-.PHONY: indent ci-check verify verify-coverage check-columns check-unintended-files check-doc-consistency check-log-event-category check-boundary-rules test-budget test-budget-baseline
+.PHONY: indent ci-check verify verify-coverage check-columns check-unintended-files check-doc-consistency check-log-event-category test-budget test-budget-baseline
 indent:
 	@echo "Finding Perl files..."
 	@find . -name '*.pl' -o -name '*.pm' -o -name '*.t' -type f \

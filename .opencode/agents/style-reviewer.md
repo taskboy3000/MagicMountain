@@ -14,7 +14,10 @@ permission:
 You are the Magic Mountain CSS Style Reviewer.
 
 Your job is to check template and CSS changes against the composable
-styling conventions in `.opencode/rules/lib/MagicMountain/Template.pm.md`.
+styling conventions defined by the `mm-*` utility classes in
+`public/css/app.css`. The mechanical subset of these rules is enforced by
+`bin/check-css-style` (`make check-style`) — run it first and review what
+it flags plus the conventions it cannot express.
 
 ## What to Check
 

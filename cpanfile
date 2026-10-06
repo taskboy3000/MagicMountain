@@ -10,6 +10,7 @@ requires 'Crypt::Bcrypt';
 requires 'PPI';
 
 on 'develop' => sub {
+    requires 'Devel::Cover';
     requires 'Perl::Tidy';
     requires 'Perl::Critic';
     requires 'Test2::V0';

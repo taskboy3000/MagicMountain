@@ -92,7 +92,8 @@ from this rule.
 - **Season lifecycle tests exercise production entry points**: Tests that verify season creation, finalization, catch-up maintenance, or bot seeding MUST call the actual production methods (`ensureActiveSeason`, `seed_bots`, `DailyMaintenance::catch_up_missed_cycles`, `SeasonFinalizer::finalize`, `SeasonManager::ensure_season`). Direct model construction (`->create(id => ..., ...)->save`) is acceptable for domain-unit tests (policies, pure functions) and for pre-condition setup, but must not be the only coverage for lifecycle paths. Each lifecycle code path must have at least one test that reaches it through its production caller.
 - **Completion checklist**: Route exercised, stash vars verified, new methods
   tested, no State internals accessed, transcript through `_log_event`,
-  boundary rules updated for new/changed responsibilities, tests pass reported.
+  `GAME_ARCHITECTURE.md` boundary tables updated for new/changed
+  responsibilities, tests pass reported.
 - **JavaScript: ES2015+**. `'use strict'` at file scope, no IIFE. `let`/`const`
   only, never `var`. Arrow functions for anonymous callbacks.
   `URLSearchParams` for dynamic query params, never string concatenation.
@@ -174,24 +175,13 @@ $model->save_table;          # one write for all changes
 
 ---
 
-## Module Boundary Rules (`.opencode/rules/`)
+## Module Boundaries
 
-Each `.opencode/rules/lib/MagicMountain/<Module>.pm.md` encodes architectural
-invariants for one source module: what it **must** do, what it **must not**
-do, and signs of drift. These are loaded automatically when editing the
-matching `.pm` file and are consumed by the `boundary-review` skill.
-
-**File format**: Standard markdown with sections:
-- `# Module.pm — Module Boundary Rules` title
-- `## Responsibilities` — what the module owns
-- `## Constraints (MUST NOT)` — forbidden dependencies and access patterns
-- `## Signs of a Violation` — concrete code patterns to flag in review
-
-**When to update**: Whenever a source module gains, loses, or changes a
-responsibility. Corollary: if you add a cross-module dependency in code,
-it must also appear in the rule file (as either a new allowed pattern or
-a clarified constraint). Run `/arch-review` after updating to verify
-consistency.
+Per-module boundary rules live in `GAME_ARCHITECTURE.md` §4 — the Module
+Boundary Table, plus the Base Model Constraints and Immutable Record Models
+subsections. The invariants that are mechanically checked live in
+`t/architecture.t`; `make verify` runs the structural gates. When a module
+gains, loses, or changes a responsibility, update §4 and run `/arch-review`.
 
 ### Global config (`~/.config/opencode/`)
 
@@ -202,7 +192,7 @@ projects (not just this one):
 |-----------|---------|
 | `agents/` | Custom subagent types (arch-reviewer, completion-checker, impl-reviewer) |
 | `commands/` | Slash commands (e.g. `/implement`, `/arch-review`) |
-| `skills/` | Automated workflows (boundary-review, perl-check, planning, implement, plan-analyze) |
+| `skills/` | Automated workflows (perl-check, planning, implement, plan-analyze) |
 
 These match the same named directories under this project's `.opencode/`,
 where project-specific overrides live (agents, skills).
@@ -215,5 +205,5 @@ where project-specific overrides live (agents, skills).
 |---------|-----------|
 | Game design | `docs/` + `GAME_ARCHITECTURE.md` |
 | Codebase structure | `GAME_ARCHITECTURE.md` (directory layout) |
-| Module boundary rules | `.opencode/rules/` — see section above |
+| Module boundary rules | `GAME_ARCHITECTURE.md` §4 — see section above |
 | Conventions & standards | This file |

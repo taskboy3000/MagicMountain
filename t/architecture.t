@@ -7,7 +7,6 @@ use TestEnv;
 # ── Boundary: Activities and Transcript ────────────────────────────
 # Activities must not call $self->app->transcript directly.
 # They inherit _log_event() from MagicMountain::Activity for transcript writes.
-# AGENTS.md: "Transcript writes only through _log_event"
 
 my @activity_files = grep { -f } glob("$FindBin::Bin/../lib/MagicMountain/Activity/*.pm");
 for my $file (@activity_files) {
@@ -23,7 +22,6 @@ for my $file (@activity_files) {
 # ── Boundary: Controller row access ────────────────────────────────
 # Controllers must not access ->row directly; they should use getCol/setCol.
 # Exception: Controller/Game.pm reads $char_model->row for pending_activity_id.
-# AGENTS.md: "No State internals reached by leaf objects"
 
 my @controller_files = grep { -f } glob("$FindBin::Bin/../lib/MagicMountain/Controller/*.pm");
 for my $file (@controller_files) {
@@ -39,7 +37,6 @@ for my $file (@controller_files) {
 
 # ── Boundary: Template model mutations ─────────────────────────────
 # Templates are pure renderers. They must not call model mutation methods.
-# AGENTS.md: "Templates — pure iterators"
 
 my @template_files = grep { -f } glob("$FindBin::Bin/../templates/**/*.html.ep");
 for my $file (@template_files) {

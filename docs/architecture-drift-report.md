@@ -15,6 +15,8 @@ of the summary table (§6).
 
 Every `.pm` file under `lib/MagicMountain/Controller/`, `lib/MagicMountain/Model/`, `lib/MagicMountain/Service/`, `lib/MagicMountain/Activity/`, and every `.html.ep` file under `templates/` was examined against the architectural constraints defined in `AGENTS.md` and `.opencode/rules/`.
 
+> **Note (2026-10-05)**: the `.opencode/rules/` prose rule files referenced below have been removed. Their surviving constraints live in `GAME_ARCHITECTURE.md` §4 (Module Boundary Table, Base Model Constraints, Immutable Record Models) and `AGENTS.md`. The open items in this report are still valid and still unfixed — read them against those documents, not against the deleted rule files.
+
 Violations are categorized by layer, with file:line references and code context.
 
 ---

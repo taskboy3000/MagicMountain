@@ -321,6 +321,38 @@ critical invariant — the "May Hold" column is implied by module name.
 | **Faction** (buyer definition) | Character data, player identity |
 | **Bot** (automated player) | In-process game logic or direct persistence (takes turns via `bot-turn` external command; uses `Bot::Agent` for HTTP to daemon) |
 
+### Base Model Constraints
+
+The rows above are per-module. `MagicMountain::Model` imposes four constraints on
+every model subclass:
+
+- **MUST NOT** call `$self->app-><model>` or `$self->app-><activity>` to reach
+  another domain object. Cross-model orchestration belongs in a service
+  (`Service::*`), which may use the model APIs.
+- **MUST NOT** call `->save()` on any object other than `$self`. Persisting
+  another object is cross-model orchestration.
+- **MUST NOT** assemble view data. Return raw column values only — no `label`,
+  `icon`, `action_url`, or other display-shaped keys. View assembly belongs in a
+  service or controller.
+- **MUST NOT** encode game rules (`if ($ap >= 2)`, cost checks, eligibility
+  checks). These belong in an activity or service.
+
+`validate()` and `validate_save()` are the one place models may hold a condition —
+data integrity only (score never decreases, scrap non-negative, AP within max).
+
+### Immutable Record Models
+
+Five models are append-only or write-once archives. They MUST NOT be mutated
+after creation, and MUST NOT be read to make game-state decisions:
+
+| Model | Mutability | Notes |
+|-------|-----------|-------|
+| `Model::ArtifactDisposition` | write-once | permanent archive of a completed sale |
+| `Model::SeasonRecord` | write-once | post-season archive, survives character deletion |
+| `Model::FactionSnapshot` | write-once | daily faction history |
+| `Model::AuditLog` | append-only | never delete or modify existing entries |
+| `Model::Transcript` | append-only | reporting and debugging only; never read for game state |
+
 ### Constructor Checklist for Activity Subclasses
 
 An Activity subclass receives:
@@ -328,6 +360,12 @@ An Activity subclass receives:
 - **app** — application reference (for logging)
 - **content_filename** — full path to the activity's YAML content file
 - **log** — logger trampoline (defaults to `$self->app->log`)
+
+A subclass MUST NOT receive: a character model (it arrives per-call as the
+`$char` argument to `dispatch`), a Market, Faction, or Content object, or a
+transcript handle. External data that a handler needs (current day, season
+state, faction standing) is passed as a method parameter from the caller —
+a handler must not reach back through `$self->app` for game state.
 
 The global instance (e.g. `$app->prospecting`) is constructed once at startup and
 calls `load_content` to parse the YAML file into `content_data`. Per-request
@@ -348,9 +386,14 @@ Controllers are dumb pipes. Their entire job:
 1. Resolve player identity via `$self->current_player`
 2. Load the character model via `$self->app->characters->find(...)`
 3. Read `pending_activity_id` from the character
-4. Load or create the activity row:
-   - `$id = $char->getCol('pending_activity_id')`
-   - `$activity = $id ? $self->app->prospecting->get($id) : $self->app->prospecting->create(char_id => $char->getCol('id'))`
+4. Start or resume the activity. **Never call `create()` on an activity model
+   from a controller** — activity-row lifecycle belongs inside `begin_activity`:
+   - To begin: `$result = $self->app->prospecting->begin_activity($char, %params)`
+     This is create-or-reset + dispatch in one call: it loads the row at
+     `pending_activity_id`, discards it if its phase is not `idle`, creates a
+     fresh row, and dispatches `begin`.
+   - For a non-`begin` action:
+     `$activity = $self->app->prospecting->get($char->getCol('pending_activity_id'))`
 5. Delegate to the activity: `$activity->dispatch($char, $action, %params)`
 6. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
 
@@ -1405,6 +1448,14 @@ then calls `_rollover` **directly** — the window closes by the deadline even i
 the kill signal is never delivered and the completion callback never fires.
 All three close paths are idempotent.
 
+**The watchdog check must precede the `next_run` gate** in `dailyMaintenance`.
+`next_run` is advanced when the window *opens*, so by the time a stalled window
+needs force-closing, the `next_run > now` test already short-circuits and the
+tick would return without ever reaching the watchdog. The watchdog is therefore
+evaluated first, inside the `bot_window_open` branch, so it fires on every tick
+for as long as the window is open. Reordering these two checks silently disables
+the watchdog and lets a lost subprocess signal wedge the server until restart.
+
 **`on_maintenance` callback** (day-rollover logic — no bot runs here):
 
 This callback is the single place where day-advancement logic lives. It
@@ -1589,6 +1640,11 @@ from the global instance to the new instance.
 `transitions` table, checks handler exists via `$self->can($action)`,
 delegates to `$self->$action($char, %params)`. Handlers set phase directly
 (`$self->phase('processing')`) — no `next_phase` or serialize ceremony.
+
+An illegal transition is a hard `die`, not a graceful 400. The game should never
+generate an illegal request — if it does, the bug is in the caller, and failing
+loudly at the boundary is what surfaces it. Bots cannot skip phases because the
+table is consulted on every dispatch, including theirs.
 
 **Content loading**: `load_content` calls `LoadFile($self->content_filename)`
 once, stores in `content_data`. Propagated to per-request instances via
