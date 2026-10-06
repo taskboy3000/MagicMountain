@@ -397,6 +397,16 @@ Controllers are dumb pipes. Their entire job:
 5. Delegate to the activity: `$activity->dispatch($char, $action, %params)`
 6. Pipe the activity's `view` result to the template: `$self->render(json => $result->{view})`
 
+**Exception — activities with no `begin` action.** `begin_activity` hardcodes
+`dispatch($char, 'begin', ...)`, so it is unusable for an activity whose
+transition table has no `begin` entry. `Activity::Pawn` is the current case:
+`idle => [offer, dismiss]`, so its first action *is* `offer`. Such a controller
+may lazily `$activity //= $self->app->pawn->create(char_id => ...)` on first
+dispatch and leave the FK to the handler to set (see `Activity::Pawn::offer`,
+which writes `pending_activity_id` after `$self->save`). The restriction is on
+*lifecycle responsibility*, not on the literal `create()` call: the controller
+must not invent a row when a live non-matching activity already exists.
+
 No phase validation. No game math. No persistence orchestration. No transcript
 recording. The activity handler owns all persistence — character saves, activity
 saves, row deletion, shed item creation. Controllers trust `action_points` as

@@ -63,11 +63,22 @@ sub _activity_action ($self, $action, %params) {
     my $char = $self->_require_character or return;
     my $pawn = $self->pawn;
 
+    # Refuse while any OTHER activity is in flight. Without this guard the lazy
+    # create below repoints pending_activity_id at a fresh pawn row and silently
+    # orphans the in-progress activity, dropping whatever it was holding.
+    my $type = $self->_active_activity_type($char);
+    if ($type && $type ne 'pawn') {
+        return $self->render(json => {
+            ok    => 0,
+            error => 'Finish your current activity before trading with the broker.',
+        }, status => 400);
+    }
+
     my $id = $char->getCol('pending_activity_id');
     my $activity;
     if ($id) {
         $self->prospecting->load;
-    my $row = $self->prospecting->get($id);
+        my $row = $self->prospecting->get($id);
         if ($row && $row->getCol('type') eq 'pawn') {
             $activity = $pawn->get($id);
         }
