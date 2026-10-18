@@ -1,47 +1,67 @@
 <div class="mm-panel mm-panel-attention">
   <h2 class="mm-panel-header">
-    PB3K-OS v2.1 // OPERATOR ORIENTATION
-  </div>
+    PB3K-OS v2.1p207 // NEW PROSPECTOR ORIENTATION
+  </h2>
   <div class="mm-panel-body">
 
-    <p class="mm-text-amber" style="margin-top:0">WELCOME, EXTRACTOR.</p>
-    <p>This unit has been assigned to you by the Provisional Resource Authority. It is your primary interface for artifact recovery, assessment, and exchange.</p>
+    <p class="mm-text-amber" style="margin-top:0">WELCOME, Prospector!</p>
+    <p>International Prospecting Machines (IPM) is proud to present the latest model
+      in our most trusted product line, the ProspectBoy 3000 (PB3K).  This unit 
+      brings the latest advances in prospecting analytics and extraction management 
+      technologies available on the consumer market today.  It is your primary interface 
+      for artifact recovery, assessment, enhancement, and, of course, sale.</p>
 
-    <p class="mm-section-label">OBJECTIVE</p>
-    <p>Your task: extract artifacts from the mountain, maximize their value, and sell them to faction buyers at the Bazaar. Highest accumulated sale value across the season determines your standing.</p>
+    <p class="mm-section-label">Getting Started</p>
+
+    <p>Use your PB3K to locate and extract the most valuable artifacts from the anomalous 
+      and productive Magic Mountain.  The PB3K can help you modify these artifacts to 
+      achieve the highest price for your local market conditions.  
+      The highest performing prospector across a sales season will be rewarded!</p>
 
     <p class="mm-section-label">OPERATIONAL CYCLE</p>
+    <p>
+      Note: each of the following PB3K features may use a portion of daily energy called 
+      <em>Action Points</em> (AP).  The unit needs to be inactive for the AP to recharge.
+    </p>
+    <ol>
+      <li><strong>PROSPECT</strong> (cost: 2 AP)<br>
+        Scans the mountain to locate salable artifacts.
+        Once an artifact is extracted, its value can be increased using the 
+        <strong>PUSH</strong> function.  Careful!  Artifacts in poor condition may 
+        break with excessive modifications.
+      </li>
+      <li><strong>BAZAAR</strong> (cost: 1 AP)<br>
+        The Bazaar is a virtual, online marketplace that allows you to connect with 
+        buyers of different factions.  Selling to factions increases the faction's influence
+        on the local market.  Caveat venditor! 
+      </li>
+      <li><strong>PAWN</strong> (cost: 1 AP)<br>
+        Due to local market conditions, some items may not be legal to sell.  IPM recommends 
+        holding on to these items until local prohibitions change.  In the interests of full 
+        disclosure, there are unsanctioned third-party apps that will connect you to illegal 
+        vendors who will pay above market prices for your goods.  However, should your sale 
+        be discovered by the authorities, you will lose your artifact all together.
+      </li>
+      <li><strong>INTEL</strong> (cost: 0 AP)<br>
+        When local competition increases, you may wish to disadvantage your rivals with various 
+        promotional activities.  These activities cost you scrap and, perhaps, the respect of 
+        your peers. 
+      </li>
+      <li><strong>CERTS</strong> (cost: 0 AP)<br>
+        IPM is proud to offer these online courses to improve every aspect of your prospecting 
+        career.  Such lessons are available on an a la carte basis. 
+      </li>
+      
+    </ol>
 
-    <p><strong>1. PROSPECT</strong> (cost: 2 AP)<br>
-    Scan the mountain. The unit will locate a viable artifact.</p>
+    <p class="mm-section-label">THE SALE SEASON</p>
+    <p>
+      For tax purposes, each sales period is grouped into a season that runs for 30 days. 
+      Total sales determine final sales rank at the end of the season. 
+      A new season begins automatically because money never sleeps.</p>
 
-    <p><strong>2. PUSH</strong> (no AP cost, repeatable)<br>
-    Destabilize the artifact to increase its value. Each push raises the risk of total collapse. Stop before it breaks.</p>
-
-    <p><strong>3. STOP</strong> (no AP cost)<br>
-    Secure the artifact. It enters your shed with an estimated value range.</p>
-
-    <p><strong>4. SELL</strong> (cost: 1 AP)<br>
-    Visit the Bazaar. A faction buyer will approach. Offer items from your shed. Matching their interests yields higher offers.</p>
-
-    <p><strong>5. REPEAT</strong><br>
-    Continue until AP is exhausted. AP refreshes each day at 00:00.</p>
-
-    <p class="mm-section-label">ADDITIONAL FUNCTIONS</p>
-
-    <p><strong>CERTS</strong><br>
-    Purchase skill modules with scrap. Improves prospecting sensitivity, push stability, and negotiation outcomes.</p>
-
-    <p><strong>SHED</strong><br>
-    View recovered artifacts and their estimated values. Artifacts decay over time — sell before value drops.</p>
-
-    <p><strong>RIVALS</strong><br>
-    Faction leads are contested. Other operators may pressure your faction contacts — use the INTEL panel to apply pressure in return.</p>
-
-    <p class="mm-section-label">SEASON</p>
-    <p>Each season runs 30 days. Total sales determine final rank at season end. A new season begins automatically.</p>
-
-    <p class="mm-text-dim" style="font-size:0.68rem">This orientation will not repeat. Access it again via [?] in the status header.</p>
+    <p class="mm-text-dim" style="font-size:0.68rem">This orientation will not repeat. 
+      Access it again via [?] in the status header.</p>
 
     <button class="mm-btn mm-btn-primary mm-btn-block" style="margin-top:0.5rem"
       data-action-url="<%= $dismiss_url %>" data-method="POST"
